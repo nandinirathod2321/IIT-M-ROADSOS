@@ -156,20 +156,100 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
     context.go('/countdown');
   }
 
-  /// Simulates voice detection physically on mock devices
-  void _simulateVoiceTrigger() {
-    setState(() {
-      _wordsSpoken = "help roadsos";
-    });
-    Future.delayed(const Duration(milliseconds: 600), () {
-      _triggerVoiceSOS();
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<HomeBloc, HomeState>(
       builder: (context, state) {
+        // 1. Loading Screen State
+        if (state.isLoading && state.latitude == null) {
+          return const Scaffold(
+            backgroundColor: AppColors.primary,
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: AppColors.emergencyRed),
+                  SizedBox(height: 16),
+                  Text(
+                    "RESOLVING GPS POSITION...",
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textSecondary,
+                      letterSpacing: 1.5,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // 2. Permission / GPS Error State Screen
+        if (state.hasLocationError) {
+          return Scaffold(
+            backgroundColor: AppColors.primary,
+            body: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.emergencyRed.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.location_off_rounded,
+                        color: AppColors.emergencyRed,
+                        size: 64,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    Text(
+                      "GPS LOCATION ACCESS REQUIRED",
+                      textAlign: TextAlign.center,
+                      style: AppTypography.displayMedium.copyWith(fontSize: 28),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      state.locationErrorMessage.isNotEmpty
+                          ? state.locationErrorMessage
+                          : "RoadSOS requires real-time GPS coordinates to determine nearest hospitals, police, and towing services during a critical emergency.",
+                      textAlign: TextAlign.center,
+                      style: AppTypography.bodyLarge.copyWith(color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 48),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          context.read<HomeBloc>().add(const HomeStarted());
+                        },
+                        icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                        label: Text(
+                          "RETRY LOCATION ACCESS",
+                          style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 13, letterSpacing: 1.5),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.emergencyRed,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          elevation: 2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
         return Scaffold(
           backgroundColor: AppColors.primary,
           body: SafeArea(
@@ -216,8 +296,11 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
                           policeCount: state.nearbyPoliceCount,
                           towingCount: state.nearbyTowingCount,
                           contactsCount: state.contactsCount,
-                          onTap: (section) {
-                            context.go('/emergency?section=$section');
+                          onTap: (section) async {
+                            await context.push('/emergency?section=$section');
+                            if (context.mounted) {
+                              context.read<HomeBloc>().add(const HomeStarted());
+                            }
                           },
                         ),
 
@@ -285,33 +368,11 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
                                           ],
                                         ),
                                       ),
-                                      ElevatedButton(
-                                        onPressed: _simulateVoiceTrigger,
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: AppColors.emergencyRed.withOpacity(0.12),
-                                          elevation: 0,
-                                          minimumSize: Size.zero,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 8,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                        ),
-                                        child: Text(
-                                          "MOCK SAY",
-                                          style: AppTypography.labelCaps.copyWith(
-                                            color: AppColors.emergencyRed,
-                                            fontSize: 10,
-                                          ),
-                                        ),
-                                      ),
                                     ],
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    "Say 'Help RoadSOS' or click MOCK SAY to trigger",
+                                    "Say 'Help RoadSOS' to trigger",
                                     style: AppTypography.bodySmall.copyWith(
                                       fontSize: 10,
                                       color: AppColors.textMuted,
@@ -343,67 +404,6 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
                                 .read<HomeBloc>()
                                 .add(const HomeCrashDetectionToggled());
                           },
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        // Premium Hackathon Demo Mode Switch Card
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: AppColors.borderSubtle, width: 1),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.developer_mode_rounded,
-                                  size: 20,
-                                  color: AppColors.emergencyRed,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Hackathon Demo Mode',
-                                        style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.bold),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        state.isDemoMode
-                                            ? 'Ahmedabad location & active mesh locks ENABLED'
-                                            : 'Run offline simulations for presenters',
-                                        style: AppTypography.bodySmall.copyWith(
-                                          fontSize: 11,
-                                          color: state.isDemoMode
-                                              ? AppColors.emergencyRed
-                                              : AppColors.textSecondary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                SizedBox(
-                                  height: 28,
-                                  child: Switch(
-                                    value: state.isDemoMode,
-                                    onChanged: (_) {
-                                      context.read<HomeBloc>().add(const HomeDemoModeToggled());
-                                    },
-                                    activeThumbColor: AppColors.emergencyRed,
-                                    activeTrackColor: AppColors.emergencyRed.withOpacity(0.3),
-                                    inactiveThumbColor: AppColors.textMuted,
-                                    inactiveTrackColor: AppColors.surfaceAlt,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
                         ),
 
                         const SizedBox(height: 24),

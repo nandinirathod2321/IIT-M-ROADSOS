@@ -38,8 +38,4 @@ class HomeMeshStatusUpdated extends HomeEvent {
   List<Object?> get props => [status, nearbyDevicesCount];
 }
 
-class HomeDemoModeToggled extends HomeEvent {
-  const HomeDemoModeToggled();
-}
-
 enum ConnectivityType { wifi, mobile, offline }

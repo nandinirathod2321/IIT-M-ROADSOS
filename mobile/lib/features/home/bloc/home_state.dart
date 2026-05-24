@@ -19,7 +19,8 @@ class HomeState extends Equatable {
   final int nearbyTowingCount;
   final int contactsCount;
   final Hospital? nearestHospital;
-  final bool isDemoMode;
+  final bool hasLocationError;
+  final String locationErrorMessage;
 
   const HomeState({
     this.isLoading = true,
@@ -36,7 +37,8 @@ class HomeState extends Equatable {
     this.nearbyTowingCount = 0,
     this.contactsCount = 0,
     this.nearestHospital,
-    this.isDemoMode = false,
+    this.hasLocationError = false,
+    this.locationErrorMessage = '',
   });
 
   factory HomeState.initial() => HomeState(lastDbSync: DateTime.now());
@@ -75,7 +77,8 @@ class HomeState extends Equatable {
     int? contactsCount,
     Hospital? nearestHospital,
     bool clearHospital = false,
-    bool? isDemoMode,
+    bool? hasLocationError,
+    String? locationErrorMessage,
   }) {
     return HomeState(
       isLoading: isLoading ?? this.isLoading,
@@ -92,7 +95,8 @@ class HomeState extends Equatable {
       nearbyTowingCount: nearbyTowingCount ?? this.nearbyTowingCount,
       contactsCount: contactsCount ?? this.contactsCount,
       nearestHospital: clearHospital ? null : (nearestHospital ?? this.nearestHospital),
-      isDemoMode: isDemoMode ?? this.isDemoMode,
+      hasLocationError: hasLocationError ?? this.hasLocationError,
+      locationErrorMessage: locationErrorMessage ?? this.locationErrorMessage,
     );
   }
 
@@ -101,6 +105,6 @@ class HomeState extends Equatable {
         isLoading, latitude, longitude, address, connectivity,
         crashDetectionEnabled, meshStatus, nearbyDevicesCount, lastDbSync,
         nearbyHospitalCount, nearbyPoliceCount, nearbyTowingCount,
-        contactsCount, nearestHospital, isDemoMode,
+        contactsCount, nearestHospital, hasLocationError, locationErrorMessage,
       ];
 }

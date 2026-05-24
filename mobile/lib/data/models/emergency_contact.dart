@@ -7,6 +7,7 @@ class EmergencyContact extends Equatable {
   final String name;
   final String relationship;
   final String phone;
+  final String email;
 
   /// Whether this is the default / primary emergency contact.
   final bool isPrimary;
@@ -19,6 +20,7 @@ class EmergencyContact extends Equatable {
     required this.name,
     required this.relationship,
     required this.phone,
+    this.email = '',
     this.isPrimary = false,
     this.avatarEmoji = '👤',
   });
@@ -32,6 +34,7 @@ class EmergencyContact extends Equatable {
       name: map['name'] as String,
       relationship: map['relationship'] as String? ?? '',
       phone: map['phone'] as String,
+      email: map['email'] as String? ?? '',
       isPrimary: (map['isPrimary'] as int? ?? 0) == 1,
       avatarEmoji: map['avatarEmoji'] as String? ?? '👤',
     );
@@ -44,11 +47,12 @@ class EmergencyContact extends Equatable {
       'name': name,
       'relationship': relationship,
       'phone': phone,
+      'email': email,
       'isPrimary': isPrimary ? 1 : 0,
       'avatarEmoji': avatarEmoji,
     };
   }
 
   @override
-  List<Object?> get props => [id];
+  List<Object?> get props => [id, name, relationship, phone, email, isPrimary, avatarEmoji];
 }

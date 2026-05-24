@@ -1,6 +1,5 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -11,7 +10,7 @@ import '../../../data/database/database_helper.dart';
 import '../../crash_detection/crash_detector.dart';
 
 /// Interactive Settings Screen for RoadSOS.
-/// Provides configuration for Crash Detection, SOS settings, Emergency numbers, and data sync.
+/// Provides configuration for Crash Detection, SOS settings, and clean real-time data sync.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -29,13 +28,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _sosCountdown = 10;
 
   // Offline Data settings
-  int hospitalCount = 5;
-  int policeCount = 5;
   String _lastSync = "Yesterday, 14:32";
   bool _isSyncing = false;
 
   // Database metrics
-  int _dbRecordCount = 15;
+  int _dbRecordCount = 42;
   double _dbSizeKb = 32.0;
 
   @override
@@ -58,8 +55,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _sensitivityLabel = prefs.getString('sensitivity_label') ?? "Medium";
       _sosCountdown = prefs.getInt('sos_countdown') ?? 10;
       _lastSync = prefs.getString('last_sync') ?? "Yesterday, 14:32";
-      hospitalCount = prefs.getInt('hospital_count') ?? 5;
-      policeCount = prefs.getInt('police_count') ?? 5;
       _dbRecordCount = count;
       _dbSizeKb = sizeInBytes / 1024.0;
     });
@@ -76,19 +71,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     CrashDetector.instance.updateThresholds(accel: accel, gyro: gyro);
   }
 
-  /// Syncs local database nodes simulating an API request.
+  /// Syncs local database nodes by deleting and re-seeding the expanded seeder.
   Future<void> _syncData() async {
     if (_isSyncing) return;
     setState(() {
       _isSyncing = true;
     });
 
-    // 1. Re-seed SQLite database to simulate clean sync update
     final database = await _db.database;
+    await database.delete('hospitals');
+    await database.delete('police_stations');
+    await database.delete('towing_services');
     await _db.seedDemoData(database);
 
-    // 2. Simulate API fetch delay
-    await Future.delayed(const Duration(seconds: 2));
+    // Simulate API fetch delay
+    await Future.delayed(const Duration(milliseconds: 1200));
 
     final now = DateTime.now();
     final formattedTime = "Today, ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
@@ -99,8 +96,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     setState(() {
       _isSyncing = false;
-      hospitalCount = 5;
-      policeCount = 5;
       _lastSync = formattedTime;
       _dbRecordCount = count;
       _dbSizeKb = sizeInBytes / 1024.0;
@@ -108,8 +103,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('last_sync', _lastSync);
-    await prefs.setInt('hospital_count', hospitalCount);
-    await prefs.setInt('police_count', policeCount);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -124,56 +117,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Starts the full simulation flow for crash detection and rescue routing.
-  void _startDemo() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: AppColors.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          title: Text(
-            "Demo Mode",
-            style: AppTypography.headlineMedium.copyWith(color: Colors.white),
-          ),
-          content: Text(
-            "Simulates crash detection without making real emergency calls.",
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                "CANCEL",
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context); // Pop dialog
-                context.go(
-                  '/countdown',
-                  extra: CrashEvent(
-                    timestamp: DateTime.now(),
-                    lat: null,
-                    lng: null,
-                    severity: "HIGH",
-                    accelMagnitude: 45.0,
-                    gyroMagnitude: 8.0,
-                  ),
-                );
-              },
-              child: const Text(
-                "START DEMO",
-                style: TextStyle(color: AppColors.emergencyRed, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   /// Displays the modal sensitivity picker for sensors.
   void _showSensitivityPicker() {
     showModalBottomSheet(
@@ -186,48 +129,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
       builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter modalSetState) {
-            return Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "DETECTION SENSITIVITY",
+                style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              Column(
                 children: [
-                  Text(
-                    "DETECTION SENSITIVITY",
-                    style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary),
+                  _buildSensitivityOption(
+                    context,
+                    "Low",
+                    "Fewer false alarms. May miss minor impacts.",
+                    35.0,
+                    6.0,
                   ),
-                  const SizedBox(height: 16),
-                  Column(
-                    children: [
-                      _buildSensitivityOption(
-                        context,
-                        "Low",
-                        "Fewer false alarms. May miss minor impacts.",
-                        35.0,
-                        6.0,
-                      ),
-                      _buildSensitivityOption(
-                        context,
-                        "Medium",
-                        "Balanced. Recommended for most users.",
-                        25.0,
-                        4.0,
-                      ),
-                      _buildSensitivityOption(
-                        context,
-                        "High",
-                        "Very sensitive. May have false alarms on bumpy roads.",
-                        18.0,
-                        2.5,
-                      ),
-                    ],
+                  _buildSensitivityOption(
+                    context,
+                    "Medium",
+                    "Balanced. Recommended for most users.",
+                    25.0,
+                    4.0,
+                  ),
+                  _buildSensitivityOption(
+                    context,
+                    "High",
+                    "Very sensitive. May trigger on bumpy roads.",
+                    18.0,
+                    2.5,
                   ),
                 ],
               ),
-            );
-          },
+            ],
+          ),
         );
       },
     );
@@ -321,7 +260,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// Helper list-tile item for uniform settings entries.
+  /// Helper list-tile item for settings entries.
   Widget _SettingsTile({
     required String title,
     String? subtitle,
@@ -360,14 +299,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-            ?trailing,
+            if (trailing != null) trailing,
           ],
         ),
       ),
     );
   }
 
-  /// Builds structured segment headers.
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.only(top: 24, left: 16, right: 16, bottom: 8),
@@ -378,7 +316,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// Renders emergency direct call buttons.
   Widget _NumberRow(String emoji, String label, String number) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -476,8 +413,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
 
-                    // EMERGENCY NUMBERS SECTION
-                    _buildSectionHeader("EMERGENCY NUMBERS"),
+                    // EMERGENCY HOTLINES SECTION
+                    _buildSectionHeader("EMERGENCY HOTLINES"),
                     Container(
                       margin: const EdgeInsets.symmetric(horizontal: 16),
                       decoration: BoxDecoration(
@@ -496,10 +433,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                           ),
                           const Divider(color: AppColors.borderSubtle, height: 1),
-                          _NumberRow("🚑", "Ambulance", "108"),
-                          _NumberRow("🚔", "Police", "100"),
-                          _NumberRow("🔥", "Fire", "101"),
-                          _NumberRow("📞", "National", "112"),
+                          _NumberRow("🚔", "Police Control Room", "100"),
+                          _NumberRow("📞", "National Single Hotline", "112"),
                         ],
                       ),
                     ),
@@ -531,22 +466,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       trailing: Text(
                         _lastSync,
                         style: AppTypography.monoMedium.copyWith(fontSize: 12, color: AppColors.textSecondary),
-                      ),
-                    ),
-
-                    // HACKATHON DEMO SECTION
-                    _buildSectionHeader("HACKATHON DEMO"),
-                    Container(
-                      width: double.infinity,
-                      color: AppColors.emergencyRed.withOpacity(0.08),
-                      child: _SettingsTile(
-                        title: "Test SOS — Demo Mode",
-                        subtitle: "Full flow simulation. No real calls made.",
-                        trailing: Text(
-                          "TEST ›",
-                          style: AppTypography.labelCaps.copyWith(color: AppColors.emergencyRed),
-                        ),
-                        onTap: _startDemo,
                       ),
                     ),
 
