@@ -1,0 +1,22 @@
+import 'database_helper.dart';
+
+/// Seeds the database with sample data for development and testing.
+///
+/// In production, call [DatabaseHelper.seedFromJson] with a bundled
+/// JSON asset instead. This class provides a quick programmatic
+/// alternative.
+class DbSeeder {
+  final DatabaseHelper _dbHelper;
+
+  DbSeeder({DatabaseHelper? dbHelper})
+      : _dbHelper = dbHelper ?? DatabaseHelper();
+
+  /// Seeds all tables from the bundled JSON asset at [assetPath].
+  ///
+  /// Defaults to `assets/data/seed_data.json`.
+  Future<void> seed({
+    String assetPath = 'assets/data/seed_data.json',
+  }) async {
+    await _dbHelper.seedFromJson(assetPath);
+  }
+}

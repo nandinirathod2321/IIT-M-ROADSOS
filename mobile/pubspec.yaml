@@ -1,0 +1,71 @@
+name: road_sos
+description: "RoadSOS — Emergency response app for road accidents."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Core
+  cupertino_icons: ^1.0.6
+
+  # State management
+  flutter_bloc: ^8.1.4
+  equatable: ^2.0.5
+
+  # Navigation
+  go_router: ^13.0.0
+
+  # Database
+  sqflite: ^2.3.2
+  path: ^1.9.0
+
+  # Location & Maps
+  geolocator: ^11.0.0
+  flutter_map: ^6.1.0
+  flutter_map_cache: ^1.0.0
+  latlong2: ^0.9.0
+
+  # Sensors
+  sensors_plus: ^7.0.0
+
+  # Connectivity & Communication
+  connectivity_plus: ^6.0.3
+  nearby_connections: ^4.1.0
+  url_launcher: ^6.2.6
+
+  # Background services
+  flutter_background_service: ^5.0.2
+  flutter_local_notifications: ^17.1.2
+
+  # ML
+  tflite_flutter: ^0.10.4
+
+  # UI
+  google_fonts: ^6.2.1
+  qr_flutter: ^4.1.0
+  flutter_svg: ^2.0.10+1
+  shimmer: ^3.0.0
+  lottie: ^3.1.0
+
+  # Permissions
+  permission_handler: ^11.3.1
+
+  # Storage
+  shared_preferences: ^2.2.3
+
+  # Utils
+  intl: ^0.19.0
+  uuid: ^4.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
