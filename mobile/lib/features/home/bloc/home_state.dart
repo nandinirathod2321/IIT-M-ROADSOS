@@ -13,6 +13,8 @@ class HomeState extends Equatable {
   final bool crashDetectionEnabled;
   final MeshSOSStatus meshStatus;
   final int nearbyDevicesCount;
+  final String signalQuality;
+  final String syncStatus;
   final DateTime? lastDbSync;
   final int nearbyHospitalCount;
   final int nearbyPoliceCount;
@@ -31,6 +33,8 @@ class HomeState extends Equatable {
     this.crashDetectionEnabled = true,
     this.meshStatus = MeshSOSStatus.connecting,
     this.nearbyDevicesCount = 0,
+    this.signalQuality = 'None',
+    this.syncStatus = 'Not Synced',
     this.lastDbSync,
     this.nearbyHospitalCount = 0,
     this.nearbyPoliceCount = 0,
@@ -41,7 +45,11 @@ class HomeState extends Equatable {
     this.locationErrorMessage = '',
   });
 
-  factory HomeState.initial() => HomeState(lastDbSync: DateTime.now());
+  factory HomeState.initial() => HomeState(
+        lastDbSync: DateTime.now(),
+        signalQuality: 'None',
+        syncStatus: 'Not Synced',
+      );
 
   String get formattedCoordinates {
     if (latitude == null || longitude == null) return '-- --';
@@ -70,6 +78,8 @@ class HomeState extends Equatable {
     bool? crashDetectionEnabled,
     MeshSOSStatus? meshStatus,
     int? nearbyDevicesCount,
+    String? signalQuality,
+    String? syncStatus,
     DateTime? lastDbSync,
     int? nearbyHospitalCount,
     int? nearbyPoliceCount,
@@ -89,6 +99,8 @@ class HomeState extends Equatable {
       crashDetectionEnabled: crashDetectionEnabled ?? this.crashDetectionEnabled,
       meshStatus: meshStatus ?? this.meshStatus,
       nearbyDevicesCount: nearbyDevicesCount ?? this.nearbyDevicesCount,
+      signalQuality: signalQuality ?? this.signalQuality,
+      syncStatus: syncStatus ?? this.syncStatus,
       lastDbSync: lastDbSync ?? this.lastDbSync,
       nearbyHospitalCount: nearbyHospitalCount ?? this.nearbyHospitalCount,
       nearbyPoliceCount: nearbyPoliceCount ?? this.nearbyPoliceCount,
@@ -103,7 +115,8 @@ class HomeState extends Equatable {
   @override
   List<Object?> get props => [
         isLoading, latitude, longitude, address, connectivity,
-        crashDetectionEnabled, meshStatus, nearbyDevicesCount, lastDbSync,
+        crashDetectionEnabled, meshStatus, nearbyDevicesCount,
+        signalQuality, syncStatus, lastDbSync,
         nearbyHospitalCount, nearbyPoliceCount, nearbyTowingCount,
         contactsCount, nearestHospital, hasLocationError, locationErrorMessage,
       ];

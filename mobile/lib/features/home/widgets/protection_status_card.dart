@@ -10,6 +10,8 @@ class ProtectionStatusCard extends StatefulWidget {
   final bool crashDetectionEnabled;
   final MeshSOSStatus meshStatus;
   final int nearbyDevicesCount;
+  final String signalQuality;
+  final String syncStatus;
   final DateTime? lastDbSync;
   final ValueChanged<bool> onCrashDetectionToggled;
 
@@ -18,6 +20,8 @@ class ProtectionStatusCard extends StatefulWidget {
     required this.crashDetectionEnabled,
     required this.meshStatus,
     required this.nearbyDevicesCount,
+    required this.signalQuality,
+    required this.syncStatus,
     this.lastDbSync,
     required this.onCrashDetectionToggled,
   });
@@ -247,11 +251,11 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
   String get _meshSubtitle {
     switch (widget.meshStatus) {
       case MeshSOSStatus.active:
-        return 'Connected to cellular · Synchronized with ${widget.nearbyDevicesCount} mesh nodes';
+        return 'Cellular online · ${widget.syncStatus}\n(${widget.nearbyDevicesCount} BLE peers synced · Signal: ${widget.signalQuality})';
       case MeshSOSStatus.connecting:
-        return 'Establishing nearby peer network link...';
+        return '${widget.syncStatus} (Signal: ${widget.signalQuality})';
       case MeshSOSStatus.offline:
-        return 'Cellular down. Mesh fallback ACTIVE (${widget.nearbyDevicesCount} peers available)';
+        return 'Cellular down · ${widget.syncStatus}\n(${widget.nearbyDevicesCount} local peers linked · Signal: ${widget.signalQuality})';
       case MeshSOSStatus.disabled:
         return 'Mesh networking disarmed';
     }

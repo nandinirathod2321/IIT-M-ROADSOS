@@ -85,7 +85,10 @@ abstract final class AppRouter {
       GoRoute(
         path: '/countdown',
         parentNavigatorKey: navigatorKey,
-        builder: (context, state) => const CountdownScreen(),
+        builder: (context, state) {
+          final trigger = state.uri.queryParameters['trigger'] ?? 'manual';
+          return CountdownScreen(triggerType: trigger);
+        },
       ),
       GoRoute(
         path: '/onboarding',

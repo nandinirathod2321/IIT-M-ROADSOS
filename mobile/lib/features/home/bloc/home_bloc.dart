@@ -216,25 +216,54 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       state.copyWith(
         meshStatus: event.status,
         nearbyDevicesCount: event.nearbyDevicesCount,
+        signalQuality: event.signalQuality,
+        syncStatus: event.syncStatus,
       ),
     );
   }
 
-  /// Triggers a 2-second transition state for Mesh SOS.
+  /// Triggers a realistic 3-second progressive transition state for Mesh SOS BLE discovery.
   void _triggerMeshTransition(ConnectivityType conn, bool isCrashEnabled) {
     _meshTimer?.cancel();
-    if (!isCrashEnabled) return;
+    if (!isCrashEnabled) {
+      add(const HomeMeshStatusUpdated(MeshSOSStatus.disabled, 0, 'None', 'Mesh disarmed'));
+      return;
+    }
 
     // Shift to CONNECTING status
-    add(const HomeMeshStatusUpdated(MeshSOSStatus.connecting, 0));
+    add(const HomeMeshStatusUpdated(MeshSOSStatus.connecting, 0, 'Scanning...', 'Scanning BLE channels...'));
 
-    _meshTimer = Timer(const Duration(seconds: 2), () {
-      if (state.crashDetectionEnabled) {
+    int tick = 0;
+    _meshTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      tick++;
+      if (!state.crashDetectionEnabled) {
+        timer.cancel();
+        add(const HomeMeshStatusUpdated(MeshSOSStatus.disabled, 0, 'None', 'Mesh disarmed'));
+        return;
+      }
+
+      if (tick == 1) {
+        add(const HomeMeshStatusUpdated(MeshSOSStatus.connecting, 1, 'Searching', 'Discovering local nodes (1 found)...'));
+      } else if (tick == 2) {
+        add(const HomeMeshStatusUpdated(MeshSOSStatus.connecting, 3, 'Syncing', 'Syncing telemetry logs (3 found)...'));
+      } else if (tick >= 3) {
+        timer.cancel();
+        // Final resolution based on online/offline state
         if (conn == ConnectivityType.offline) {
-          add(const HomeMeshStatusUpdated(MeshSOSStatus.offline, 0));
+          add(const HomeMeshStatusUpdated(
+            MeshSOSStatus.offline,
+            3,
+            'Fair (62%)',
+            'Local Mesh Fallback Routing Active',
+          ));
         } else {
-          final int randomPeers = Random().nextInt(4); // 0 to 3
-          add(HomeMeshStatusUpdated(MeshSOSStatus.active, randomPeers));
+          final int randomPeers = 2 + Random().nextInt(3); // 2 to 4 peers
+          add(HomeMeshStatusUpdated(
+            MeshSOSStatus.active,
+            randomPeers,
+            'Excellent (95%)',
+            'Synchronized with nearby mesh nodes',
+          ));
         }
       }
     });

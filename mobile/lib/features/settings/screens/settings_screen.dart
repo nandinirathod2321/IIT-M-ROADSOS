@@ -24,6 +24,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Protection Settings
   bool _crashDetectionOn = true;
   bool _voiceSOSOn = false;
+  bool _voiceSOSAlwaysListening = false;
   String _sensitivityLabel = "Medium";
   int _sosCountdown = 10;
 
@@ -52,6 +53,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _crashDetectionOn = prefs.getBool('crash_detection') ?? true;
       _voiceSOSOn = prefs.getBool('voice_sos') ?? false;
+      _voiceSOSAlwaysListening = prefs.getBool('voice_sos_always_listening') ?? false;
       _sensitivityLabel = prefs.getString('sensitivity_label') ?? "Medium";
       _sosCountdown = prefs.getInt('sos_countdown') ?? 10;
       _lastSync = prefs.getString('last_sync') ?? "Yesterday, 14:32";
@@ -407,11 +409,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         value: _voiceSOSOn,
                         activeTrackColor: AppColors.safeGreen,
                         onChanged: (v) {
-                          setState(() => _voiceSOSOn = v);
+                          setState(() {
+                            _voiceSOSOn = v;
+                            if (!v) {
+                              _voiceSOSAlwaysListening = false;
+                              SharedPreferences.getInstance().then((p) => p.setBool('voice_sos_always_listening', false));
+                            }
+                          });
                           SharedPreferences.getInstance().then((p) => p.setBool('voice_sos', v));
                         },
                       ),
                     ),
+                    if (_voiceSOSOn)
+                      _SettingsTile(
+                        title: "Always-Listening Mode",
+                        subtitle: "Keep microphone scanning continuously",
+                        trailing: CupertinoSwitch(
+                          value: _voiceSOSAlwaysListening,
+                          activeTrackColor: AppColors.safeGreen,
+                          onChanged: (v) {
+                            setState(() => _voiceSOSAlwaysListening = v);
+                            SharedPreferences.getInstance().then((p) => p.setBool('voice_sos_always_listening', v));
+                          },
+                        ),
+                      ),
 
                     // EMERGENCY HOTLINES SECTION
                     _buildSectionHeader("EMERGENCY HOTLINES"),

@@ -19,7 +19,8 @@ import '../../../shared/widgets/countdown_overlay.dart';
 /// Resolves real coordinates, queries spatial SQLite lists, dials emergency numbers,
 /// triggers native pre-populated email alerts, and tracks active event logs.
 class CountdownScreen extends StatefulWidget {
-  const CountdownScreen({super.key});
+  final String triggerType;
+  const CountdownScreen({super.key, this.triggerType = 'manual'});
 
   @override
   State<CountdownScreen> createState() => _CountdownScreenState();
@@ -135,7 +136,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
         id: _eventId,
         latitude: lat,
         longitude: lng,
-        triggerType: 'manual',
+        triggerType: widget.triggerType,
         telemetry: {
           'gForce': 1.05,
           'speedKmh': 0.0,

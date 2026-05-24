@@ -33,9 +33,16 @@ class HomeConnectivityChanged extends HomeEvent {
 class HomeMeshStatusUpdated extends HomeEvent {
   final MeshSOSStatus status;
   final int nearbyDevicesCount;
-  const HomeMeshStatusUpdated(this.status, this.nearbyDevicesCount);
+  final String signalQuality;
+  final String syncStatus;
+  const HomeMeshStatusUpdated(
+    this.status,
+    this.nearbyDevicesCount,
+    this.signalQuality,
+    this.syncStatus,
+  );
   @override
-  List<Object?> get props => [status, nearbyDevicesCount];
+  List<Object?> get props => [status, nearbyDevicesCount, signalQuality, syncStatus];
 }
 
 enum ConnectivityType { wifi, mobile, offline }
