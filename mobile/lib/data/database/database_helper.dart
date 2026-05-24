@@ -76,6 +76,14 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE emergency_contacts ADD COLUMN email TEXT');
     } catch (_) {}
 
+    // Ensure age & gender columns exist in medical_profiles (self-healing migration)
+    try {
+      await db.execute('ALTER TABLE medical_profiles ADD COLUMN age INTEGER');
+    } catch (_) {}
+    try {
+      await db.execute('ALTER TABLE medical_profiles ADD COLUMN gender TEXT');
+    } catch (_) {}
+
     // Auto-seed if hospitals are empty to guarantee spatial queries work
     final count = Sqflite.firstIntValue(
       await db.rawQuery('SELECT COUNT(*) FROM hospitals'),
@@ -160,6 +168,8 @@ class DatabaseHelper {
       CREATE TABLE medical_profiles (
         userId             TEXT PRIMARY KEY,
         fullName           TEXT,
+        age                INTEGER,
+        gender             TEXT,
         bloodGroup         TEXT,
         allergies          TEXT,
         medications        TEXT,

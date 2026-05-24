@@ -6,6 +6,8 @@ import 'package:equatable/equatable.dart';
 class MedicalProfile extends Equatable {
   final String userId;
   final String fullName;
+  final int age;
+  final String gender;
   final String bloodGroup;
   final List<String> allergies;
   final List<String> medications;
@@ -18,6 +20,8 @@ class MedicalProfile extends Equatable {
   const MedicalProfile({
     required this.userId,
     required this.fullName,
+    this.age = 0,
+    this.gender = '',
     this.bloodGroup = '',
     this.allergies = const [],
     this.medications = const [],
@@ -35,6 +39,8 @@ class MedicalProfile extends Equatable {
     return MedicalProfile(
       userId: map['userId'] as String,
       fullName: map['fullName'] as String? ?? '',
+      age: map['age'] as int? ?? 0,
+      gender: map['gender'] as String? ?? '',
       bloodGroup: map['bloodGroup'] as String? ?? '',
       allergies: _splitCsv(map['allergies']),
       medications: _splitCsv(map['medications']),
@@ -51,6 +57,8 @@ class MedicalProfile extends Equatable {
     return {
       'userId': userId,
       'fullName': fullName,
+      'age': age,
+      'gender': gender,
       'bloodGroup': bloodGroup,
       'allergies': allergies.join(','),
       'medications': medications.join(','),
@@ -67,6 +75,8 @@ class MedicalProfile extends Equatable {
   Map<String, dynamic> toSnapshot() {
     return {
       'fullName': fullName,
+      'age': age,
+      'gender': gender,
       'bloodGroup': bloodGroup,
       'allergies': allergies,
       'medications': medications,
@@ -83,5 +93,18 @@ class MedicalProfile extends Equatable {
   }
 
   @override
-  List<Object?> get props => [userId];
+  List<Object?> get props => [
+        userId,
+        fullName,
+        age,
+        gender,
+        bloodGroup,
+        allergies,
+        medications,
+        conditions,
+        emergencyContactId,
+        insuranceProvider,
+        insurancePolicyNo,
+        organDonor,
+      ];
 }
