@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
+import '../../../data/database/database_helper.dart';
 import '../../crash_detection/crash_detector.dart';
 
 /// Interactive Settings Screen for RoadSOS.
@@ -19,6 +20,8 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  final DatabaseHelper _db = DatabaseHelper();
+
   // Protection Settings
   bool _crashDetectionOn = true;
   bool _voiceSOSOn = false;
@@ -26,10 +29,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _sosCountdown = 10;
 
   // Offline Data settings
-  int hospitalCount = 124;
-  int policeCount = 42;
+  int hospitalCount = 5;
+  int policeCount = 5;
   String _lastSync = "Yesterday, 14:32";
   bool _isSyncing = false;
+
+  // Database metrics
+  int _dbRecordCount = 15;
+  double _dbSizeKb = 32.0;
 
   @override
   void initState() {
@@ -40,14 +47,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// Loads configuration values from SharedPreferences.
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    
+    // Fetch actual record count & file size directly from SQLite
+    final int count = await _db.getDatabaseRecordCount();
+    final int sizeInBytes = await _db.getDatabaseSizeInBytes();
+
     setState(() {
       _crashDetectionOn = prefs.getBool('crash_detection') ?? true;
       _voiceSOSOn = prefs.getBool('voice_sos') ?? false;
       _sensitivityLabel = prefs.getString('sensitivity_label') ?? "Medium";
       _sosCountdown = prefs.getInt('sos_countdown') ?? 10;
       _lastSync = prefs.getString('last_sync') ?? "Yesterday, 14:32";
-      hospitalCount = prefs.getInt('hospital_count') ?? 124;
-      policeCount = prefs.getInt('police_count') ?? 42;
+      hospitalCount = prefs.getInt('hospital_count') ?? 5;
+      policeCount = prefs.getInt('police_count') ?? 5;
+      _dbRecordCount = count;
+      _dbSizeKb = sizeInBytes / 1024.0;
     });
 
     // Keep active sensor daemon synced with settings state
@@ -69,23 +83,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _isSyncing = true;
     });
 
-    // Simulate API fetch delay
+    // 1. Re-seed SQLite database to simulate clean sync update
+    final database = await _db.database;
+    await _db.seedDemoData(database);
+
+    // 2. Simulate API fetch delay
     await Future.delayed(const Duration(seconds: 2));
 
     final now = DateTime.now();
     final formattedTime = "Today, ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
 
+    // Query updated values
+    final int count = await _db.getDatabaseRecordCount();
+    final int sizeInBytes = await _db.getDatabaseSizeInBytes();
+
     setState(() {
       _isSyncing = false;
-      hospitalCount += 5; // Simulates incremental updates
-      policeCount += 2;
+      hospitalCount = 5;
+      policeCount = 5;
       _lastSync = formattedTime;
+      _dbRecordCount = count;
+      _dbSizeKb = sizeInBytes / 1024.0;
     });
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('last_sync', _lastSync);
     await prefs.setInt('hospital_count', hospitalCount);
     await prefs.setInt('police_count', policeCount);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Emergency database updated successfully',
+            style: AppTypography.bodyMedium.copyWith(color: Colors.white),
+          ),
+          backgroundColor: AppColors.safeGreen,
+        ),
+      );
+    }
   }
 
   /// Starts the full simulation flow for crash detection and rescue routing.
@@ -472,7 +508,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _buildSectionHeader("OFFLINE DATA"),
                     _SettingsTile(
                       title: "Emergency Database",
-                      subtitle: "$hospitalCount hospitals · $policeCount police",
+                      subtitle: "$_dbRecordCount local records · ${_dbSizeKb.toStringAsFixed(1)} KB size",
                       trailing: GestureDetector(
                         onTap: _syncData,
                         child: _isSyncing

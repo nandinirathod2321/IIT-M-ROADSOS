@@ -2,7 +2,7 @@ import 'package:equatable/equatable.dart';
 import '../../../data/models/hospital.dart';
 import 'home_event.dart';
 
-enum MeshSOSStatus { active, searching, disabled }
+enum MeshSOSStatus { active, connecting, disabled, offline }
 
 class HomeState extends Equatable {
   final bool isLoading;
@@ -12,12 +12,14 @@ class HomeState extends Equatable {
   final ConnectivityType connectivity;
   final bool crashDetectionEnabled;
   final MeshSOSStatus meshStatus;
+  final int nearbyDevicesCount;
   final DateTime? lastDbSync;
   final int nearbyHospitalCount;
   final int nearbyPoliceCount;
   final int nearbyTowingCount;
   final int contactsCount;
   final Hospital? nearestHospital;
+  final bool isDemoMode;
 
   const HomeState({
     this.isLoading = true,
@@ -26,13 +28,15 @@ class HomeState extends Equatable {
     this.address = 'Locating...',
     this.connectivity = ConnectivityType.offline,
     this.crashDetectionEnabled = true,
-    this.meshStatus = MeshSOSStatus.searching,
+    this.meshStatus = MeshSOSStatus.connecting,
+    this.nearbyDevicesCount = 0,
     this.lastDbSync,
     this.nearbyHospitalCount = 0,
     this.nearbyPoliceCount = 0,
     this.nearbyTowingCount = 0,
     this.contactsCount = 0,
     this.nearestHospital,
+    this.isDemoMode = false,
   });
 
   factory HomeState.initial() => HomeState(lastDbSync: DateTime.now());
@@ -63,6 +67,7 @@ class HomeState extends Equatable {
     ConnectivityType? connectivity,
     bool? crashDetectionEnabled,
     MeshSOSStatus? meshStatus,
+    int? nearbyDevicesCount,
     DateTime? lastDbSync,
     int? nearbyHospitalCount,
     int? nearbyPoliceCount,
@@ -70,6 +75,7 @@ class HomeState extends Equatable {
     int? contactsCount,
     Hospital? nearestHospital,
     bool clearHospital = false,
+    bool? isDemoMode,
   }) {
     return HomeState(
       isLoading: isLoading ?? this.isLoading,
@@ -79,20 +85,22 @@ class HomeState extends Equatable {
       connectivity: connectivity ?? this.connectivity,
       crashDetectionEnabled: crashDetectionEnabled ?? this.crashDetectionEnabled,
       meshStatus: meshStatus ?? this.meshStatus,
+      nearbyDevicesCount: nearbyDevicesCount ?? this.nearbyDevicesCount,
       lastDbSync: lastDbSync ?? this.lastDbSync,
       nearbyHospitalCount: nearbyHospitalCount ?? this.nearbyHospitalCount,
       nearbyPoliceCount: nearbyPoliceCount ?? this.nearbyPoliceCount,
       nearbyTowingCount: nearbyTowingCount ?? this.nearbyTowingCount,
       contactsCount: contactsCount ?? this.contactsCount,
       nearestHospital: clearHospital ? null : (nearestHospital ?? this.nearestHospital),
+      isDemoMode: isDemoMode ?? this.isDemoMode,
     );
   }
 
   @override
   List<Object?> get props => [
         isLoading, latitude, longitude, address, connectivity,
-        crashDetectionEnabled, meshStatus, lastDbSync,
+        crashDetectionEnabled, meshStatus, nearbyDevicesCount, lastDbSync,
         nearbyHospitalCount, nearbyPoliceCount, nearbyTowingCount,
-        contactsCount, nearestHospital,
+        contactsCount, nearestHospital, isDemoMode,
       ];
 }

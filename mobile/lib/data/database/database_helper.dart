@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../core/utils/distance_utils.dart';
@@ -40,19 +42,42 @@ class DatabaseHelper {
   // ── Initialisation ───────────────────────────────────────────────────
 
   Future<Database> _initDatabase() async {
-    final dbPath = await getDatabasesPath();
-    final path = p.join(dbPath, 'road_sos.db');
+    final docsDir = await getApplicationDocumentsDirectory();
+    final path = p.join(docsDir.path, 'roadsos.db');
 
     return openDatabase(
       path,
       version: 1,
-      onCreate: _onCreate,
+      onCreate: (db, version) async {
+        await _onCreate(db, version);
+        await seedDemoData(db);
+      },
     );
   }
 
   /// Public entry point — ensures the database and all tables exist.
   Future<void> initialize() async {
-    await database;
+    final db = await database;
+    // Auto-create sos_events table if it doesn't exist (seeding/safety support)
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS sos_events (
+        id          TEXT PRIMARY KEY,
+        timestamp   TEXT NOT NULL,
+        latitude    REAL NOT NULL,
+        longitude   REAL NOT NULL,
+        triggerType TEXT NOT NULL,
+        telemetry   TEXT,
+        status      TEXT DEFAULT 'dispatched'
+      )
+    ''');
+
+    // Auto-seed if hospitals are empty to guarantee spatial queries work
+    final count = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) FROM hospitals'),
+    );
+    if (count == null || count == 0) {
+      await seedDemoData(db);
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -137,6 +162,19 @@ class DatabaseHelper {
         insuranceProvider  TEXT,
         insurancePolicyNo  TEXT,
         organDonor         INTEGER DEFAULT 0
+      )
+    ''');
+
+    // ── SOS Events ──────────────────────────────────────────────────
+    batch.execute('''
+      CREATE TABLE IF NOT EXISTS sos_events (
+        id          TEXT PRIMARY KEY,
+        timestamp   TEXT NOT NULL,
+        latitude    REAL NOT NULL,
+        longitude   REAL NOT NULL,
+        triggerType TEXT NOT NULL,
+        telemetry   TEXT,
+        status      TEXT DEFAULT 'dispatched'
       )
     ''');
 
@@ -369,6 +407,287 @@ class DatabaseHelper {
       await db.close();
       _db = null;
     }
+  }
+
+  // ── SOS Events CRUD ──────────────────────────────────────────────────
+
+  /// Logs a new SOS event.
+  Future<void> logSosEvent({
+    required String id,
+    required double latitude,
+    required double longitude,
+    required String triggerType,
+    Map<String, dynamic>? telemetry,
+    String status = 'dispatched',
+  }) async {
+    final db = await database;
+    await db.insert(
+      'sos_events',
+      {
+        'id': id,
+        'timestamp': DateTime.now().toIso8601String(),
+        'latitude': latitude,
+        'longitude': longitude,
+        'triggerType': triggerType,
+        'telemetry': telemetry != null ? json.encode(telemetry) : null,
+        'status': status,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Updates the status of an SOS event (e.g. to 'resolved').
+  Future<void> updateSosEventStatus(String id, String status) async {
+    final db = await database;
+    await db.update(
+      'sos_events',
+      {'status': status},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Returns all logged SOS events.
+  Future<List<Map<String, dynamic>>> getSosEvents() async {
+    final db = await database;
+    return await db.query('sos_events', orderBy: 'timestamp DESC');
+  }
+
+  // ── Database diagnostics and offline updates ─────────────────────────
+
+  Future<int> getDatabaseRecordCount() async {
+    final db = await database;
+    int total = 0;
+    total += Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM hospitals')) ?? 0;
+    total += Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM police_stations')) ?? 0;
+    total += Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM towing_services')) ?? 0;
+    total += Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM emergency_contacts')) ?? 0;
+    total += Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM sos_events')) ?? 0;
+    return total;
+  }
+
+  Future<int> getDatabaseSizeInBytes() async {
+    final docsDir = await getApplicationDocumentsDirectory();
+    final path = p.join(docsDir.path, 'roadsos.db');
+    final file = File(path);
+    if (await file.exists()) {
+      return await file.length();
+    }
+    return 0;
+  }
+
+  Future<void> seedDemoData(Database db) async {
+    final batch = db.batch();
+
+    // Hospitals
+    final hospitals = [
+      {
+        'id': 'h1',
+        'name': 'Apollo Hospitals Ahmedabad',
+        'address': 'Plot No. 1A, GIDC Gandhinagar, Ahmedabad',
+        'lat': 23.1028,
+        'lng': 72.6025,
+        'phone': '+91 79 6670 1800',
+        'type': 'trauma',
+        'hasEmergency': 1,
+        'hasICU': 1,
+        'hasBloodBank': 1,
+        'ambulanceCount': 5,
+        'lastUpdated': DateTime.now().toIso8601String(),
+        'sourceApi': 'OSM',
+        'rating': 4.5
+      },
+      {
+        'id': 'h2',
+        'name': 'Civil Hospital Ahmedabad',
+        'address': 'Asarwa, Ahmedabad, Gujarat 380016',
+        'lat': 23.0512,
+        'lng': 72.6033,
+        'phone': '+91 79 2268 3721',
+        'type': 'trauma',
+        'hasEmergency': 1,
+        'hasICU': 1,
+        'hasBloodBank': 1,
+        'ambulanceCount': 12,
+        'lastUpdated': DateTime.now().toIso8601String(),
+        'sourceApi': 'OSM',
+        'rating': 4.2
+      },
+      {
+        'id': 'h3',
+        'name': 'Zydus Hospital Ahmedabad',
+        'address': 'Zydus Hospital Road, Sola, Ahmedabad',
+        'lat': 23.0610,
+        'lng': 72.5255,
+        'phone': '+91 79 6619 0201',
+        'type': 'general',
+        'hasEmergency': 1,
+        'hasICU': 1,
+        'hasBloodBank': 1,
+        'ambulanceCount': 6,
+        'lastUpdated': DateTime.now().toIso8601String(),
+        'sourceApi': 'OSM',
+        'rating': 4.6
+      },
+      {
+        'id': 'h4',
+        'name': 'Shalby Hospitals Ahmedabad',
+        'address': 'Opp. Karnavati Club, S.G. Road, Ahmedabad',
+        'lat': 23.0222,
+        'lng': 72.5085,
+        'phone': '+91 79 4020 3000',
+        'type': 'general',
+        'hasEmergency': 1,
+        'hasICU': 1,
+        'hasBloodBank': 1,
+        'ambulanceCount': 4,
+        'lastUpdated': DateTime.now().toIso8601String(),
+        'sourceApi': 'OSM',
+        'rating': 4.4
+      },
+      {
+        'id': 'h5',
+        'name': 'KD Hospital Ahmedabad',
+        'address': 'S.G. Road, Vaishnodevi Circle, Ahmedabad',
+        'lat': 23.1145,
+        'lng': 72.5401,
+        'phone': '+91 79 6677 0000',
+        'type': 'general',
+        'hasEmergency': 1,
+        'hasICU': 1,
+        'hasBloodBank': 1,
+        'ambulanceCount': 5,
+        'lastUpdated': DateTime.now().toIso8601String(),
+        'sourceApi': 'OSM',
+        'rating': 4.7
+      }
+    ];
+
+    for (var h in hospitals) {
+      batch.insert('hospitals', h, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    // Police Stations
+    final police = [
+      {
+        'id': 'p1',
+        'name': 'Navrangpura Police Station',
+        'address': 'Navrangpura, Ahmedabad',
+        'lat': 23.0360,
+        'lng': 72.5615,
+        'phone': '+91 79 2644 3803',
+        'districtCode': 'AHD-W',
+        'is24Hours': 1
+      },
+      {
+        'id': 'p2',
+        'name': 'Satellite Police Station',
+        'address': 'Satellite, Ahmedabad',
+        'lat': 23.0275,
+        'lng': 72.5285,
+        'phone': '+91 79 2676 3485',
+        'districtCode': 'AHD-W',
+        'is24Hours': 1
+      },
+      {
+        'id': 'p3',
+        'name': 'Vastrapur Police Station',
+        'address': 'Vastrapur, Ahmedabad',
+        'lat': 23.0392,
+        'lng': 72.5312,
+        'phone': '+91 79 2679 8831',
+        'districtCode': 'AHD-W',
+        'is24Hours': 1
+      },
+      {
+        'id': 'p4',
+        'name': 'Ellisbridge Police Station',
+        'address': 'Ellisbridge, Ahmedabad',
+        'lat': 23.0210,
+        'lng': 72.5695,
+        'phone': '+91 79 2657 8421',
+        'districtCode': 'AHD-W',
+        'is24Hours': 1
+      },
+      {
+        'id': 'p5',
+        'name': 'Naranpura Police Station',
+        'address': 'Naranpura, Ahmedabad',
+        'lat': 23.0608,
+        'lng': 72.5528,
+        'phone': '+91 79 2743 4567',
+        'districtCode': 'AHD-W',
+        'is24Hours': 1
+      }
+    ];
+
+    for (var p in police) {
+      batch.insert('police_stations', p, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    // Towing Services
+    final towing = [
+      {
+        'id': 't1',
+        'name': 'Ahmedabad Auto Towing',
+        'phone': '+91 99988 77665',
+        'lat': 23.0185,
+        'lng': 72.5595,
+        'serviceRadius': 15.0,
+        'operatingHours': '24/7',
+        'vehicleTypes': 'car,bike'
+      },
+      {
+        'id': 't2',
+        'name': 'Gujarat Towing Service',
+        'phone': '+91 98989 12345',
+        'lat': 23.0425,
+        'lng': 72.5855,
+        'serviceRadius': 20.0,
+        'operatingHours': '24/7',
+        'vehicleTypes': 'car,bike,truck'
+      },
+      {
+        'id': 't3',
+        'name': 'SafeRide Towing Ahmedabad',
+        'phone': '+91 97234 56789',
+        'lat': 23.0012,
+        'lng': 72.5122,
+        'serviceRadius': 25.0,
+        'operatingHours': '24/7',
+        'vehicleTypes': 'car'
+      }
+    ];
+
+    for (var t in towing) {
+      batch.insert('towing_services', t, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    // Emergency Contacts
+    final contacts = [
+      {
+        'id': 'c1',
+        'name': 'Amit Patel',
+        'relationship': 'Father',
+        'phone': '+91 98765 43210',
+        'isPrimary': 1,
+        'avatarEmoji': '👨'
+      },
+      {
+        'id': 'c2',
+        'name': 'Priya Patel',
+        'relationship': 'Mother',
+        'phone': '+91 98765 43211',
+        'isPrimary': 0,
+        'avatarEmoji': '👩'
+      }
+    ];
+
+    for (var c in contacts) {
+      batch.insert('emergency_contacts', c, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    await batch.commit(noResult: true);
   }
 }
 

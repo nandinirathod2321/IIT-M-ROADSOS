@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'home_state.dart';
 
 sealed class HomeEvent extends Equatable {
   const HomeEvent();
@@ -27,6 +28,18 @@ class HomeConnectivityChanged extends HomeEvent {
   const HomeConnectivityChanged(this.type);
   @override
   List<Object?> get props => [type];
+}
+
+class HomeMeshStatusUpdated extends HomeEvent {
+  final MeshSOSStatus status;
+  final int nearbyDevicesCount;
+  const HomeMeshStatusUpdated(this.status, this.nearbyDevicesCount);
+  @override
+  List<Object?> get props => [status, nearbyDevicesCount];
+}
+
+class HomeDemoModeToggled extends HomeEvent {
+  const HomeDemoModeToggled();
 }
 
 enum ConnectivityType { wifi, mobile, offline }
