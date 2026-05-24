@@ -1,4 +1,3 @@
-import 'dart:async';
 
 /// Model representing a crash event detected by sensors or simulated in demo mode.
 class CrashEvent {

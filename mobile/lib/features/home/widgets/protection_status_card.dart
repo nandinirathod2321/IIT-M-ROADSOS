@@ -128,7 +128,7 @@ class ProtectionStatusCard extends StatelessWidget {
         return 'DISABLED';
     }
   }
-
+ 
   Color get _meshColor {
     switch (meshStatus) {
       case MeshSOSStatus.active:

@@ -13,8 +13,8 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
 
   HomeBloc({DatabaseHelper? db})
-      : _db = db ?? DatabaseHelper(),
-        super(HomeState.initial()) {
+    : _db = db ?? DatabaseHelper(),
+      super(HomeState.initial()) {
     on<HomeStarted>(_onStarted);
     on<HomeLocationUpdated>(_onLocationUpdated);
     on<HomeCrashDetectionToggled>(_onCrashDetectionToggled);
@@ -40,30 +40,38 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       }
 
       final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 10),
-        ),
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
       );
-      add(HomeLocationUpdated(latitude: pos.latitude, longitude: pos.longitude));
+      add(
+        HomeLocationUpdated(latitude: pos.latitude, longitude: pos.longitude),
+      );
 
       // Listen for location changes
-      _positionSub = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 50,
-        ),
-      ).listen((pos) {
-        add(HomeLocationUpdated(latitude: pos.latitude, longitude: pos.longitude));
-      });
+      _positionSub =
+          Geolocator.getPositionStream(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 50,
+            ),
+          ).listen((pos) {
+            add(
+              HomeLocationUpdated(
+                latitude: pos.latitude,
+                longitude: pos.longitude,
+              ),
+            );
+          });
     } catch (_) {
       // Fallback — use default coordinates (New Delhi)
-      emit(state.copyWith(
-        isLoading: false,
-        latitude: 28.6139,
-        longitude: 77.2090,
-        address: 'Location unavailable',
-      ));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          latitude: 28.6139,
+          longitude: 77.2090,
+          address: 'Location unavailable',
+        ),
+      );
       await _loadNearbyServices(28.6139, 77.2090, emit);
     }
   }
@@ -72,11 +80,13 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     HomeLocationUpdated event,
     Emitter<HomeState> emit,
   ) async {
-    emit(state.copyWith(
-      latitude: event.latitude,
-      longitude: event.longitude,
-      address: 'Current Location',
-    ));
+    emit(
+      state.copyWith(
+        latitude: event.latitude,
+        longitude: event.longitude,
+        address: 'Current Location',
+      ),
+    );
     await _loadNearbyServices(event.latitude, event.longitude, emit);
   }
 
@@ -93,16 +103,18 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
 
       final nearest = hospitals.isNotEmpty ? hospitals.first : null;
 
-      emit(state.copyWith(
-        isLoading: false,
-        nearbyHospitalCount: hospitals.length,
-        nearbyPoliceCount: police.length,
-        nearbyTowingCount: towing.length,
-        contactsCount: contacts.length,
-        nearestHospital: nearest,
-        clearHospital: nearest == null,
-        lastDbSync: DateTime.now(),
-      ));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          nearbyHospitalCount: hospitals.length,
+          nearbyPoliceCount: police.length,
+          nearbyTowingCount: towing.length,
+          contactsCount: contacts.length,
+          nearestHospital: nearest,
+          clearHospital: nearest == null,
+          lastDbSync: DateTime.now(),
+        ),
+      );
     } catch (_) {
       emit(state.copyWith(isLoading: false));
     }
@@ -112,12 +124,14 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     HomeCrashDetectionToggled event,
     Emitter<HomeState> emit,
   ) {
-    emit(state.copyWith(
-      crashDetectionEnabled: !state.crashDetectionEnabled,
-      meshStatus: !state.crashDetectionEnabled
-          ? MeshSOSStatus.searching
-          : MeshSOSStatus.disabled,
-    ));
+    emit(
+      state.copyWith(
+        crashDetectionEnabled: !state.crashDetectionEnabled,
+        meshStatus: !state.crashDetectionEnabled
+            ? MeshSOSStatus.searching
+            : MeshSOSStatus.disabled,
+      ),
+    );
   }
 
   void _onConnectivityChanged(
@@ -129,7 +143,8 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
 
   ConnectivityType _mapConnectivity(List<ConnectivityResult> results) {
     if (results.contains(ConnectivityResult.wifi)) return ConnectivityType.wifi;
-    if (results.contains(ConnectivityResult.mobile)) return ConnectivityType.mobile;
+    if (results.contains(ConnectivityResult.mobile))
+      return ConnectivityType.mobile;
     return ConnectivityType.offline;
   }
 

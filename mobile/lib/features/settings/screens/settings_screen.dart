@@ -324,7 +324,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-            if (trailing != null) trailing,
+            ?trailing,
           ],
         ),
       ),
@@ -401,7 +401,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       subtitle: "Auto-detects impacts via sensors",
                       trailing: CupertinoSwitch(
                         value: _crashDetectionOn,
-                        activeColor: AppColors.safeGreen,
+                        activeTrackColor: AppColors.safeGreen,
                         onChanged: (v) {
                           setState(() => _crashDetectionOn = v);
                           SharedPreferences.getInstance().then((p) => p.setBool('crash_detection', v));
@@ -432,7 +432,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       subtitle: "Say 'Help RoadSOS' to trigger",
                       trailing: CupertinoSwitch(
                         value: _voiceSOSOn,
-                        activeColor: AppColors.safeGreen,
+                        activeTrackColor: AppColors.safeGreen,
                         onChanged: (v) {
                           setState(() => _voiceSOSOn = v);
                           SharedPreferences.getInstance().then((p) => p.setBool('voice_sos', v));
