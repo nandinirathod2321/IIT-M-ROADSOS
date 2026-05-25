@@ -13,6 +13,7 @@ import '../../../shared/widgets/crash_detection_bar.dart';
 import '../bloc/home_bloc.dart';
 import '../bloc/home_event.dart';
 import '../bloc/home_state.dart';
+import '../../../core/location/location_cubit.dart';
 import '../widgets/home_status_bar.dart';
 import '../widgets/location_header.dart';
 import '../widgets/home_sos_button.dart';
@@ -28,7 +29,9 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => HomeBloc()..add(const HomeStarted()),
+      create: (ctx) => HomeBloc(
+        locationCubit: ctx.read<LocationCubit>(),
+      )..add(const HomeStarted()),
       child: const _HomeView(),
     );
   }

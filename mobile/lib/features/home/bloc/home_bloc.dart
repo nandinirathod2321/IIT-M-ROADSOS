@@ -9,6 +9,8 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../../data/database/database_helper.dart';
 import '../../../data/repositories/nearby_services_repository.dart';
 import '../../../data/repositories/emergency_contact_repository.dart';
+import '../../../core/location/location_cubit.dart';
+import '../../../core/location/location_state.dart';
 import 'home_event.dart';
 import 'home_state.dart';
 
@@ -18,14 +20,21 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   final DatabaseHelper _db;
   final NearbyServicesRepository _servicesRepo;
   final EmergencyContactRepository _contactsRepo;
-  StreamSubscription<Position>? _positionSub;
+  final LocationCubit _locationCubit;
+  
+  StreamSubscription<LocationState>? _locationSub;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
   Timer? _meshTimer;
 
-  HomeBloc({DatabaseHelper? db, NearbyServicesRepository? servicesRepo, EmergencyContactRepository? contactsRepo})
-      : _db = db ?? DatabaseHelper(),
+  HomeBloc({
+    DatabaseHelper? db,
+    NearbyServicesRepository? servicesRepo,
+    EmergencyContactRepository? contactsRepo,
+    required LocationCubit locationCubit,
+  })  : _db = db ?? DatabaseHelper(),
         _servicesRepo = servicesRepo ?? NearbyServicesRepository(),
         _contactsRepo = contactsRepo ?? EmergencyContactRepository(),
+        _locationCubit = locationCubit,
         super(HomeState.initial()) {
     on<HomeStarted>(_onStarted);
     on<HomeLocationUpdated>(_onLocationUpdated);
@@ -51,101 +60,32 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     final connType = _mapConnectivity(connResults);
     emit(state.copyWith(connectivity: connType));
 
-    // 3. Real Location Services & Permissions (Web, macOS, iOS, Android support)
-    try {
-      bool serviceEnabled = false;
-      try {
-        serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      } catch (_) {
-        // Fallback for platforms where this check is not supported or throws
-        serviceEnabled = true;
-      }
-
-      if (!serviceEnabled) {
-        emit(
-          state.copyWith(
+    // 3. Centralized location tracking (subscribing to global LocationCubit state)
+    _locationSub?.cancel();
+    _locationSub = _locationCubit.stream.listen((locState) {
+      if (locState.hasLocation) {
+        add(HomeLocationUpdated(latitude: locState.latitude!, longitude: locState.longitude!));
+      } else if (locState.status == LocationStatus.denied ||
+                 locState.status == LocationStatus.deniedForever ||
+                 locState.status == LocationStatus.failure) {
+        if (state.latitude == null || state.longitude == null) {
+          emit(state.copyWith(
             isLoading: false,
             hasLocationError: true,
-            locationErrorMessage: 'Location services are disabled on your device.',
-          ),
-        );
-        return;
-      }
-
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          emit(
-            state.copyWith(
-              isLoading: false,
-              hasLocationError: true,
-              locationErrorMessage: 'Location permissions are denied. RoadSOS needs GPS access to find nearest services.',
-            ),
-          );
-          return;
+            locationErrorMessage: locState.errorMessage,
+          ));
         }
       }
+    });
 
-      if (permission == LocationPermission.deniedForever) {
-        emit(
-          state.copyWith(
-            isLoading: false,
-            hasLocationError: true,
-            locationErrorMessage: 'Location permissions are permanently denied. Please enable them in your browser or system settings.',
-          ),
-        );
-        return;
-      }
-
-      // Success: Resolve the primary location with fallback timeout logic
-      Position? pos;
-      try {
-        pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-          timeLimit: const Duration(seconds: 6),
-        );
-      } catch (e) {
-        print("Geolocator high accuracy timed out or failed ($e). Retrying with low accuracy...");
-        try {
-          pos = await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.low,
-            timeLimit: const Duration(seconds: 4),
-          );
-        } catch (_) {
-          pos = await Geolocator.getLastKnownPosition();
-        }
-      }
-
-      if (pos == null) {
-        throw Exception("Unable to retrieve GPS coordinates within timeout. Please ensure location access is granted and your device's GPS has a clear signal.");
-      }
-
-      add(HomeLocationUpdated(latitude: pos.latitude, longitude: pos.longitude));
-
-      // 4. Register continuous location stream listeners
-      _positionSub?.cancel();
-      _positionSub = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 10,
-        ),
-      ).listen((pos) {
-        add(HomeLocationUpdated(latitude: pos.latitude, longitude: pos.longitude));
-      }, onError: (err) {
-        // Suppress stream glitches
-      });
-
-    } catch (e) {
-      emit(
-        state.copyWith(
-          isLoading: false,
-          hasLocationError: true,
-          locationErrorMessage: e.toString().contains('Exception:') 
-              ? e.toString().replaceAll('Exception: ', '') 
-              : 'GPS access failed: ${e.toString()}',
-        ),
-      );
+    // Check location right away
+    final locState = _locationCubit.state;
+    if (locState.hasLocation) {
+      print("[HomeBloc] GPS loaded from state: ${locState.latitude}, ${locState.longitude}");
+      add(HomeLocationUpdated(latitude: locState.latitude!, longitude: locState.longitude!));
+    } else {
+      // Trigger initialization if not already done
+      _locationCubit.initLocation();
     }
 
     _triggerMeshTransition(connType, state.crashDetectionEnabled);
@@ -301,7 +241,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
 
   @override
   Future<void> close() {
-    _positionSub?.cancel();
+    _locationSub?.cancel();
     _connectivitySub?.cancel();
     _meshTimer?.cancel();
     return super.close();

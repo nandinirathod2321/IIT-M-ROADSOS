@@ -18,6 +18,9 @@ import '../../../data/models/hospital.dart';
 import '../../../data/models/police_station.dart';
 import '../../../data/models/emergency_contact.dart';
 import '../../../shared/widgets/countdown_overlay.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/location/location_cubit.dart';
+import '../../../core/location/location_state.dart';
 
 /// Full-screen countdown overlay and premium interactive emergency success screen.
 /// Resolves real coordinates, queries spatial SQLite lists, dials emergency numbers,
@@ -109,19 +112,38 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
     double lng = 72.5714;
     String address = 'Ahmedabad, India';
 
-    try {
-      // 1. Resolve actual GPS coordinates
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 4),
-      );
-      lat = pos.latitude;
-      lng = pos.longitude;
+    final locCubit = context.read<LocationCubit>();
+    if (locCubit.state.hasLocation) {
+      lat = locCubit.state.latitude!;
+      lng = locCubit.state.longitude!;
+      address = locCubit.state.city != null ? "${locCubit.state.city}, India" : 'Locating...';
+      try {
+        address = await performReverseGeocode(lat, lng);
+      } catch (_) {
+        address = locCubit.state.city != null ? "${locCubit.state.city}, India" : 'Locating...';
+      }
+      print("[CountdownScreen] GPS loaded from state: $lat, $lng");
+    } else {
+      try {
+        // 1. Resolve actual GPS coordinates
+        final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 4),
+        );
+        lat = pos.latitude;
+        lng = pos.longitude;
 
-      // 2. Perform live reverse geocoding via OSM Nominatim
-      address = await performReverseGeocode(lat, lng);
-    } catch (_) {
-      address = 'Ahmedabad (Offline GPS Fallback)';
+        // 2. Perform live reverse geocoding via OSM Nominatim
+        address = await performReverseGeocode(lat, lng);
+      } catch (_) {
+        if (locCubit.state.latitude != null) {
+          lat = locCubit.state.latitude!;
+          lng = locCubit.state.longitude!;
+          address = locCubit.state.city != null ? "${locCubit.state.city}, India" : 'Ahmedabad (Offline GPS Fallback)';
+        } else {
+          address = 'Ahmedabad (Offline GPS Fallback)';
+        }
+      }
     }
 
     try {

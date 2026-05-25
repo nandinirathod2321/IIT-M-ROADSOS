@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'dart:async';
+import '../../../core/location/location_cubit.dart';
+import '../../../core/location/location_state.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
@@ -42,18 +46,58 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
   List<EmergencyShelter> _shelters = [];
   List<EmergencyContact> _contacts = [];
 
+  StreamSubscription<LocationState>? _locationSub;
+
   @override
   void initState() {
     super.initState();
     _selectedTab = widget.initialSection;
-    _resolveLocationAndData();
+
+    final locationCubit = context.read<LocationCubit>();
+    _locationSub = locationCubit.stream.listen((locState) {
+      if (locState.hasLocation) {
+        _resolveLocationAndData(lat: locState.latitude!, lng: locState.longitude!);
+      } else if (locState.status == LocationStatus.denied ||
+                 locState.status == LocationStatus.deniedForever ||
+                 locState.status == LocationStatus.failure) {
+        if (mounted) {
+          setState(() {
+            _gpsError = locState.errorMessage;
+            _isLoading = false;
+          });
+        }
+      }
+    });
+
+    final locState = locationCubit.state;
+    if (locState.hasLocation) {
+      print("[EmergencyScreen] GPS loaded from state: ${locState.latitude}, ${locState.longitude}");
+      _resolveLocationAndData(lat: locState.latitude!, lng: locState.longitude!);
+    } else {
+      setState(() {
+        _isLoading = true;
+      });
+      locationCubit.initLocation();
+    }
   }
 
-  /// Fetches real coordinates via Geolocator and queries spatial SQLite lists
-  Future<void> _resolveLocationAndData({bool forceRefresh = false}) async {
+  @override
+  void dispose() {
+    _locationSub?.cancel();
+    super.dispose();
+  }
+
+  /// Fetches services matching coordinates
+  Future<void> _resolveLocationAndData({double? lat, double? lng, bool forceRefresh = false}) async {
+    final double targetLat = lat ?? _latitude ?? 23.0225;
+    final double targetLng = lng ?? _longitude ?? 72.5714;
+
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _gpsError = '';
+      _latitude = targetLat;
+      _longitude = targetLng;
     });
 
     try {
@@ -64,44 +108,13 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
     }
 
     try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        _gpsError = 'GPS services are disabled.';
-        await _loadOfflineFallbackData(23.0225, 72.5714);
-        return;
-      }
-
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-        _gpsError = 'Location permission denied.';
-        await _loadOfflineFallbackData(23.0225, 72.5714);
-        return;
-      }
-
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 4),
-      );
-
-      _latitude = pos.latitude;
-      _longitude = pos.longitude;
-      
-      try {
-        await _servicesRepo.fetchAndCacheNearbyServices(pos.latitude, pos.longitude, forceRefresh: forceRefresh);
-      } catch (e) {
-        print("EmergencyScreen: remote fetch failed: $e");
-      }
-
-      await _loadOfflineFallbackData(pos.latitude, pos.longitude);
-
+      print("[EmergencyScreen] Responder API fetch started...");
+      await _servicesRepo.fetchAndCacheNearbyServices(targetLat, targetLng, forceRefresh: forceRefresh);
     } catch (e) {
-      _gpsError = 'Failed to fetch GPS coordinates.';
-      await _loadOfflineFallbackData(_latitude ?? 23.0225, _longitude ?? 72.5714);
+      print("EmergencyScreen: remote fetch failed: $e");
     }
+
+    await _loadOfflineFallbackData(targetLat, targetLng);
   }
 
   /// Loads details matching coordinate locations
@@ -113,16 +126,23 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
       final sheltersList = await _servicesRepo.getNearbyShelters(lat, lng);
       final contactsList = await _contactsRepo.getContacts();
 
-      setState(() {
-        _hospitals = hospitalsList;
-        _police = policeList;
-        _towing = towingList;
-        _shelters = sheltersList;
-        _contacts = contactsList;
-        _isLoading = false;
-      });
+      print("[EmergencyScreen] Responder API success: ${hospitalsList.length} hospitals found.");
+
+      if (mounted) {
+        setState(() {
+          _hospitals = hospitalsList;
+          _police = policeList;
+          _towing = towingList;
+          _shelters = sheltersList;
+          _contacts = contactsList;
+          _isLoading = false;
+        });
+      }
     } catch (_) {
-      setState(() => _isLoading = false);
+      print("[EmergencyScreen] Responder API fallback activated.");
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -426,7 +446,13 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: Colors.white),
             tooltip: "Force GPS Refresh",
-            onPressed: () => _resolveLocationAndData(forceRefresh: true),
+            onPressed: () {
+              if (_latitude != null && _longitude != null) {
+                _resolveLocationAndData(lat: _latitude!, lng: _longitude!, forceRefresh: true);
+              } else {
+                context.read<LocationCubit>().forceRefreshLocation();
+              }
+            },
           ),
         ],
         backgroundColor: AppColors.surface,
@@ -790,7 +816,13 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed: () => _resolveLocationAndData(forceRefresh: true),
+            onPressed: () {
+              if (_latitude != null && _longitude != null) {
+                _resolveLocationAndData(lat: _latitude!, lng: _longitude!, forceRefresh: true);
+              } else {
+                context.read<LocationCubit>().forceRefreshLocation();
+              }
+            },
             icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 16),
             label: Text("RETRY GPS SYNC", style: AppTypography.labelCaps.copyWith(color: Colors.white)),
             style: ElevatedButton.styleFrom(
