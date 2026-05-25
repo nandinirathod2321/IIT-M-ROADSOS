@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../data/database/database_helper.dart';
 import '../../../data/models/medical_profile.dart';
 
@@ -32,6 +33,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
   late TextEditingController _medicationsController;
   late TextEditingController _conditionsController;
   late TextEditingController _contactController;
+  late TextEditingController _notesController;
   
   String _selectedBloodGroup = "O+";
   String _selectedGender = "Male";
@@ -46,6 +48,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
     _medicationsController = TextEditingController();
     _conditionsController = TextEditingController();
     _contactController = TextEditingController();
+    _notesController = TextEditingController();
     _loadProfile();
   }
 
@@ -57,10 +60,11 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
     _medicationsController.dispose();
     _conditionsController.dispose();
     _contactController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
-  /// Loads the medical profile from SQLite, initializing demo values if empty.
+  /// Loads the medical profile from SQLite/Firestore, initializing user values if empty.
   Future<void> _loadProfile() async {
     setState(() {
       _isLoading = true;
@@ -71,20 +75,26 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
       // Ensure database is initialized
       await _db.initialize();
       
-      MedicalProfile? profile = await _db.getMedicalProfile('me');
+      final currentUserId = AuthService.instance.currentUserId ?? 'me';
+      MedicalProfile? profile = await _db.getMedicalProfile(currentUserId);
       
       if (profile == null) {
-        profile = const MedicalProfile(
-          userId: 'me',
-          fullName: 'Nandini Rathod',
+        final email = AuthService.instance.currentUserEmail ?? 'rahul.rathod@gmail.com';
+        final fullName = AuthService.instance.currentUserFullName ?? 'Nandini Rathod';
+        final phone = AuthService.instance.currentUserPhone ?? '+91 98765 43210';
+
+        profile = MedicalProfile(
+          userId: currentUserId,
+          fullName: fullName,
           age: 21,
           gender: 'Female',
           bloodGroup: 'O+',
-          allergies: ['Penicillin', 'Peanuts'],
-          medications: ['None'],
-          conditions: ['None'],
-          emergencyContactId: '+91 98765 43210',
+          allergies: const ['Penicillin', 'Peanuts'],
+          medications: const ['None'],
+          conditions: const ['None'],
+          emergencyContactId: phone,
           organDonor: true,
+          emergencyNotes: 'No critical notes.',
         );
         await _db.upsertMedicalProfile(profile);
       }
@@ -95,6 +105,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
       _medicationsController.text = profile.medications.join(', ');
       _conditionsController.text = profile.conditions.join(', ');
       _contactController.text = profile.emergencyContactId;
+      _notesController.text = profile.emergencyNotes;
       _selectedBloodGroup = _bloodGroupsList.contains(profile.bloodGroup) ? profile.bloodGroup : "O+";
       _selectedGender = _gendersList.contains(profile.gender) ? profile.gender : "Female";
       _isOrganDonor = profile.organDonor;
@@ -112,15 +123,16 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
     }
   }
 
-  /// Persists edits locally in SQLite database.
+  /// Persists edits locally in SQLite/Firestore database.
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
     try {
+      final currentUserId = AuthService.instance.currentUserId ?? 'me';
       final updatedProfile = MedicalProfile(
-        userId: 'me',
+        userId: currentUserId,
         fullName: _nameController.text.trim(),
         age: int.tryParse(_ageController.text.trim()) ?? 0,
         gender: _selectedGender,
@@ -142,6 +154,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
             .toList(),
         emergencyContactId: _contactController.text.trim(),
         organDonor: _isOrganDonor,
+        emergencyNotes: _notesController.text.trim(),
       );
 
       await _db.upsertMedicalProfile(updatedProfile);
@@ -191,7 +204,8 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
         "Current Medications: ${p.medications.isNotEmpty ? p.medications.join(', ') : 'None'}\n"
         "Medical Conditions: ${p.conditions.isNotEmpty ? p.conditions.join(', ') : 'None'}\n"
         "Emergency Contact: ${p.emergencyContactId}\n"
-        "Organ Donor: ${p.organDonor ? 'Yes' : 'No'}";
+        "Organ Donor: ${p.organDonor ? 'Yes' : 'No'}\n"
+        "Emergency Notes: ${p.emergencyNotes.isNotEmpty ? p.emergencyNotes : 'None'}";
 
     Share.share(summary, subject: "RoadSOS Emergency Medical ID");
   }
@@ -265,6 +279,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
                   _medicationsController.text = _profile!.medications.join(', ');
                   _conditionsController.text = _profile!.conditions.join(', ');
                   _contactController.text = _profile!.emergencyContactId;
+                  _notesController.text = _profile!.emergencyNotes;
                   _selectedBloodGroup = _profile!.bloodGroup;
                   _selectedGender = _profile!.gender;
                   _isOrganDonor = _profile!.organDonor;
@@ -440,6 +455,13 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
                   profile.emergencyContactId,
                   Colors.white,
                 ),
+                const SizedBox(height: 16),
+                // Emergency Notes details
+                _buildInfoSection(
+                  "EMERGENCY NOTES",
+                  profile.emergencyNotes.isNotEmpty ? profile.emergencyNotes : "None",
+                  Colors.white,
+                ),
               ],
             ),
           ),
@@ -610,6 +632,12 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
               label: "Emergency Phone Number",
               icon: Icons.phone_android_rounded,
               validator: (v) => v == null || v.trim().isEmpty ? "Phone number is required" : null,
+            ),
+            const SizedBox(height: 12),
+            _buildInputField(
+              controller: _notesController,
+              label: "Emergency Notes",
+              icon: Icons.notes_rounded,
             ),
             const SizedBox(height: 16),
             

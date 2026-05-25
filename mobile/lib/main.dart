@@ -7,6 +7,7 @@ import 'core/theme/colors.dart';
 import 'features/crash_detection/crash_detector.dart';
 import 'core/router/app_router.dart';
 import 'data/database/db_initializer.dart';
+import 'core/services/auth_service.dart';
 import 'app.dart';
 
 void main() async {
@@ -28,6 +29,9 @@ void main() async {
 
   // Initialize SQLite local spatial nodes database
   await DbInitializer.initialize();
+
+  // Initialize unified Authentication and session manager
+  await AuthService.initialize();
 
   // Inspect onboarding status
   final SharedPreferences prefs = await SharedPreferences.getInstance();

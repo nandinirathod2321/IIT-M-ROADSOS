@@ -16,6 +16,7 @@ class MedicalProfile extends Equatable {
   final String insuranceProvider;
   final String insurancePolicyNo;
   final bool organDonor;
+  final String emergencyNotes;
 
   const MedicalProfile({
     required this.userId,
@@ -30,6 +31,7 @@ class MedicalProfile extends Equatable {
     this.insuranceProvider = '',
     this.insurancePolicyNo = '',
     this.organDonor = false,
+    this.emergencyNotes = '',
   });
 
   // ── Serialisation ────────────────────────────────────────────────────
@@ -48,7 +50,8 @@ class MedicalProfile extends Equatable {
       emergencyContactId: map['emergencyContactId'] as String? ?? '',
       insuranceProvider: map['insuranceProvider'] as String? ?? '',
       insurancePolicyNo: map['insurancePolicyNo'] as String? ?? '',
-      organDonor: (map['organDonor'] as int? ?? 0) == 1,
+      organDonor: (map['organDonor'] as int? ?? 0) == 1 || map['organDonor'] == true,
+      emergencyNotes: map['emergencyNotes'] as String? ?? '',
     );
   }
 
@@ -67,6 +70,7 @@ class MedicalProfile extends Equatable {
       'insuranceProvider': insuranceProvider,
       'insurancePolicyNo': insurancePolicyNo,
       'organDonor': organDonor ? 1 : 0,
+      'emergencyNotes': emergencyNotes,
     };
   }
 
@@ -82,6 +86,7 @@ class MedicalProfile extends Equatable {
       'medications': medications,
       'conditions': conditions,
       'organDonor': organDonor,
+      'emergencyNotes': emergencyNotes,
     };
   }
 
@@ -106,5 +111,6 @@ class MedicalProfile extends Equatable {
         insuranceProvider,
         insurancePolicyNo,
         organDonor,
+        emergencyNotes,
       ];
 }

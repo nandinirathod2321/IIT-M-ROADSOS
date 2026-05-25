@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../core/services/auth_service.dart';
 import 'db_size_helper.dart';
 
 import 'package:flutter/services.dart' show rootBundle;
@@ -408,6 +410,19 @@ class DatabaseHelper {
 
   /// Inserts or replaces an emergency contact.
   Future<void> upsertEmergencyContact(EmergencyContact contact) async {
+    if (AuthService.useFirebase) {
+      try {
+        final uid = AuthService.instance.currentUserId ?? 'me';
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('contacts')
+            .doc(contact.id)
+            .set(contact.toMap());
+      } catch (e) {
+        print("Firestore emergency contact upsert failed: $e");
+      }
+    }
     if (kIsWeb) {
       final contacts = await getEmergencyContacts();
       contacts.removeWhere((c) => c.id == contact.id);
@@ -427,6 +442,21 @@ class DatabaseHelper {
 
   /// Returns all saved emergency contacts.
   Future<List<EmergencyContact>> getEmergencyContacts() async {
+    if (AuthService.useFirebase) {
+      try {
+        final uid = AuthService.instance.currentUserId ?? 'me';
+        final snapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('contacts')
+            .get();
+        if (snapshot.docs.isNotEmpty) {
+          return snapshot.docs.map((doc) => EmergencyContact.fromMap(doc.data())).toList();
+        }
+      } catch (e) {
+        print("Firestore fetch contacts failed: $e");
+      }
+    }
     if (kIsWeb) {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString('web_emergency_contacts');
@@ -452,6 +482,19 @@ class DatabaseHelper {
 
   /// Deletes an emergency contact by [id].
   Future<void> deleteEmergencyContact(String id) async {
+    if (AuthService.useFirebase) {
+      try {
+        final uid = AuthService.instance.currentUserId ?? 'me';
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('contacts')
+            .doc(id)
+            .delete();
+      } catch (e) {
+        print("Firestore emergency contact delete failed: $e");
+      }
+    }
     if (kIsWeb) {
       final contacts = await getEmergencyContacts();
       contacts.removeWhere((c) => c.id == id);
@@ -468,9 +511,22 @@ class DatabaseHelper {
 
   /// Inserts or replaces the user's medical profile.
   Future<void> upsertMedicalProfile(MedicalProfile profile) async {
+    if (AuthService.useFirebase) {
+      try {
+        final uid = AuthService.instance.currentUserId ?? 'me';
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('medical_id')
+            .doc('profile')
+            .set(profile.toMap());
+      } catch (e) {
+        print("Firestore medical profile upsert failed: $e");
+      }
+    }
     if (kIsWeb) {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('web_medical_profile', json.encode(profile.toSnapshot()));
+      await prefs.setString('web_medical_profile', json.encode(profile.toMap()));
       return;
     }
     final db = await database;
@@ -483,6 +539,22 @@ class DatabaseHelper {
 
   /// Returns the stored medical profile, or `null` if none exists.
   Future<MedicalProfile?> getMedicalProfile(String userId) async {
+    if (AuthService.useFirebase) {
+      try {
+        final uid = AuthService.instance.currentUserId ?? 'me';
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('medical_id')
+            .doc('profile')
+            .get();
+        if (doc.exists && doc.data() != null) {
+          return MedicalProfile.fromMap(doc.data()!);
+        }
+      } catch (e) {
+        print("Firestore fetch medical profile failed: $e");
+      }
+    }
     if (kIsWeb) {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString('web_medical_profile');
@@ -494,11 +566,12 @@ class DatabaseHelper {
         'age': map['age'] ?? 21,
         'gender': map['gender'] ?? 'Female',
         'bloodGroup': map['bloodGroup'] ?? 'O+',
-        'allergies': (map['allergies'] as List?)?.join(', ') ?? 'Penicillin, Peanuts',
-        'medications': (map['medications'] as List?)?.join(', ') ?? 'None',
-        'conditions': (map['conditions'] as List?)?.join(', ') ?? 'None',
+        'allergies': map['allergies'] ?? 'Penicillin, Peanuts',
+        'medications': map['medications'] ?? 'None',
+        'conditions': map['conditions'] ?? 'None',
         'emergencyContactId': map['emergencyContactId'] ?? '+91 98765 43210',
-        'organDonor': (map['organDonor'] == true) ? 1 : 0,
+        'organDonor': (map['organDonor'] == true || map['organDonor'] == 1) ? 1 : 0,
+        'emergencyNotes': map['emergencyNotes'] ?? '',
       });
     }
     final db = await database;

@@ -8,6 +8,10 @@ import '../../features/medical_id/screens/medical_id_screen.dart';
 import '../../features/first_aid/screens/first_aid_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
+import '../../features/auth/screens/login_screen.dart';
+import '../../features/auth/screens/signup_screen.dart';
+import '../../features/auth/screens/forgot_password_screen.dart';
+import '../../core/services/auth_service.dart';
 import '../../shared/widgets/navigation_shell.dart';
 
 /// Centralized application router using go_router.
@@ -18,6 +22,23 @@ abstract final class AppRouter {
   static GoRouter router(String initialLocation) => GoRouter(
     navigatorKey: navigatorKey,
     initialLocation: initialLocation,
+    redirect: (context, state) {
+      final bool loggedIn = AuthService.instance.isLoggedIn;
+      final matchLoc = state.matchedLocation;
+
+      final isAuthRoute = matchLoc == '/login' || matchLoc == '/signup' || matchLoc == '/forgot-password';
+      final isOnboarding = matchLoc == '/onboarding';
+
+      if (!loggedIn && !isAuthRoute && !isOnboarding) {
+        // If not logged in and not trying to access auth/onboarding, send to login
+        return '/login';
+      }
+      if (loggedIn && isAuthRoute) {
+        // If logged in and trying to hit auth, return to Home
+        return '/';
+      }
+      return null;
+    },
     routes: [
       // ── Shell with bottom nav ────────────────────────────────────────
       StatefulShellRoute.indexedStack(
@@ -94,6 +115,21 @@ abstract final class AppRouter {
         path: '/onboarding',
         parentNavigatorKey: navigatorKey,
         builder: (context, state) => const OnboardingScreen(),
+      ),
+      GoRoute(
+        path: '/login',
+        parentNavigatorKey: navigatorKey,
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/signup',
+        parentNavigatorKey: navigatorKey,
+        builder: (context, state) => const SignupScreen(),
+      ),
+      GoRoute(
+        path: '/forgot-password',
+        parentNavigatorKey: navigatorKey,
+        builder: (context, state) => const ForgotPasswordScreen(),
       ),
     ],
   );

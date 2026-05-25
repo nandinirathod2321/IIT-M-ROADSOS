@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../data/database/database_helper.dart';
 import '../../../data/models/hospital.dart';
 import '../../../data/models/police_station.dart';
@@ -48,7 +49,9 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
     "Initializing local emergency database...",
     "Querying live GPS satellite telemetry...",
     "Encoding medical profile into local SOS packet...",
-    "Broadcasting rescue packet to Mesh BLE peers...",
+    "Simulating SMS alerts dispatch to emergency contacts...",
+    "Simulating emergency email broadcast with maps location...",
+    "Broadcasting rescue packet to local Mesh BLE peers...",
     "Dispatched successfully to nearest responder networks!"
   ];
   int _currentStepIndex = 0;
@@ -135,6 +138,12 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
       final rawPolice = await db.getNearbyPolice(lat, lng);
       final rawContacts = await db.getEmergencyContacts();
 
+      // Retrieve User Name & notes
+      final currentUserId = AuthService.instance.currentUserId ?? 'me';
+      final profile = await db.getMedicalProfile(currentUserId);
+      final userName = profile?.fullName ?? AuthService.instance.currentUserFullName ?? 'Nandini Rathod';
+      final notes = profile?.emergencyNotes ?? 'None';
+
       // 5. Fire actual alerts (mailto & tel link launchers)
       // Call primary emergency contact
       if (rawContacts.isNotEmpty) {
@@ -153,15 +162,32 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
           final String mapsLink = "https://www.google.com/maps/search/?api=1&query=$lat,$lng";
           final String emailBody = 
               "CRITICAL ROAD EMERGENCY ALERT - RoadSOS\n\n"
-              "A critical road emergency has been manually triggered by the user via the RoadSOS application.\n\n"
+              "A critical road emergency has been manually triggered by the user ($userName) via the RoadSOS application.\n\n"
               "Incident Telemetry Details:\n"
               "---------------------------\n"
+              "User Name: $userName\n"
               "Event ID: $_eventId\n"
               "Timestamp: $timestampStr\n"
               "Coordinates: $lat, $lng\n"
               "Google Maps Tracking Link: $mapsLink\n"
               "Reported Physical Address: $address\n\n"
+              "Emergency Notes: $notes\n\n"
               "Please check on them immediately or coordinate rescue responders!";
+
+          // Trigger simulated SMS Alert Snackbars
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    "Simulated SMS alert successfully dispatched to ${rawContacts.length} emergency contacts!",
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  backgroundColor: AppColors.safeGreen,
+                ),
+              );
+            }
+          });
               
           final emailUri = Uri(
             scheme: 'mailto',
@@ -620,8 +646,8 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                                                   const SizedBox(width: 4),
                                                   Text(
                                                     contact.email.isNotEmpty
-                                                        ? "Email Alerts Dispatched"
-                                                        : "Call alert queued",
+                                                        ? "Email & SMS Alerts Dispatched"
+                                                        : "SMS Alert Dispatched",
                                                     style: AppTypography.bodySmall.copyWith(fontSize: 10, color: AppColors.safeGreen),
                                                   ),
                                                 ],

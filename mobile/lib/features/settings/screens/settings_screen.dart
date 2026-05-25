@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
 import '../../../data/database/database_helper.dart';
 import '../../crash_detection/crash_detector.dart';
+import '../../../core/services/auth_service.dart';
 
 /// Interactive Settings Screen for RoadSOS.
 /// Provides configuration for Crash Detection, SOS settings, and clean real-time data sync.
@@ -509,6 +511,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _SettingsTile(
                       title: "Share App",
                       onTap: () => Share.share("Check out RoadSOS - Road Emergency & Rescue Operating System app!"),
+                    ),
+                    _SettingsTile(
+                      title: "Logout Profile",
+                      trailing: const Icon(
+                        Icons.logout,
+                        color: AppColors.emergencyRed,
+                        size: 20,
+                      ),
+                      onTap: () async {
+                        await AuthService.instance.signOut();
+                        if (mounted) {
+                          context.go('/login');
+                        }
+                      },
                     ),
                   ],
                 ),
