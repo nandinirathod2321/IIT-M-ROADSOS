@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -31,6 +32,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   /// Request essential device sensors and hardware features.
   Future<void> _requestPermissionsAndStart() async {
     setState(() => _requesting = true);
+
+    if (kIsWeb) {
+      await _completeOnboarding();
+      return;
+    }
 
     // Location permissions
     await Permission.locationWhenInUse.request();

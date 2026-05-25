@@ -53,6 +53,26 @@ class EmergencyContact extends Equatable {
     };
   }
 
+  EmergencyContact copyWith({
+    String? id,
+    String? name,
+    String? relationship,
+    String? phone,
+    String? email,
+    bool? isPrimary,
+    String? avatarEmoji,
+  }) {
+    return EmergencyContact(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      relationship: relationship ?? this.relationship,
+      phone: phone ?? this.phone,
+      email: email ?? this.email,
+      isPrimary: isPrimary ?? this.isPrimary,
+      avatarEmoji: avatarEmoji ?? this.avatarEmoji,
+    );
+  }
+
   @override
   List<Object?> get props => [id, name, relationship, phone, email, isPrimary, avatarEmoji];
 }

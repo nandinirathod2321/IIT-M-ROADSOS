@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/theme/colors.dart';
 import '../../core/theme/typography.dart';
@@ -75,6 +76,9 @@ class _CountdownOverlayState extends State<CountdownOverlay>
         widget.onComplete();
       } else {
         setState(() => _remaining--);
+        try {
+          HapticFeedback.lightImpact();
+        } catch (_) {}
       }
     });
   }

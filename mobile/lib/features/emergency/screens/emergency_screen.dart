@@ -44,7 +44,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
   }
 
   /// Fetches real coordinates via Geolocator and queries spatial SQLite lists
-  Future<void> _resolveLocationAndData() async {
+  Future<void> _resolveLocationAndData({bool forceRefresh = false}) async {
     setState(() {
       _isLoading = true;
       _gpsError = '';
@@ -76,11 +76,18 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
 
       _latitude = pos.latitude;
       _longitude = pos.longitude;
+      
+      try {
+        await _db.fetchAndCacheNearbyServices(pos.latitude, pos.longitude, forceRefresh: forceRefresh);
+      } catch (e) {
+        print("EmergencyScreen: remote fetch failed: $e");
+      }
+
       await _loadOfflineFallbackData(pos.latitude, pos.longitude);
 
     } catch (e) {
       _gpsError = 'Failed to fetch GPS coordinates.';
-      await _loadOfflineFallbackData(23.0225, 72.5714);
+      await _loadOfflineFallbackData(_latitude ?? 23.0225, _longitude ?? 72.5714);
     }
   }
 
@@ -155,107 +162,153 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
     final emailCtrl = TextEditingController(text: isEditing ? contact.email : '');
     final relationCtrl = TextEditingController(text: isEditing ? contact.relationship : 'Family');
     
+    bool isPrimaryVal = isEditing ? contact.isPrimary : _contacts.isEmpty;
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: AppColors.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: AppColors.borderSubtle, width: 1.5),
-          ),
-          title: Text(
-            isEditing ? "EDIT CONTACT" : "ADD EMERGENCY CONTACT",
-            style: AppTypography.headlineMedium.copyWith(color: Colors.white),
-          ),
-          content: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: nameCtrl,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: _dialogInputDecoration("Full Name", Icons.person_outline_rounded),
-                    validator: (v) => v == null || v.trim().isEmpty ? "Name is required" : null,
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: AppColors.borderSubtle, width: 1.5),
+              ),
+              title: Text(
+                isEditing ? "EDIT CONTACT" : "ADD EMERGENCY CONTACT",
+                style: AppTypography.headlineMedium.copyWith(color: Colors.white),
+              ),
+              content: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: nameCtrl,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: _dialogInputDecoration("Full Name", Icons.person_outline_rounded),
+                        validator: (v) => v == null || v.trim().isEmpty ? "Name is required" : null,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: phoneCtrl,
+                        style: const TextStyle(color: Colors.white),
+                        keyboardType: TextInputType.phone,
+                        decoration: _dialogInputDecoration("Phone Number", Icons.phone_android_rounded),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return "Phone number is required";
+                          final phoneReg = RegExp(r'^\+?[0-9\s\-]{10,15}$');
+                          if (!phoneReg.hasMatch(v.trim())) return "Enter a valid phone number (min 10 digits)";
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: emailCtrl,
+                        style: const TextStyle(color: Colors.white),
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: _dialogInputDecoration("Email Address", Icons.email_outlined),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return "Email is required";
+                          final emailReg = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+                          if (!emailReg.hasMatch(v.trim())) return "Enter a valid email address";
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: relationCtrl.text,
+                        dropdownColor: AppColors.surface,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: _dialogInputDecoration("Relationship", Icons.people_outline_rounded),
+                        items: ["Family", "Friend", "Spouse", "Doctor", "Work", "Other"]
+                            .map((rel) => DropdownMenuItem(value: rel, child: Text(rel)))
+                            .toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() {
+                              relationCtrl.text = val;
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      SwitchListTile(
+                        title: Text(
+                          "Mark as Primary Contact",
+                          style: AppTypography.bodyMedium.copyWith(color: Colors.white),
+                        ),
+                        subtitle: Text(
+                          "This contact will be prioritized for SOS alerts",
+                          style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                        ),
+                        value: isPrimaryVal,
+                        activeColor: AppColors.safeGreen,
+                        contentPadding: EdgeInsets.zero,
+                        onChanged: (val) {
+                          setDialogState(() {
+                            isPrimaryVal = val;
+                          });
+                        },
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: phoneCtrl,
-                    style: const TextStyle(color: Colors.white),
-                    keyboardType: TextInputType.phone,
-                    decoration: _dialogInputDecoration("Phone Number", Icons.phone_android_rounded),
-                    validator: (v) => v == null || v.trim().isEmpty ? "Phone number is required" : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: emailCtrl,
-                    style: const TextStyle(color: Colors.white),
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: _dialogInputDecoration("Email Address", Icons.email_outlined),
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return "Email is required";
-                      final emailReg = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
-                      if (!emailReg.hasMatch(v.trim())) return "Enter a valid email address";
-                      return null;
+                ),
+              ),
+              actions: [
+                if (isEditing)
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _confirmDeleteContact(contact);
                     },
+                    style: TextButton.styleFrom(foregroundColor: AppColors.emergencyRed),
+                    child: Text(
+                      "DELETE",
+                      style: AppTypography.labelCaps.copyWith(color: AppColors.emergencyRed),
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: relationCtrl.text,
-                    dropdownColor: AppColors.surface,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: _dialogInputDecoration("Relationship", Icons.people_outline_rounded),
-                    items: ["Family", "Friend", "Spouse", "Doctor", "Work", "Other"]
-                        .map((rel) => DropdownMenuItem(value: rel, child: Text(rel)))
-                        .toList(),
-                    onChanged: (val) {
-                      if (val != null) relationCtrl.text = val;
-                    },
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    "CANCEL",
+                    style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary),
                   ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                "CANCEL",
-                style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (!formKey.currentState!.validate()) return;
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (!formKey.currentState!.validate()) return;
 
-                final newContact = EmergencyContact(
-                  id: isEditing ? contact.id : const Uuid().v4(),
-                  name: nameCtrl.text.trim(),
-                  phone: phoneCtrl.text.trim(),
-                  email: emailCtrl.text.trim(),
-                  relationship: relationCtrl.text,
-                  avatarEmoji: _avatarForRelationship(relationCtrl.text),
-                  isPrimary: isEditing ? contact.isPrimary : _contacts.isEmpty,
-                );
+                    final newContact = EmergencyContact(
+                      id: isEditing ? contact.id : const Uuid().v4(),
+                      name: nameCtrl.text.trim(),
+                      phone: phoneCtrl.text.trim(),
+                      email: emailCtrl.text.trim(),
+                      relationship: relationCtrl.text,
+                      avatarEmoji: _avatarForRelationship(relationCtrl.text),
+                      isPrimary: isPrimaryVal,
+                    );
 
-                await _db.upsertEmergencyContact(newContact);
-                Navigator.pop(context);
+                    await _db.upsertEmergencyContact(newContact);
+                    Navigator.pop(context);
 
-                _resolveLocationAndData(); // Refresh list
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.emergencyRed,
-              ),
-              child: Text(
-                isEditing ? "SAVE" : "ADD",
-                style: AppTypography.labelCaps.copyWith(color: Colors.white),
-              ),
-            ),
-          ],
+                    _resolveLocationAndData(); // Refresh list
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.emergencyRed,
+                  ),
+                  child: Text(
+                    isEditing ? "SAVE" : "ADD",
+                    style: AppTypography.labelCaps.copyWith(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -354,6 +407,13 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
           icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+            tooltip: "Force GPS Refresh",
+            onPressed: () => _resolveLocationAndData(forceRefresh: true),
+          ),
+        ],
         backgroundColor: AppColors.surface,
         elevation: 0,
       ),
@@ -665,6 +725,17 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
             desc,
             textAlign: TextAlign.center,
             style: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () => _resolveLocationAndData(forceRefresh: true),
+            icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 16),
+            label: Text("RETRY GPS SYNC", style: AppTypography.labelCaps.copyWith(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.emergencyRed,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
           ),
         ],
       ),

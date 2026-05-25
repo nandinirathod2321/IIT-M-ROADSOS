@@ -134,6 +134,12 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
       );
 
       // 4. Query spatial responders & emergency contacts
+      try {
+        await db.fetchAndCacheNearbyServices(lat, lng);
+      } catch (e) {
+        print("CountdownScreen: remote fetch failed: $e");
+      }
+
       final rawHospitals = await db.getNearbyHospitals(lat, lng);
       final rawPolice = await db.getNearbyPolice(lat, lng);
       final rawContacts = await db.getEmergencyContacts();
@@ -143,62 +149,6 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
       final profile = await db.getMedicalProfile(currentUserId);
       final userName = profile?.fullName ?? AuthService.instance.currentUserFullName ?? 'Nandini Rathod';
       final notes = profile?.emergencyNotes ?? 'None';
-
-      // 5. Fire actual alerts (mailto & tel link launchers)
-      // Call primary emergency contact
-      if (rawContacts.isNotEmpty) {
-        final primary = rawContacts.firstWhere((c) => c.isPrimary, orElse: () => rawContacts.first);
-        final telUri = Uri(scheme: 'tel', path: primary.phone.replaceAll(' ', ''));
-        if (await canLaunchUrl(telUri)) {
-          await launchUrl(telUri);
-        }
-      }
-
-      // Email all contacts with location coordinates and Maps links
-      if (rawContacts.isNotEmpty) {
-        final emails = rawContacts.map((c) => c.email).where((e) => e.isNotEmpty).join(',');
-        if (emails.isNotEmpty) {
-          final String timestampStr = DateTime.now().toLocal().toString();
-          final String mapsLink = "https://www.google.com/maps/search/?api=1&query=$lat,$lng";
-          final String emailBody = 
-              "CRITICAL ROAD EMERGENCY ALERT - RoadSOS\n\n"
-              "A critical road emergency has been manually triggered by the user ($userName) via the RoadSOS application.\n\n"
-              "Incident Telemetry Details:\n"
-              "---------------------------\n"
-              "User Name: $userName\n"
-              "Event ID: $_eventId\n"
-              "Timestamp: $timestampStr\n"
-              "Coordinates: $lat, $lng\n"
-              "Google Maps Tracking Link: $mapsLink\n"
-              "Reported Physical Address: $address\n\n"
-              "Emergency Notes: $notes\n\n"
-              "Please check on them immediately or coordinate rescue responders!";
-
-          // Trigger simulated SMS Alert Snackbars
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    "Simulated SMS alert successfully dispatched to ${rawContacts.length} emergency contacts!",
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  backgroundColor: AppColors.safeGreen,
-                ),
-              );
-            }
-          });
-              
-          final emailUri = Uri(
-            scheme: 'mailto',
-            path: emails,
-            query: 'subject=${Uri.encodeComponent('CRITICAL ROAD EMERGENCY - RoadSOS Alert')}&body=${Uri.encodeComponent(emailBody)}',
-          );
-          if (await canLaunchUrl(emailUri)) {
-            await launchUrl(emailUri);
-          }
-        }
-      }
 
       // Buffer seeder delays for clean rendering transitions
       await Future.delayed(const Duration(milliseconds: 1500));
@@ -213,7 +163,14 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
           _contacts = rawContacts;
           _isLoadingDetails = false;
         });
-        _showEmergencySentDialog();
+
+        // Trigger Call Confirmation dialog immediately if there are contacts
+        if (rawContacts.isNotEmpty) {
+          final primary = rawContacts.firstWhere((c) => c.isPrimary, orElse: () => rawContacts.first);
+          _showCallConfirmationDialog(primary);
+        } else {
+          _showEmergencySentDialog();
+        }
       }
     } catch (_) {
       if (mounted) {
@@ -668,6 +625,25 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                               }),
                             ),
                     ),
+                    if (_contacts.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton.icon(
+                          onPressed: _sendEmergencyEmails,
+                          icon: const Icon(Icons.email_rounded, color: Colors.white, size: 18),
+                          label: Text(
+                            "SEND GPS EMAIL ALERTS TO ALL",
+                            style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 11, letterSpacing: 1.0),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.emergencyRed,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 28),
 
                     // 3. BROADCAST METADATA LOGGER
@@ -853,6 +829,170 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
         ],
       ),
     );
+  }
+
+  void _showCallConfirmationDialog(EmergencyContact primary) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppColors.emergencyRed, width: 2.0),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.phone_in_talk_rounded, color: AppColors.emergencyRed, size: 24),
+            const SizedBox(width: 12),
+            Text(
+              "PLACE EMERGENCY CALL",
+              style: AppTypography.headlineMedium.copyWith(color: Colors.white, fontSize: 16),
+            ),
+          ],
+        ),
+        content: Text(
+          "Do you want to automatically call your primary emergency contact ${primary.name} (${primary.phone})?",
+          style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              "CANCEL",
+              style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final telUri = Uri(scheme: 'tel', path: primary.phone.replaceAll(' ', ''));
+              try {
+                if (await canLaunchUrl(telUri)) {
+                  await launchUrl(telUri);
+                } else {
+                  throw 'Could not launch dialer';
+                }
+              } catch (_) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text("Calling ${primary.name}: ${primary.phone}", style: const TextStyle(color: Colors.white)),
+                    backgroundColor: AppColors.infoBlue,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.emergencyRed,
+            ),
+            child: Text(
+              "CALL NOW",
+              style: AppTypography.labelCaps.copyWith(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _sendEmergencyEmails() async {
+    if (_contacts.isEmpty) return;
+
+    final emails = _contacts.map((c) => c.email).where((e) => e.isNotEmpty).join(',');
+    if (emails.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("No email addresses saved for your emergency contacts.", style: TextStyle(color: Colors.white)),
+          backgroundColor: AppColors.emergencyAmber,
+        ),
+      );
+      return;
+    }
+
+    final currentUserId = AuthService.instance.currentUserId ?? 'me';
+    final db = DatabaseHelper();
+    final profile = await db.getMedicalProfile(currentUserId);
+    final userName = profile?.fullName ?? AuthService.instance.currentUserFullName ?? 'Nandini Rathod';
+    final notes = profile?.emergencyNotes ?? 'None';
+
+    final String timestampStr = DateTime.now().toLocal().toString();
+    final String mapsLink = "https://www.google.com/maps/search/?api=1&query=$_latitude,$_longitude";
+    final String emailBody = 
+        "🚨 CRITICAL ROAD EMERGENCY ALERT - RoadSOS 🚨\n\n"
+        "A critical road emergency has been manually triggered by the user ($userName) via the RoadSOS application.\n\n"
+        "Incident Telemetry Details:\n"
+        "---------------------------\n"
+        "User Name: $userName\n"
+        "Event ID: $_eventId\n"
+        "Timestamp: $timestampStr\n"
+        "Coordinates: $_latitude, $_longitude\n"
+        "Google Maps Tracking Link: $mapsLink\n"
+        "Reported Physical Address: $_address\n\n"
+        "Emergency Notes: $notes\n\n"
+        "Please check on them immediately or coordinate rescue responders!";
+
+    final emailUri = Uri(
+      scheme: 'mailto',
+      path: emails,
+      query: 'subject=${Uri.encodeComponent('🚨 RoadSOS Emergency Alert')}&body=${Uri.encodeComponent(emailBody)}',
+    );
+
+    try {
+      if (await canLaunchUrl(emailUri)) {
+        await launchUrl(emailUri);
+      } else {
+        throw 'Could not launch mail client';
+      }
+    } catch (_) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: AppColors.borderSubtle),
+          ),
+          title: Text(
+            "EMAIL SYSTEM ALERT",
+            style: AppTypography.headlineMedium.copyWith(color: Colors.white),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "We could not launch your default email client. Please copy the emergency alert details below to notify your contacts:",
+                  style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: AppColors.borderSubtle),
+                  ),
+                  child: SelectableText(
+                    "To: $emails\nSubject: 🚨 RoadSOS Emergency Alert\n\n$emailBody",
+                    style: AppTypography.monoMedium.copyWith(fontSize: 10, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                "DISMISS",
+                style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   void _showEmergencySentDialog() {

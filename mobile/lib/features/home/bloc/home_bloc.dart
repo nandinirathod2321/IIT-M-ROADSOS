@@ -158,6 +158,13 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     );
     final String address = await _reverseGeocode(event.latitude, event.longitude);
     emit(state.copyWith(address: address));
+    
+    try {
+      await _db.fetchAndCacheNearbyServices(event.latitude, event.longitude);
+    } catch (e) {
+      print("HomeBloc: fetch and cache failed: $e");
+    }
+
     await _loadNearbyServices(event.latitude, event.longitude, emit);
   }
 
