@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -162,7 +163,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         });
       }
     }
-  }
   }
 
   Future<void> _showGeminiKeyDialog() async {

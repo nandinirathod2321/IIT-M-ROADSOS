@@ -450,7 +450,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
     // Dynamic extraction details matching user resolved position
     final nearestHospital = _hospitals.isNotEmpty
         ? _hospitals.first
-        : const Hospital(
+        : Hospital(
             id: 'h-mock',
             name: 'Apollo Hospitals Ahmedabad',
             address: 'Plot No. 1A, GIDC Gandhinagar, Ahmedabad',
@@ -459,7 +459,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
             phone: '+91 79 6670 1800',
             distanceKm: 3.2,
             estimatedMinutes: 6.0,
-            lastUpdated: null,
+            lastUpdated: DateTime.now(),
           );
 
     final nearestPolice = _policeStations.isNotEmpty

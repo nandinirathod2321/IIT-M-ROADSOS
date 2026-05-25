@@ -782,6 +782,7 @@ class DatabaseHelper {
   // ── Database diagnostics and offline updates ─────────────────────────
 
   Future<int> getDatabaseRecordCount() async {
+    if (kIsWeb) return 0;
     final db = await database;
     int total = 0;
     total += Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM hospitals')) ?? 0;
@@ -793,6 +794,7 @@ class DatabaseHelper {
   }
 
   Future<int> getDatabaseSizeInBytes() async {
+    if (kIsWeb) return 0;
     return getDbSizeInBytes();
   }
 

@@ -28,3 +28,7 @@ windows/flutter/ephemeral/
 # Operating system files
 .DS_Store
 Thumbs.db
+
+# Local SDK and artifacts
+flutter/
+
