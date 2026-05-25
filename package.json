@@ -1,0 +1,12 @@
+{
+  "name": "roadsos-workspace",
+  "version": "1.0.0",
+  "description": "RoadSOS - Road Emergency & Rescue Operating System Workspace",
+  "scripts": {
+    "dev": "npm run start-backend",
+    "start-backend": ".venv\\Scripts\\python.exe -m uvicorn backend.api.main:app --reload --port 8000",
+    "start-frontend": "cd mobile && flutter run -d chrome"
+  },
+  "author": "",
+  "license": "ISC"
+}
