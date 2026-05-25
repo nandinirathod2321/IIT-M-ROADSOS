@@ -37,12 +37,16 @@ class CountdownOverlay extends StatefulWidget {
   /// [AppConstants.countdownSeconds].
   final int totalSeconds;
 
+  /// The mechanism that triggered this emergency event (e.g. 'manual', 'voice', 'crash').
+  final String triggerType;
+
   const CountdownOverlay({
     super.key,
     required this.onComplete,
     required this.onCancel,
     this.onSendNow,
     this.totalSeconds = AppConstants.countdownSeconds,
+    this.triggerType = 'manual',
   });
 
   @override
@@ -92,7 +96,11 @@ class _CountdownOverlayState extends State<CountdownOverlay>
           children: [
             // Title
             Text(
-              'CRASH DETECTED',
+              widget.triggerType == 'voice'
+                  ? 'VOICE TRIGGER DETECTED'
+                  : widget.triggerType == 'manual'
+                      ? 'MANUAL SOS TRIGGERED'
+                      : 'CRASH DETECTED',
               style: AppTypography.labelCaps.copyWith(
                 color: AppColors.emergencyRed,
                 letterSpacing: 4,

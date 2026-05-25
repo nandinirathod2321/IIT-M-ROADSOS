@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
+import '../../../core/utils/geocoder.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -47,7 +47,14 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
 
     // 3. Real Location Services & Permissions (Web, macOS, iOS, Android support)
     try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      bool serviceEnabled = false;
+      try {
+        serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      } catch (_) {
+        // Fallback for platforms where this check is not supported or throws
+        serviceEnabled = true;
+      }
+
       if (!serviceEnabled) {
         emit(
           state.copyWith(
@@ -67,7 +74,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
             state.copyWith(
               isLoading: false,
               hasLocationError: true,
-              locationErrorMessage: 'Location permissions are denied.',
+              locationErrorMessage: 'Location permissions are denied. RoadSOS needs GPS access to find nearest services.',
             ),
           );
           return;
@@ -79,16 +86,34 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
           state.copyWith(
             isLoading: false,
             hasLocationError: true,
-            locationErrorMessage: 'Location permissions are permanently denied. Please enable them in system settings.',
+            locationErrorMessage: 'Location permissions are permanently denied. Please enable them in your browser or system settings.',
           ),
         );
         return;
       }
 
-      // Success: Resolve the primary location
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
+      // Success: Resolve the primary location with fallback timeout logic
+      Position? pos;
+      try {
+        pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 6),
+        );
+      } catch (e) {
+        print("Geolocator high accuracy timed out or failed ($e). Retrying with low accuracy...");
+        try {
+          pos = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.low,
+            timeLimit: const Duration(seconds: 4),
+          );
+        } catch (_) {
+          pos = await Geolocator.getLastKnownPosition();
+        }
+      }
+
+      if (pos == null) {
+        throw Exception("Unable to retrieve GPS coordinates within timeout. Please ensure location access is granted and your device's GPS has a clear signal.");
+      }
 
       add(HomeLocationUpdated(latitude: pos.latitude, longitude: pos.longitude));
 
@@ -110,7 +135,9 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
         state.copyWith(
           isLoading: false,
           hasLocationError: true,
-          locationErrorMessage: 'GPS access failed: ${e.toString()}',
+          locationErrorMessage: e.toString().contains('Exception:') 
+              ? e.toString().replaceAll('Exception: ', '') 
+              : 'GPS access failed: ${e.toString()}',
         ),
       );
     }
@@ -134,24 +161,8 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     await _loadNearbyServices(event.latitude, event.longitude, emit);
   }
 
-  /// OSM Nominatim Reverse Geocoding with HttpClient timeout
   Future<String> _reverseGeocode(double lat, double lng) async {
-    try {
-      final client = HttpClient();
-      client.connectionTimeout = const Duration(seconds: 4);
-      final uri = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lng');
-      final request = await client.getUrl(uri);
-      request.headers.setUserAgent('RoadSOS/1.0');
-      final response = await request.close();
-      if (response.statusCode == 200) {
-        final body = await response.transform(utf8.decoder).join();
-        final data = json.decode(body) as Map<String, dynamic>;
-        return data['display_name'] ?? 'Coordinates: ${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}';
-      }
-    } catch (_) {
-      // Graceful offline fallback
-    }
-    return 'Coordinates: ${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}';
+    return performReverseGeocode(lat, lng);
   }
 
   Future<void> _loadNearbyServices(

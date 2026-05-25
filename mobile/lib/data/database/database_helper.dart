@@ -1,6 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'db_size_helper.dart';
 
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
@@ -31,10 +33,17 @@ class DatabaseHelper {
   factory DatabaseHelper() => _instance;
   DatabaseHelper._internal();
 
+  static final List<Hospital> _webHospitals = [];
+  static final List<PoliceStation> _webPolice = [];
+  static final List<TowingService> _webTowing = [];
+
   Database? _db;
 
   /// Returns the open database, initialising it on first call.
   Future<Database> get database async {
+    if (kIsWeb) {
+      throw UnsupportedError("SQLite database is not supported on Web.");
+    }
     _db ??= await _initDatabase();
     return _db!;
   }
@@ -57,6 +66,10 @@ class DatabaseHelper {
 
   /// Public entry point — ensures the database and all tables exist.
   Future<void> initialize() async {
+    if (kIsWeb) {
+      _initWebMockData();
+      return;
+    }
     final db = await database;
     // Auto-create sos_events table if it doesn't exist (seeding/safety support)
     await db.execute('''
@@ -257,6 +270,21 @@ class DatabaseHelper {
     double lng, {
     int limitKm = 50,
   }) async {
+    if (kIsWeb) {
+      _initWebMockData();
+      final results = <Hospital>[];
+      for (final hospital in _webHospitals) {
+        final dist = DistanceUtils.haversine(lat, lng, hospital.lat, hospital.lng);
+        if (dist <= limitKm) {
+          results.add(hospital.copyWithDistance(
+            distanceKm: double.parse(dist.toStringAsFixed(2)),
+            estimatedMinutes: double.parse(DistanceUtils.estimateMinutes(dist).toStringAsFixed(1)),
+          ));
+        }
+      }
+      results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+      return results;
+    }
     final db = await database;
     final bounds = _boundingBox(lat, lng, limitKm.toDouble());
 
@@ -291,6 +319,20 @@ class DatabaseHelper {
     double lng, {
     int limitKm = 20,
   }) async {
+    if (kIsWeb) {
+      _initWebMockData();
+      final results = <PoliceStation>[];
+      for (final station in _webPolice) {
+        final dist = DistanceUtils.haversine(lat, lng, station.lat, station.lng);
+        if (dist <= limitKm) {
+          results.add(station.copyWithDistance(
+            distanceKm: double.parse(dist.toStringAsFixed(2)),
+          ));
+        }
+      }
+      results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+      return results;
+    }
     final db = await database;
     final bounds = _boundingBox(lat, lng, limitKm.toDouble());
 
@@ -323,6 +365,20 @@ class DatabaseHelper {
     double lng, {
     int limitKm = 30,
   }) async {
+    if (kIsWeb) {
+      _initWebMockData();
+      final results = <TowingService>[];
+      for (final towing in _webTowing) {
+        final dist = DistanceUtils.haversine(lat, lng, towing.lat, towing.lng);
+        if (dist <= limitKm) {
+          results.add(towing.copyWithDistance(
+            distanceKm: double.parse(dist.toStringAsFixed(2)),
+          ));
+        }
+      }
+      results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+      return results;
+    }
     final db = await database;
     final bounds = _boundingBox(lat, lng, limitKm.toDouble());
 
@@ -352,6 +408,15 @@ class DatabaseHelper {
 
   /// Inserts or replaces an emergency contact.
   Future<void> upsertEmergencyContact(EmergencyContact contact) async {
+    if (kIsWeb) {
+      final contacts = await getEmergencyContacts();
+      contacts.removeWhere((c) => c.id == contact.id);
+      contacts.add(contact);
+      final prefs = await SharedPreferences.getInstance();
+      final listJson = contacts.map((c) => c.toMap()).toList();
+      await prefs.setString('web_emergency_contacts', json.encode(listJson));
+      return;
+    }
     final db = await database;
     await db.insert(
       'emergency_contacts',
@@ -362,6 +427,24 @@ class DatabaseHelper {
 
   /// Returns all saved emergency contacts.
   Future<List<EmergencyContact>> getEmergencyContacts() async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('web_emergency_contacts');
+      if (raw == null) {
+        final defaultContact = const EmergencyContact(
+          id: 'c1',
+          name: 'Rahul Rathod',
+          relationship: 'Brother / Primary',
+          phone: '+91 98765 43210',
+          email: 'rahul.rathod@gmail.com',
+          isPrimary: true,
+          avatarEmoji: '👦',
+        );
+        return [defaultContact];
+      }
+      final list = json.decode(raw) as List;
+      return list.map((r) => EmergencyContact.fromMap(r as Map<String, dynamic>)).toList();
+    }
     final db = await database;
     final rows = await db.query('emergency_contacts');
     return rows.map((r) => EmergencyContact.fromMap(r)).toList();
@@ -369,6 +452,14 @@ class DatabaseHelper {
 
   /// Deletes an emergency contact by [id].
   Future<void> deleteEmergencyContact(String id) async {
+    if (kIsWeb) {
+      final contacts = await getEmergencyContacts();
+      contacts.removeWhere((c) => c.id == id);
+      final prefs = await SharedPreferences.getInstance();
+      final listJson = contacts.map((c) => c.toMap()).toList();
+      await prefs.setString('web_emergency_contacts', json.encode(listJson));
+      return;
+    }
     final db = await database;
     await db.delete('emergency_contacts', where: 'id = ?', whereArgs: [id]);
   }
@@ -377,6 +468,11 @@ class DatabaseHelper {
 
   /// Inserts or replaces the user's medical profile.
   Future<void> upsertMedicalProfile(MedicalProfile profile) async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('web_medical_profile', json.encode(profile.toSnapshot()));
+      return;
+    }
     final db = await database;
     await db.insert(
       'medical_profiles',
@@ -387,6 +483,24 @@ class DatabaseHelper {
 
   /// Returns the stored medical profile, or `null` if none exists.
   Future<MedicalProfile?> getMedicalProfile(String userId) async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('web_medical_profile');
+      if (raw == null) return null;
+      final map = json.decode(raw) as Map<String, dynamic>;
+      return MedicalProfile.fromMap({
+        'userId': 'me',
+        'fullName': map['fullName'] ?? 'Nandini Rathod',
+        'age': map['age'] ?? 21,
+        'gender': map['gender'] ?? 'Female',
+        'bloodGroup': map['bloodGroup'] ?? 'O+',
+        'allergies': (map['allergies'] as List?)?.join(', ') ?? 'Penicillin, Peanuts',
+        'medications': (map['medications'] as List?)?.join(', ') ?? 'None',
+        'conditions': (map['conditions'] as List?)?.join(', ') ?? 'None',
+        'emergencyContactId': map['emergencyContactId'] ?? '+91 98765 43210',
+        'organDonor': (map['organDonor'] == true) ? 1 : 0,
+      });
+    }
     final db = await database;
     final rows = await db.query(
       'medical_profiles',
@@ -436,6 +550,10 @@ class DatabaseHelper {
     Map<String, dynamic>? telemetry,
     String status = 'dispatched',
   }) async {
+    if (kIsWeb) {
+      print("Web SOS logged: Event ID: $id, Location: $latitude, $longitude, Trigger: $triggerType");
+      return;
+    }
     final db = await database;
     await db.insert(
       'sos_events',
@@ -483,20 +601,12 @@ class DatabaseHelper {
   }
 
   Future<int> getDatabaseSizeInBytes() async {
-    final docsDir = await getApplicationDocumentsDirectory();
-    final path = p.join(docsDir.path, 'roadsos.db');
-    final file = File(path);
-    if (await file.exists()) {
-      return await file.length();
-    }
-    return 0;
+    return getDbSizeInBytes();
   }
 
-  Future<void> seedDemoData(Database db) async {
-    final batch = db.batch();
-
-    // Hospitals (20 Real Landmark Facilities across Ahmedabad & India Metro Centers)
-    final hospitals = [
+  
+  static List<Map<String, dynamic>> _getHospitalsSeedData() {
+    return [
       {
         'id': 'h1',
         'name': 'Apollo Hospitals Ahmedabad',
@@ -817,13 +927,10 @@ class DatabaseHelper {
         'rating': 4.2
       }
     ];
+  }
 
-    for (var h in hospitals) {
-      batch.insert('hospitals', h, conflictAlgorithm: ConflictAlgorithm.replace);
-    }
-
-    // Police Stations (10 Real Emergency Jurisdictions)
-    final police = [
+  static List<Map<String, dynamic>> _getPoliceSeedData() {
+    return [
       {
         'id': 'p1',
         'name': 'Navrangpura Police Station',
@@ -925,13 +1032,10 @@ class DatabaseHelper {
         'is24Hours': 1
       }
     ];
+  }
 
-    for (var p in police) {
-      batch.insert('police_stations', p, conflictAlgorithm: ConflictAlgorithm.replace);
-    }
-
-    // Towing Services (10 Towing / Heavy Crane Providers)
-    final towing = [
+  static List<Map<String, dynamic>> _getTowingSeedData() {
+    return [
       {
         'id': 't1',
         'name': 'Ahmedabad Auto Towing',
@@ -1033,13 +1137,10 @@ class DatabaseHelper {
         'vehicleTypes': 'car'
       }
     ];
+  }
 
-    for (var t in towing) {
-      batch.insert('towing_services', t, conflictAlgorithm: ConflictAlgorithm.replace);
-    }
-
-    // Emergency Contacts (with valid email fields seeded)
-    final contacts = [
+  static List<Map<String, dynamic>> _getContactsSeedData() {
+    return [
       {
         'id': 'c1',
         'name': 'Amit Patel',
@@ -1059,13 +1160,37 @@ class DatabaseHelper {
         'avatarEmoji': '👩'
       }
     ];
+  }
 
-    for (var c in contacts) {
+  void _initWebMockData() {
+    if (_webHospitals.isNotEmpty) return;
+    _webHospitals.addAll(_getHospitalsSeedData().map((h) => Hospital.fromMap(h)).toList());
+    _webPolice.addAll(_getPoliceSeedData().map((p) => PoliceStation.fromMap(p)).toList());
+    _webTowing.addAll(_getTowingSeedData().map((t) => TowingService.fromMap(t)).toList());
+  }
+
+  Future<void> seedDemoData(Database db) async {
+    final batch = db.batch();
+
+    for (var h in _getHospitalsSeedData()) {
+      batch.insert('hospitals', h, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    for (var p in _getPoliceSeedData()) {
+      batch.insert('police_stations', p, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    for (var t in _getTowingSeedData()) {
+      batch.insert('towing_services', t, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    for (var c in _getContactsSeedData()) {
       batch.insert('emergency_contacts', c, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
     await batch.commit(noResult: true);
   }
+
 }
 
 class _BoundingBox {

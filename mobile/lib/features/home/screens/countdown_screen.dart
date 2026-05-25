@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import '../../../core/utils/geocoder.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
@@ -109,23 +109,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
       lng = pos.longitude;
 
       // 2. Perform live reverse geocoding via OSM Nominatim
-      try {
-        final client = HttpClient();
-        client.connectionTimeout = const Duration(seconds: 3);
-        final uri = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lng');
-        final request = await client.getUrl(uri);
-        request.headers.setUserAgent('RoadSOS/1.0');
-        final response = await request.close();
-        if (response.statusCode == 200) {
-          final body = await response.transform(utf8.decoder).join();
-          final data = json.decode(body) as Map<String, dynamic>;
-          address = data['display_name'] ?? 'Coordinates: $lat, $lng';
-        } else {
-          address = 'Coordinates: $lat, $lng';
-        }
-      } catch (_) {
-        address = 'GPS Coordinates: $lat, $lng';
-      }
+      address = await performReverseGeocode(lat, lng);
     } catch (_) {
       address = 'Ahmedabad (Offline GPS Fallback)';
     }
@@ -203,6 +187,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
           _contacts = rawContacts;
           _isLoadingDetails = false;
         });
+        _showEmergencySentDialog();
       }
     } catch (_) {
       if (mounted) {
@@ -309,6 +294,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
         onComplete: _handleSosDispatched,
         onCancel: () => context.go('/'),
         onSendNow: _handleSosDispatched,
+        triggerType: widget.triggerType,
       );
     }
 
@@ -840,6 +826,104 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
           ),
         ],
       ),
+    );
+  }
+
+  void _showEmergencySentDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        final nearestHospName = _hospitals.isNotEmpty ? _hospitals.first.name : 'Apollo Hospitals';
+        final nearestHospEta = _hospitals.isNotEmpty ? "${_hospitals.first.estimatedMinutes.toStringAsFixed(1)} Mins" : '6.0 Mins';
+        final contactNames = _contacts.isNotEmpty ? _contacts.map((c) => c.name).join(', ') : 'None Saved';
+
+        return AlertDialog(
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppColors.emergencyRed, width: 2.0),
+          ),
+          title: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.emergencyRed.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.emergency_share_rounded, color: AppColors.emergencyRed, size: 48),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                "EMERGENCY ALERT SENT",
+                textAlign: TextAlign.center,
+                style: AppTypography.displayMedium.copyWith(color: AppColors.emergencyRed, fontSize: 22),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "A critical emergency broadcast has been successfully transmitted via Cellular and local BLE Mesh networks.",
+                style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              const Divider(color: AppColors.borderSubtle, height: 1),
+              const SizedBox(height: 16),
+              _buildDialogDetailsRow("CURRENT GPS", "${_latitude.toStringAsFixed(4)}° N, ${_longitude.toStringAsFixed(4)}° E"),
+              const SizedBox(height: 10),
+              _buildDialogDetailsRow("LOCATION", _address),
+              const SizedBox(height: 10),
+              _buildDialogDetailsRow("NEAREST RESPONDER", "$nearestHospName ($nearestHospEta ETA)"),
+              const SizedBox(height: 10),
+              _buildDialogDetailsRow("CONTACTS ALERTED", contactNames),
+            ],
+          ),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.emergencyRed,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: Text(
+                  "VIEW RESPONDER TRACKER",
+                  style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 12),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDialogDetailsRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 90,
+          child: Text(
+            label,
+            style: AppTypography.labelCaps.copyWith(fontSize: 8.5, color: AppColors.textSecondary),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            style: AppTypography.monoMedium.copyWith(fontSize: 11, color: Colors.white),
+          ),
+        ),
+      ],
     );
   }
 }

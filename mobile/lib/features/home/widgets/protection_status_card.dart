@@ -238,7 +238,7 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
   String get _meshLabel {
     switch (widget.meshStatus) {
       case MeshSOSStatus.active:
-        return 'ACTIVE';
+        return 'CELLULAR CONNECTED';
       case MeshSOSStatus.connecting:
         return 'CONNECTING...';
       case MeshSOSStatus.offline:
@@ -251,11 +251,11 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
   String get _meshSubtitle {
     switch (widget.meshStatus) {
       case MeshSOSStatus.active:
-        return 'Cellular online · ${widget.syncStatus}\n(${widget.nearbyDevicesCount} BLE peers synced · Signal: ${widget.signalQuality})';
+        return 'Online · Emergency Broadcast Ready\n(${widget.nearbyDevicesCount} BLE peers synced · Signal: ${widget.signalQuality})';
       case MeshSOSStatus.connecting:
         return '${widget.syncStatus} (Signal: ${widget.signalQuality})';
       case MeshSOSStatus.offline:
-        return 'Cellular down · ${widget.syncStatus}\n(${widget.nearbyDevicesCount} local peers linked · Signal: ${widget.signalQuality})';
+        return 'Offline · Emergency Broadcast Ready (via BLE Mesh)\n(${widget.nearbyDevicesCount} local peers linked · Signal: ${widget.signalQuality})';
       case MeshSOSStatus.disabled:
         return 'Mesh networking disarmed';
     }
