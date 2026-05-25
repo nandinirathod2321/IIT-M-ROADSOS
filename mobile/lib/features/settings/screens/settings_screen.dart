@@ -10,6 +10,7 @@ import '../../../core/theme/typography.dart';
 import '../../../data/database/database_helper.dart';
 import '../../crash_detection/crash_detector.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/config/ai_config.dart';
 
 /// Interactive Settings Screen for RoadSOS.
 /// Provides configuration for Crash Detection, SOS settings, and clean real-time data sync.
@@ -38,6 +39,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _dbRecordCount = 42;
   double _dbSizeKb = 32.0;
 
+  String _geminiKeyDisplay = 'Not Configured';
+
   @override
   void initState() {
     super.initState();
@@ -51,6 +54,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Fetch actual record count & file size directly from SQLite
     final int count = await _db.getDatabaseRecordCount();
     final int sizeInBytes = await _db.getDatabaseSizeInBytes();
+    final geminiKey = await AiConfig.getGeminiApiKey();
 
     setState(() {
       _crashDetectionOn = prefs.getBool('crash_detection') ?? true;
@@ -61,6 +65,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _lastSync = prefs.getString('last_sync') ?? "Yesterday, 14:32";
       _dbRecordCount = count;
       _dbSizeKb = sizeInBytes / 1024.0;
+      _geminiKeyDisplay = geminiKey.isEmpty
+          ? 'Not Configured'
+          : (geminiKey.length > 8
+              ? '${geminiKey.substring(0, 4)}...${geminiKey.substring(geminiKey.length - 4)}'
+              : 'Configured');
     });
 
     // Keep active sensor daemon synced with settings state
@@ -119,6 +128,123 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
     }
+  }
+
+  Future<void> _showGeminiKeyDialog() async {
+    final currentKey = await AiConfig.getGeminiApiKey();
+    final controller = TextEditingController(text: currentKey);
+    bool obscureText = true;
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: AppColors.borderSubtle, width: 1),
+              ),
+              title: Row(
+                children: [
+                  const Icon(Icons.psychology_rounded, color: AppColors.emergencyRed, size: 24),
+                  const SizedBox(width: 12),
+                  Text(
+                    "GEMINI FLASH API KEY",
+                    style: AppTypography.headlineMedium.copyWith(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Configure your Gemini API key to activate the live AI Emergency Assistant.",
+                    style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: controller,
+                    obscureText: obscureText,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: InputDecoration(
+                      labelText: "API Key",
+                      labelStyle: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                      filled: true,
+                      fillColor: AppColors.surfaceAlt,
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscureText ? Icons.visibility_off : Icons.visibility,
+                          color: AppColors.textMuted,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          setDialogState(() {
+                            obscureText = !obscureText;
+                          });
+                        },
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: const BorderSide(color: AppColors.borderSubtle),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: const BorderSide(color: AppColors.borderSubtle),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: const BorderSide(color: AppColors.emergencyRed),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    "CANCEL",
+                    style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary, fontSize: 11),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    await AiConfig.setGeminiApiKeyOverride(controller.text);
+                    await _loadSettings(); // refresh setting display
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            "Gemini API key updated successfully.",
+                            style: AppTypography.bodyMedium.copyWith(color: Colors.white),
+                          ),
+                          backgroundColor: AppColors.safeGreen,
+                        ),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.emergencyRed,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  child: Text(
+                    "SAVE",
+                    style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 11),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   /// Displays the modal sensitivity picker for sensors.
@@ -460,6 +586,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           _NumberRow("📞", "National Single Hotline", "112"),
                         ],
                       ),
+                    ),
+
+                    // AI ASSISTANT SECTION
+                    _buildSectionHeader("AI ASSISTANT"),
+                    _SettingsTile(
+                      title: "Gemini API Key",
+                      subtitle: _geminiKeyDisplay,
+                      trailing: const Icon(
+                        Icons.vpn_key_rounded,
+                        color: AppColors.textMuted,
+                        size: 20,
+                      ),
+                      onTap: _showGeminiKeyDialog,
                     ),
 
                     // OFFLINE DATA SECTION

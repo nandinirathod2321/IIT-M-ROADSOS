@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
+import '../../../core/services/gemini_service.dart';
 
 /// Message model mapping chat history items.
 class ChatMessage {
@@ -37,6 +38,9 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isTyping = false;
+
+  final GeminiService _geminiService = GeminiService();
+  final List<Map<String, String>> _aiHistory = [];
 
   // Speech integration
   final stt.SpeechToText _speech = stt.SpeechToText();
@@ -168,7 +172,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
   }
 
   /// Sends a message and triggers the local AI medical engine
-  void _handleSendMessage([String? forcedText]) {
+  Future<void> _handleSendMessage([String? forcedText]) async {
     final query = forcedText ?? _messageController.text.trim();
     if (query.isEmpty || query == "Listening...") return;
 
@@ -181,17 +185,43 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
     });
     _scrollToBottom();
 
-    // Trigger typing simulation
-    Timer(const Duration(milliseconds: 1000), () {
-      final responseText = _getResponseForQuery(query);
-      if (mounted) {
-        setState(() {
-          _messages.add(ChatMessage(text: responseText, isUser: false, timestamp: DateTime.now()));
-          _isTyping = false;
-        });
-        _scrollToBottom();
+    // Store turn in conversational memory
+    _aiHistory.add({'role': 'user', 'text': query});
+    if (_aiHistory.length > 10) {
+      _aiHistory.removeRange(0, _aiHistory.length - 10);
+    }
+
+    String responseText = '';
+    bool isOfflineFallback = false;
+
+    try {
+      // Direct live Gemini API call
+      responseText = await _geminiService.generateEmergencyResponse(
+        userMessage: query,
+        chatHistory: _aiHistory,
+      );
+    } catch (e) {
+      // Graceful fallback to offline local guide logic
+      isOfflineFallback = true;
+      final offlineResponse = _getResponseForQuery(query);
+      responseText = "⚠️ **[Offline Fallback Mode]**\n\n$offlineResponse";
+    }
+
+    if (mounted) {
+      setState(() {
+        _messages.add(ChatMessage(text: responseText, isUser: false, timestamp: DateTime.now()));
+        _isTyping = false;
+      });
+      _scrollToBottom();
+
+      // Only save success replies to active conversation memory
+      if (!isOfflineFallback) {
+        _aiHistory.add({'role': 'model', 'text': responseText});
+        if (_aiHistory.length > 10) {
+          _aiHistory.removeRange(0, _aiHistory.length - 10);
+        }
       }
-    });
+    }
   }
 
   void _scrollToBottom() {
@@ -288,6 +318,25 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
           "4. **CALL RESPONDERS**: Trigger the RoadSOS SOS broadcast for Ahmedabad response support.";
     }
 
+    if (q.contains("panic") || q.contains("anxiety") || q.contains("panic attack")) {
+      return "🧘 PANIC ATTACK SOOTHING STEPS\n\n"
+          "Follow these steps to help someone through a panic attack:\n\n"
+          "1. **STAY CALM**: Do not panic. Speak in a quiet, low, reassuring tone.\n"
+          "2. **BREATHING**: Guide them to take deep, slow breaths: breathe in for 4 seconds, hold for 4, breathe out for 4.\n"
+          "3. **GROUNDING**: Ask them to name 5 things they see, 4 things they can touch, 3 things they hear, 2 they smell, and 1 they taste.\n"
+          "4. **SAFE SPACE**: Move them away from crowds, bright lights, or noise to a quiet spot.\n"
+          "5. **SUPPORT**: Reassure them that panic attacks are temporary and they are safe.";
+    }
+
+    if (q.contains("choking") || q.contains("choke") || q.contains("heimlich")) {
+      return "💨 CHOKING EMERGENCY (Heimlich Maneuver)\n\n"
+          "If the victim cannot speak, cough, or breathe, perform first aid instantly:\n\n"
+          "1. **5 BACK BLOWS**: Stand behind them. Lean them forward. Give 5 firm blows between their shoulder blades with the heel of your hand.\n"
+          "2. **5 ABDOMINAL THRUSTS**: Wrap your arms around their waist. Make a fist with one hand, place it just above their belly button, grasp it with your other hand, and pull in and up quickly.\n"
+          "3. **REPEAT**: Alternate between **5 back blows and 5 abdominal thrusts** until the blockage is cleared.\n"
+          "4. **UNCONSCIOUS**: If they pass out, lower them gently to the floor and start CPR compressions.";
+    }
+
     return "🩺 RoadSOS Emergency AI Assistant\n\n"
         "I am currently operating fully offline to guarantee instant responses during critical situations.\n\n"
         "I didn't quite catch that. Try asking about these topics:\n"
@@ -296,7 +345,9 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
         "• 'Cardiac / Heart attack'\n"
         "• 'Snake bite protocol'\n"
         "• 'First aid for burns'\n"
-        "• 'Fracture splinting'\n\n"
+        "• 'Fractures & splinting'\n"
+        "• 'Choking protocol'\n"
+        "• 'Panic attack steps'\n\n"
         "⚠️ **SAFETY ALERT**: Always contact professional emergency services (112 or 100) immediately.";
   }
 
@@ -389,7 +440,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  "CRITICAL BANNER: Call emergency services (112 or 100) immediately in life-threatening events!",
+                  "⚠️ AI is not a replacement for professional emergency services. Call emergency services (112 or 100) immediately for severe situations.",
                   style: AppTypography.bodySmall.copyWith(
                     color: AppColors.emergencyRed,
                     fontWeight: FontWeight.bold,
@@ -426,10 +477,11 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
             children: [
               _buildQuickChip("CPR"),
               _buildQuickChip("Bleeding"),
-              _buildQuickChip("Heart Attack"),
               _buildQuickChip("Burns"),
-              _buildQuickChip("Fractures"),
-              _buildQuickChip("Snake Bite"),
+              _buildQuickChip("Fracture"),
+              _buildQuickChip("Heart Attack"),
+              _buildQuickChip("Choking"),
+              _buildQuickChip("Panic Attack"),
             ],
           ),
         ),
