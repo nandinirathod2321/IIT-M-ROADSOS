@@ -109,10 +109,10 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
                 _pulseController.stop();
               });
               // Persistent Always-Listening Loop restart
-              if (_voiceSosEnabled && _voiceAlwaysListening) {
+              if (_voiceSosEnabled) {
                 _restartTimer?.cancel();
-                _restartTimer = Timer(const Duration(milliseconds: 250), () {
-                  if (mounted && _voiceSosEnabled && _voiceAlwaysListening) {
+                _restartTimer = Timer(const Duration(milliseconds: 300), () {
+                  if (mounted && _voiceSosEnabled) {
                     _startListening();
                   }
                 });
@@ -138,10 +138,10 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
               }
             });
             // Re-trigger scanning loop on non-fatal error status (like speech timeout)
-            if (_voiceSosEnabled && _voiceAlwaysListening && err.errorMsg != 'error_permission') {
+            if (_voiceSosEnabled && err.errorMsg != 'error_permission') {
               _restartTimer?.cancel();
               _restartTimer = Timer(const Duration(milliseconds: 500), () {
-                if (mounted && _voiceSosEnabled && _voiceAlwaysListening) {
+                if (mounted && _voiceSosEnabled) {
                   _startListening();
                 }
               });
@@ -188,7 +188,8 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
               _wordsSpoken = result.recognizedWords;
               _voiceConfidence = result.confidence;
             });
-            if (result.recognizedWords.toLowerCase().contains("help roadsos")) {
+            final phrase = result.recognizedWords.toLowerCase();
+            if (phrase.contains("help roadsos") || phrase.contains("emergency") || phrase.contains("call help")) {
               _triggerVoiceSOS(result.confidence);
             }
           }

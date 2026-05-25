@@ -17,6 +17,7 @@ import '../models/police_station.dart';
 import '../models/towing_service.dart';
 import '../models/emergency_contact.dart';
 import '../models/medical_profile.dart';
+import '../models/emergency_shelter.dart';
 
 /// Singleton helper that owns the SQLite database lifecycle for RoadSOS.
 ///
@@ -38,6 +39,7 @@ class DatabaseHelper {
   static final List<Hospital> _webHospitals = [];
   static final List<PoliceStation> _webPolice = [];
   static final List<TowingService> _webTowing = [];
+  static final List<EmergencyShelter> _webShelters = [];
 
   Database? _db;
 
@@ -257,6 +259,21 @@ class DatabaseHelper {
       }
     }
 
+    // ── Emergency shelters ───────────────────────────────────────────
+    batch.execute('''
+      CREATE TABLE emergency_shelters (
+        id       TEXT PRIMARY KEY,
+        name     TEXT NOT NULL,
+        address  TEXT,
+        lat      REAL NOT NULL,
+        lng      REAL NOT NULL,
+        phone    TEXT,
+        capacity INTEGER DEFAULT 0
+      )
+    ''');
+    batch.execute('CREATE INDEX idx_shelters_lat ON emergency_shelters (lat)');
+    batch.execute('CREATE INDEX idx_shelters_lng ON emergency_shelters (lng)');
+
     await batch.commit(noResult: true);
   }
 
@@ -397,6 +414,51 @@ class DatabaseHelper {
           DistanceUtils.haversine(lat, lng, towing.lat, towing.lng);
       if (dist <= limitKm) {
         results.add(towing.copyWithDistance(
+          distanceKm: double.parse(dist.toStringAsFixed(2)),
+        ));
+      }
+    }
+
+    results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+    return results;
+  }
+
+  /// Returns emergency shelters within [limitKm] of ([lat], [lng]),
+  /// sorted by ascending Haversine distance.
+  Future<List<EmergencyShelter>> getNearbyShelters(
+    double lat,
+    double lng, {
+    int limitKm = 30,
+  }) async {
+    if (kIsWeb) {
+      _initWebMockData();
+      final results = <EmergencyShelter>[];
+      for (final shelter in _webShelters) {
+        final dist = DistanceUtils.haversine(lat, lng, shelter.lat, shelter.lng);
+        if (dist <= limitKm) {
+          results.add(shelter.copyWithDistance(
+            distanceKm: double.parse(dist.toStringAsFixed(2)),
+          ));
+        }
+      }
+      results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+      return results;
+    }
+    final db = await database;
+    final bounds = _boundingBox(lat, lng, limitKm.toDouble());
+
+    final rows = await db.query(
+      'emergency_shelters',
+      where: 'lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?',
+      whereArgs: [bounds.minLat, bounds.maxLat, bounds.minLng, bounds.maxLng],
+    );
+
+    final results = <EmergencyShelter>[];
+    for (final row in rows) {
+      final shelter = EmergencyShelter.fromMap(row);
+      final dist = DistanceUtils.haversine(lat, lng, shelter.lat, shelter.lng);
+      if (dist <= limitKm) {
+        results.add(shelter.copyWithDistance(
           distanceKm: double.parse(dist.toStringAsFixed(2)),
         ));
       }
@@ -614,7 +676,7 @@ class DatabaseHelper {
 
   // ── SOS Events CRUD ──────────────────────────────────────────────────
 
-  /// Logs a new SOS event.
+  /// Logs a new SOS event. Supports persistent history on web SharedPreferences fallbacks.
   Future<void> logSosEvent({
     required String id,
     required double latitude,
@@ -623,28 +685,58 @@ class DatabaseHelper {
     Map<String, dynamic>? telemetry,
     String status = 'dispatched',
   }) async {
+    final event = {
+      'id': id,
+      'timestamp': DateTime.now().toIso8601String(),
+      'latitude': latitude,
+      'longitude': longitude,
+      'triggerType': triggerType,
+      'telemetry': telemetry != null ? json.encode(telemetry) : null,
+      'status': status,
+    };
+
     if (kIsWeb) {
-      print("Web SOS logged: Event ID: $id, Location: $latitude, $longitude, Trigger: $triggerType");
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final eventsRaw = prefs.getString('web_sos_events');
+        final List events = eventsRaw != null ? json.decode(eventsRaw) as List : [];
+        events.insert(0, event); // Add newest first
+        await prefs.setString('web_sos_events', json.encode(events));
+        print("Web SOS logged: Event ID: $id, Location: $latitude, $longitude, Trigger: $triggerType");
+      } catch (e) {
+        print("Web SOS history logging failed: $e");
+      }
       return;
     }
     final db = await database;
     await db.insert(
       'sos_events',
-      {
-        'id': id,
-        'timestamp': DateTime.now().toIso8601String(),
-        'latitude': latitude,
-        'longitude': longitude,
-        'triggerType': triggerType,
-        'telemetry': telemetry != null ? json.encode(telemetry) : null,
-        'status': status,
-      },
+      event,
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
   /// Updates the status of an SOS event (e.g. to 'resolved').
   Future<void> updateSosEventStatus(String id, String status) async {
+    if (kIsWeb) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final eventsRaw = prefs.getString('web_sos_events');
+        if (eventsRaw != null) {
+          final List events = json.decode(eventsRaw) as List;
+          for (var e in events) {
+            if (e['id'] == id) {
+              e['status'] = status;
+              break;
+            }
+          }
+          await prefs.setString('web_sos_events', json.encode(events));
+        }
+      } catch (e) {
+        print("Web SOS status update failed: $e");
+      }
+      return;
+    }
     final db = await database;
     await db.update(
       'sos_events',
@@ -654,10 +746,37 @@ class DatabaseHelper {
     );
   }
 
-  /// Returns all logged SOS events.
+  /// Returns all logged SOS events, fully compatible with Web and Native fallbacks.
   Future<List<Map<String, dynamic>>> getSosEvents() async {
+    if (kIsWeb) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final eventsRaw = prefs.getString('web_sos_events');
+        if (eventsRaw == null) return [];
+        final List list = json.decode(eventsRaw) as List;
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      } catch (e) {
+        print("Web SOS history fetch failed: $e");
+        return [];
+      }
+    }
     final db = await database;
     return await db.query('sos_events', orderBy: 'timestamp DESC');
+  }
+
+  /// Clears the logged SOS incident history logs.
+  Future<void> clearSosHistory() async {
+    if (kIsWeb) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('web_sos_events');
+      } catch (e) {
+        print("Web SOS history clear failed: $e");
+      }
+      return;
+    }
+    final db = await database;
+    await db.delete('sos_events');
   }
 
   // ── Database diagnostics and offline updates ─────────────────────────
@@ -1240,6 +1359,7 @@ class DatabaseHelper {
     _webHospitals.addAll(_getHospitalsSeedData().map((h) => Hospital.fromMap(h)).toList());
     _webPolice.addAll(_getPoliceSeedData().map((p) => PoliceStation.fromMap(p)).toList());
     _webTowing.addAll(_getTowingSeedData().map((t) => TowingService.fromMap(t)).toList());
+    _webShelters.addAll(_getSheltersSeedData().map((s) => EmergencyShelter.fromMap(s)).toList());
   }
 
   Future<void> seedDemoData(Database db) async {
@@ -1257,11 +1377,56 @@ class DatabaseHelper {
       batch.insert('towing_services', t, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
+    for (var s in _getSheltersSeedData()) {
+      batch.insert('emergency_shelters', s, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
     for (var c in _getContactsSeedData()) {
       batch.insert('emergency_contacts', c, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
     await batch.commit(noResult: true);
+  }
+
+  static List<Map<String, dynamic>> _getSheltersSeedData() {
+    return [
+      {
+        'id': 's1',
+        'name': 'Ahmedabad Municipal Community Center',
+        'address': 'Paldi, Ahmedabad',
+        'lat': 23.0135,
+        'lng': 72.5620,
+        'phone': '+91 79 2657 8901',
+        'capacity': 250
+      },
+      {
+        'id': 's2',
+        'name': 'Red Cross Emergency Shelter',
+        'address': 'Navrangpura, Ahmedabad',
+        'lat': 23.0338,
+        'lng': 72.5630,
+        'phone': '+91 79 2642 1234',
+        'capacity': 150
+      },
+      {
+        'id': 's3',
+        'name': 'Disaster Relief Shelter East',
+        'address': 'Maninagar, Ahmedabad',
+        'lat': 22.9985,
+        'lng': 72.6022,
+        'phone': '+91 79 2546 5678',
+        'capacity': 300
+      },
+      {
+        'id': 's4',
+        'name': 'Capital Emergency Center',
+        'address': 'Sector 11, Gandhinagar',
+        'lat': 23.2230,
+        'lng': 72.6480,
+        'phone': '+91 79 2325 0000',
+        'capacity': 400
+      }
+    ];
   }
 
 }

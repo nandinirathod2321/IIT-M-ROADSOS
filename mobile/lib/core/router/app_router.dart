@@ -13,6 +13,7 @@ import '../../features/auth/screens/signup_screen.dart';
 import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../core/services/auth_service.dart';
 import '../../shared/widgets/navigation_shell.dart';
+import '../../features/emergency/screens/emergency_history_screen.dart';
 
 /// Centralized application router using go_router.
 /// Outfitted with a global navigatorKey to allow sensor events to redirect navigation.
@@ -130,6 +131,11 @@ abstract final class AppRouter {
         path: '/forgot-password',
         parentNavigatorKey: navigatorKey,
         builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: '/history',
+        parentNavigatorKey: navigatorKey,
+        builder: (context, state) => const EmergencyHistoryScreen(),
       ),
     ],
   );

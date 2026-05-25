@@ -30,6 +30,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _voiceSOSAlwaysListening = false;
   String _sensitivityLabel = "Medium";
   int _sosCountdown = 10;
+  bool _darkModeOn = true;
+  bool _autoShareOn = true;
 
   // Offline Data settings
   String _lastSync = "Yesterday, 14:32";
@@ -40,6 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   double _dbSizeKb = 32.0;
 
   String _geminiKeyDisplay = 'Not Configured';
+  bool _aiAssistantOn = true;
 
   @override
   void initState() {
@@ -70,6 +73,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           : (geminiKey.length > 8
               ? '${geminiKey.substring(0, 4)}...${geminiKey.substring(geminiKey.length - 4)}'
               : 'Configured');
+      _darkModeOn = prefs.getBool('dark_mode') ?? true;
+      _autoShareOn = prefs.getBool('emergency_auto_share') ?? true;
+      _aiAssistantOn = prefs.getBool('ai_chatbot_enabled') ?? true;
     });
 
     // Keep active sensor daemon synced with settings state
@@ -91,43 +97,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _isSyncing = true;
     });
 
-    final database = await _db.database;
-    await database.delete('hospitals');
-    await database.delete('police_stations');
-    await database.delete('towing_services');
-    await _db.seedDemoData(database);
+    try {
+      if (kIsWeb) {
+        // Simulate API fetch delay
+        await Future.delayed(const Duration(milliseconds: 1200));
+        final now = DateTime.now();
+        _lastSync = "Today, ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+      } else {
+        final database = await _db.database;
+        await database.delete('hospitals');
+        await database.delete('police_stations');
+        await database.delete('towing_services');
+        await database.delete('emergency_shelters');
+        await _db.seedDemoData(database);
 
-    // Simulate API fetch delay
-    await Future.delayed(const Duration(milliseconds: 1200));
+        // Simulate API fetch delay
+        await Future.delayed(const Duration(milliseconds: 1200));
 
-    final now = DateTime.now();
-    final formattedTime = "Today, ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+        final now = DateTime.now();
+        _lastSync = "Today, ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+      }
 
-    // Query updated values
-    final int count = await _db.getDatabaseRecordCount();
-    final int sizeInBytes = await _db.getDatabaseSizeInBytes();
+      // Query updated values
+      final int count = await _db.getDatabaseRecordCount();
+      final int sizeInBytes = await _db.getDatabaseSizeInBytes();
 
-    setState(() {
-      _isSyncing = false;
-      _lastSync = formattedTime;
-      _dbRecordCount = count;
-      _dbSizeKb = sizeInBytes / 1024.0;
-    });
+      setState(() {
+        _lastSync = _lastSync;
+        _dbRecordCount = count;
+        _dbSizeKb = sizeInBytes / 1024.0;
+      });
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('last_sync', _lastSync);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('last_sync', _lastSync);
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Emergency database updated successfully',
-            style: AppTypography.bodyMedium.copyWith(color: Colors.white),
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Emergency database updated successfully',
+              style: AppTypography.bodyMedium.copyWith(color: Colors.white),
+            ),
+            backgroundColor: AppColors.safeGreen,
           ),
-          backgroundColor: AppColors.safeGreen,
-        ),
-      );
+        );
+      }
+    } catch (e) {
+      print("Sync failed: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Database update failed: $e',
+              style: AppTypography.bodyMedium.copyWith(color: Colors.white),
+            ),
+            backgroundColor: AppColors.emergencyRed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+        });
+      }
     }
+  }
   }
 
   Future<void> _showGeminiKeyDialog() async {
@@ -561,6 +596,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           },
                         ),
                       ),
+                    _SettingsTile(
+                      title: "Forced Dark Mode",
+                      subtitle: "High-contrast theme for emergency situations",
+                      trailing: CupertinoSwitch(
+                        value: _darkModeOn,
+                        activeTrackColor: AppColors.safeGreen,
+                        onChanged: (v) {
+                          setState(() => _darkModeOn = v);
+                          SharedPreferences.getInstance().then((p) => p.setBool('dark_mode', v));
+                        },
+                      ),
+                    ),
+                    _SettingsTile(
+                      title: "Emergency Auto-Share",
+                      subtitle: "Instantly alert emergency networks on SOS triggers",
+                      trailing: CupertinoSwitch(
+                        value: _autoShareOn,
+                        activeTrackColor: AppColors.safeGreen,
+                        onChanged: (v) {
+                          setState(() => _autoShareOn = v);
+                          SharedPreferences.getInstance().then((p) => p.setBool('emergency_auto_share', v));
+                        },
+                      ),
+                    ),
 
                     // EMERGENCY HOTLINES SECTION
                     _buildSectionHeader("EMERGENCY HOTLINES"),
@@ -600,6 +659,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       onTap: _showGeminiKeyDialog,
                     ),
+                    _SettingsTile(
+                      title: "AI First-Aid Assistant",
+                      subtitle: "Enable Gemini REST medical emergency chatbot",
+                      trailing: CupertinoSwitch(
+                        value: _aiAssistantOn,
+                        activeTrackColor: AppColors.safeGreen,
+                        onChanged: (v) {
+                          setState(() => _aiAssistantOn = v);
+                          SharedPreferences.getInstance().then((p) => p.setBool('ai_chatbot_enabled', v));
+                        },
+                      ),
+                    ),
 
                     // OFFLINE DATA SECTION
                     _buildSectionHeader("OFFLINE DATA"),
@@ -629,6 +700,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         _lastSync,
                         style: AppTypography.monoMedium.copyWith(fontSize: 12, color: AppColors.textSecondary),
                       ),
+                    ),
+                    _SettingsTile(
+                      title: "Incident History Logs",
+                      subtitle: "View telemetry of previous SOS activations",
+                      trailing: const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppColors.textMuted,
+                        size: 20,
+                      ),
+                      onTap: () => context.push('/history'),
                     ),
 
                     // ABOUT SECTION
