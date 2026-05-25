@@ -29,12 +29,16 @@ class EmergencyShelter extends Equatable {
 
   /// Creates an [EmergencyShelter] from a database row / JSON map.
   factory EmergencyShelter.fromMap(Map<String, dynamic> map) {
+    final double resLat = (map['latitude'] as num?)?.toDouble() ?? 
+                         (map['lat'] as num?)?.toDouble() ?? 0.0;
+    final double resLng = (map['longitude'] as num?)?.toDouble() ?? 
+                         (map['lng'] as num?)?.toDouble() ?? 0.0;
     return EmergencyShelter(
       id: map['id'] as String,
       name: map['name'] as String,
       address: map['address'] as String? ?? '',
-      lat: (map['lat'] as num).toDouble(),
-      lng: (map['lng'] as num).toDouble(),
+      lat: resLat,
+      lng: resLng,
       phone: map['phone'] as String? ?? '',
       capacity: map['capacity'] as int? ?? 0,
       distanceKm: (map['distanceKm'] as num?)?.toDouble() ?? 0.0,
@@ -47,6 +51,8 @@ class EmergencyShelter extends Equatable {
       'id': id,
       'name': name,
       'address': address,
+      'latitude': lat,
+      'longitude': lng,
       'lat': lat,
       'lng': lng,
       'phone': phone,

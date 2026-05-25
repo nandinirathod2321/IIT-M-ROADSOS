@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
-import '../../../data/database/database_helper.dart';
+import '../../../data/repositories/sos_repository.dart';
 
 /// Screen listing previous SOS activations, timestamps, coordinates, and triggers.
 class EmergencyHistoryScreen extends StatefulWidget {
@@ -13,7 +13,7 @@ class EmergencyHistoryScreen extends StatefulWidget {
 }
 
 class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
-  final DatabaseHelper _db = DatabaseHelper();
+  final SosRepository _sosRepo = SosRepository();
   List<Map<String, dynamic>> _events = [];
   bool _isLoading = true;
 
@@ -26,7 +26,7 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
   Future<void> _loadHistory() async {
     setState(() => _isLoading = true);
     try {
-      final history = await _db.getSosEvents();
+      final history = await _sosRepo.getEvents();
       setState(() {
         _events = history;
         _isLoading = false;
@@ -76,7 +76,7 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
     if (confirm == true) {
       setState(() => _isLoading = true);
       // Delete using SharedPreferences on Web, SQLite on Mobile
-      await _db.clearSosHistory();
+      await _sosRepo.clearHistory();
       await _loadHistory();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

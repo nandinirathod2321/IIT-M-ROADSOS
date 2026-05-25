@@ -7,6 +7,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../../data/database/database_helper.dart';
+import '../../../data/repositories/nearby_services_repository.dart';
+import '../../../data/repositories/emergency_contact_repository.dart';
 import 'home_event.dart';
 import 'home_state.dart';
 
@@ -14,12 +16,16 @@ import 'home_state.dart';
 /// network availability, and automated local spatial queries.
 class HomeBloc extends Bloc<HomeEvent, HomeState> {
   final DatabaseHelper _db;
+  final NearbyServicesRepository _servicesRepo;
+  final EmergencyContactRepository _contactsRepo;
   StreamSubscription<Position>? _positionSub;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
   Timer? _meshTimer;
 
-  HomeBloc({DatabaseHelper? db})
+  HomeBloc({DatabaseHelper? db, NearbyServicesRepository? servicesRepo, EmergencyContactRepository? contactsRepo})
       : _db = db ?? DatabaseHelper(),
+        _servicesRepo = servicesRepo ?? NearbyServicesRepository(),
+        _contactsRepo = contactsRepo ?? EmergencyContactRepository(),
         super(HomeState.initial()) {
     on<HomeStarted>(_onStarted);
     on<HomeLocationUpdated>(_onLocationUpdated);
@@ -160,7 +166,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     emit(state.copyWith(address: address));
     
     try {
-      await _db.fetchAndCacheNearbyServices(event.latitude, event.longitude);
+      await _servicesRepo.fetchAndCacheNearbyServices(event.latitude, event.longitude);
     } catch (e) {
       print("HomeBloc: fetch and cache failed: $e");
     }
@@ -178,10 +184,10 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     Emitter<HomeState> emit,
   ) async {
     try {
-      final hospitals = await _db.getNearbyHospitals(lat, lng);
-      final police = await _db.getNearbyPolice(lat, lng);
-      final towing = await _db.getNearbyTowing(lat, lng);
-      final contacts = await _db.getEmergencyContacts();
+      final hospitals = await _servicesRepo.getNearbyHospitals(lat, lng);
+      final police = await _servicesRepo.getNearbyPolice(lat, lng);
+      final towing = await _servicesRepo.getNearbyTowing(lat, lng);
+      final contacts = await _contactsRepo.getContacts();
 
       final nearest = hospitals.isNotEmpty ? hospitals.first : null;
 

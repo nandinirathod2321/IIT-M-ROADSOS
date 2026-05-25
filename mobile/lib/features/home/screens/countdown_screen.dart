@@ -10,7 +10,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/services/auth_service.dart';
-import '../../../data/database/database_helper.dart';
+import '../../../data/repositories/sos_repository.dart';
+import '../../../data/repositories/nearby_services_repository.dart';
+import '../../../data/repositories/emergency_contact_repository.dart';
+import '../../../data/repositories/medical_repository.dart';
 import '../../../data/models/hospital.dart';
 import '../../../data/models/police_station.dart';
 import '../../../data/models/emergency_contact.dart';
@@ -28,6 +31,11 @@ class CountdownScreen extends StatefulWidget {
 }
 
 class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProviderStateMixin {
+  final SosRepository _sosRepo = SosRepository();
+  final NearbyServicesRepository _servicesRepo = NearbyServicesRepository();
+  final EmergencyContactRepository _contactsRepo = EmergencyContactRepository();
+  final MedicalRepository _medicalRepo = MedicalRepository();
+
   bool _isDispatched = false;
   bool _isLoadingDetails = false;
 
@@ -97,7 +105,6 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
       }
     });
 
-    final db = DatabaseHelper();
     double lat = 23.0225; // fallback
     double lng = 72.5714;
     String address = 'Ahmedabad, India';
@@ -119,7 +126,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
 
     try {
       // 3. Log incident event in SQLite
-      await db.logSosEvent(
+      await _sosRepo.logEvent(
         id: _eventId,
         latitude: lat,
         longitude: lng,
@@ -135,18 +142,18 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
 
       // 4. Query spatial responders & emergency contacts
       try {
-        await db.fetchAndCacheNearbyServices(lat, lng);
+        await _servicesRepo.fetchAndCacheNearbyServices(lat, lng);
       } catch (e) {
         print("CountdownScreen: remote fetch failed: $e");
       }
 
-      final rawHospitals = await db.getNearbyHospitals(lat, lng);
-      final rawPolice = await db.getNearbyPolice(lat, lng);
-      final rawContacts = await db.getEmergencyContacts();
+      final rawHospitals = await _servicesRepo.getNearbyHospitals(lat, lng);
+      final rawPolice = await _servicesRepo.getNearbyPolice(lat, lng);
+      final rawContacts = await _contactsRepo.getContacts();
 
       // Retrieve User Name & notes
       final currentUserId = AuthService.instance.currentUserId ?? 'me';
-      final profile = await db.getMedicalProfile(currentUserId);
+      final profile = await _medicalRepo.getMedicalProfile(currentUserId);
       final userName = profile?.fullName ?? AuthService.instance.currentUserFullName ?? 'Nandini Rathod';
       final notes = profile?.emergencyNotes ?? 'None';
 
@@ -231,7 +238,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
     );
 
     if (confirm == true) {
-      await DatabaseHelper().updateSosEventStatus(_eventId, 'resolved');
+      await _sosRepo.updateEventStatus(_eventId, 'resolved');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -910,8 +917,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
     }
 
     final currentUserId = AuthService.instance.currentUserId ?? 'me';
-    final db = DatabaseHelper();
-    final profile = await db.getMedicalProfile(currentUserId);
+    final profile = await _medicalRepo.getMedicalProfile(currentUserId);
     final userName = profile?.fullName ?? AuthService.instance.currentUserFullName ?? 'Nandini Rathod';
     final notes = profile?.emergencyNotes ?? 'None';
 

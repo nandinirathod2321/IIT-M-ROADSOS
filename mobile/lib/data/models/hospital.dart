@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:equatable/equatable.dart';
 
 /// The type of medical facility.
@@ -6,7 +7,6 @@ enum HospitalType {
   general,
   clinic;
 
-  /// Parses a stored string back to an enum value.
   static HospitalType fromString(String value) {
     return HospitalType.values.firstWhere(
       (e) => e.name == value,
@@ -15,11 +15,7 @@ enum HospitalType {
   }
 }
 
-/// Represents a hospital / medical facility fetched from the local
-/// database or a remote API.
-///
-/// [distanceKm] and [estimatedMinutes] are **computed** at query time
-/// based on the user's current location and are not persisted.
+/// Represents a hospital / medical facility stored in the `hospitals` SQLite table.
 class Hospital extends Equatable {
   final String id;
   final String name;
@@ -32,16 +28,13 @@ class Hospital extends Equatable {
   final bool hasICU;
   final bool hasBloodBank;
   final int ambulanceCount;
-
-  /// Computed — straight-line distance from the user's position (km).
   final double distanceKm;
-
-  /// Computed — estimated travel time in minutes.
   final double estimatedMinutes;
-
   final DateTime lastUpdated;
   final String sourceApi;
   final double rating;
+  final String city;
+  final String state;
 
   const Hospital({
     required this.id,
@@ -60,23 +53,32 @@ class Hospital extends Equatable {
     required this.lastUpdated,
     this.sourceApi = '',
     this.rating = 0.0,
+    this.city = '',
+    this.state = '',
   });
+
+  /// Getters for coordinates mapping
+  double get latitude => lat;
+  double get longitude => lng;
 
   // ── Serialisation ────────────────────────────────────────────────────
 
-  /// Creates a [Hospital] from a database row / JSON map.
   factory Hospital.fromMap(Map<String, dynamic> map) {
+    final double resLat = (map['latitude'] as num?)?.toDouble() ?? 
+                         (map['lat'] as num?)?.toDouble() ?? 0.0;
+    final double resLng = (map['longitude'] as num?)?.toDouble() ?? 
+                         (map['lng'] as num?)?.toDouble() ?? 0.0;
     return Hospital(
       id: map['id'] as String,
       name: map['name'] as String,
       address: map['address'] as String? ?? '',
-      lat: (map['lat'] as num).toDouble(),
-      lng: (map['lng'] as num).toDouble(),
+      lat: resLat,
+      lng: resLng,
       phone: map['phone'] as String? ?? '',
       type: HospitalType.fromString(map['type'] as String? ?? 'general'),
-      hasEmergency: (map['hasEmergency'] as int? ?? 0) == 1,
-      hasICU: (map['hasICU'] as int? ?? 0) == 1,
-      hasBloodBank: (map['hasBloodBank'] as int? ?? 0) == 1,
+      hasEmergency: (map['hasEmergency'] as int? ?? 0) == 1 || map['hasEmergency'] == true,
+      hasICU: (map['hasICU'] as int? ?? 0) == 1 || map['hasICU'] == true,
+      hasBloodBank: (map['hasBloodBank'] as int? ?? 0) == 1 || map['hasBloodBank'] == true,
       ambulanceCount: map['ambulanceCount'] as int? ?? 0,
       distanceKm: (map['distanceKm'] as num?)?.toDouble() ?? 0.0,
       estimatedMinutes: (map['estimatedMinutes'] as num?)?.toDouble() ?? 0.0,
@@ -85,18 +87,22 @@ class Hospital extends Equatable {
           : DateTime.now(),
       sourceApi: map['sourceApi'] as String? ?? '',
       rating: (map['rating'] as num?)?.toDouble() ?? 0.0,
+      city: map['city'] as String? ?? '',
+      state: map['state'] as String? ?? '',
     );
   }
 
-  /// Converts this model to a map suitable for database insertion.
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'name': name,
+      'latitude': lat,
+      'longitude': lng,
       'address': address,
-      'lat': lat,
-      'lng': lng,
       'phone': phone,
+      'city': city,
+      'state': state,
+      // Extensible SQLite helper values
       'type': type.name,
       'hasEmergency': hasEmergency ? 1 : 0,
       'hasICU': hasICU ? 1 : 0,
@@ -108,7 +114,11 @@ class Hospital extends Equatable {
     };
   }
 
-  /// Returns a copy with the computed distance fields populated.
+  String toJson() => json.encode(toMap());
+
+  factory Hospital.fromJson(String source) => 
+      Hospital.fromMap(json.decode(source) as Map<String, dynamic>);
+
   Hospital copyWithDistance({
     required double distanceKm,
     required double estimatedMinutes,
@@ -130,9 +140,53 @@ class Hospital extends Equatable {
       lastUpdated: lastUpdated,
       sourceApi: sourceApi,
       rating: rating,
+      city: city,
+      state: state,
+    );
+  }
+
+  Hospital copyWith({
+    String? id,
+    String? name,
+    String? address,
+    double? lat,
+    double? lng,
+    String? phone,
+    HospitalType? type,
+    bool? hasEmergency,
+    bool? hasICU,
+    bool? hasBloodBank,
+    int? ambulanceCount,
+    double? distanceKm,
+    double? estimatedMinutes,
+    DateTime? lastUpdated,
+    String? sourceApi,
+    double? rating,
+    String? city,
+    String? state,
+  }) {
+    return Hospital(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      address: address ?? this.address,
+      lat: lat ?? this.lat,
+      lng: lng ?? this.lng,
+      phone: phone ?? this.phone,
+      type: type ?? this.type,
+      hasEmergency: hasEmergency ?? this.hasEmergency,
+      hasICU: hasICU ?? this.hasICU,
+      hasBloodBank: hasBloodBank ?? this.hasBloodBank,
+      ambulanceCount: ambulanceCount ?? this.ambulanceCount,
+      distanceKm: distanceKm ?? this.distanceKm,
+      estimatedMinutes: estimatedMinutes ?? this.estimatedMinutes,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
+      sourceApi: sourceApi ?? this.sourceApi,
+      rating: rating ?? this.rating,
+      city: city ?? this.city,
+      state: state ?? this.state,
     );
   }
 
   @override
-  List<Object?> get props => [id];
+  List<Object?> get props => [id, name, address, lat, lng, phone, type, distanceKm, city, state];
 }

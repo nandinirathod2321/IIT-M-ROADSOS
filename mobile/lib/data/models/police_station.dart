@@ -1,9 +1,7 @@
+import 'dart:convert';
 import 'package:equatable/equatable.dart';
 
-/// Represents a police station stored in the local database.
-///
-/// [distanceKm] is computed at query time based on the user's current
-/// location and is not persisted to the database.
+/// Represents a police station stored in the `police_stations` SQLite table.
 class PoliceStation extends Equatable {
   final String id;
   final String name;
@@ -13,9 +11,9 @@ class PoliceStation extends Equatable {
   final String phone;
   final String districtCode;
   final bool is24Hours;
-
-  /// Computed — straight-line distance from the user's position (km).
   final double distanceKm;
+  final String city;
+  final String state;
 
   const PoliceStation({
     required this.id,
@@ -27,40 +25,57 @@ class PoliceStation extends Equatable {
     this.districtCode = '',
     this.is24Hours = true,
     this.distanceKm = 0.0,
+    this.city = '',
+    this.state = '',
   });
+
+  /// Getters for coordinates mapping
+  double get latitude => lat;
+  double get longitude => lng;
 
   // ── Serialisation ────────────────────────────────────────────────────
 
-  /// Creates a [PoliceStation] from a database row / JSON map.
   factory PoliceStation.fromMap(Map<String, dynamic> map) {
+    final double resLat = (map['latitude'] as num?)?.toDouble() ?? 
+                         (map['lat'] as num?)?.toDouble() ?? 0.0;
+    final double resLng = (map['longitude'] as num?)?.toDouble() ?? 
+                         (map['lng'] as num?)?.toDouble() ?? 0.0;
     return PoliceStation(
       id: map['id'] as String,
       name: map['name'] as String,
       address: map['address'] as String? ?? '',
-      lat: (map['lat'] as num).toDouble(),
-      lng: (map['lng'] as num).toDouble(),
+      lat: resLat,
+      lng: resLng,
       phone: map['phone'] as String? ?? '',
       districtCode: map['districtCode'] as String? ?? '',
-      is24Hours: (map['is24Hours'] as int? ?? 1) == 1,
+      is24Hours: (map['is24Hours'] as int? ?? 1) == 1 || map['is24Hours'] == true,
       distanceKm: (map['distanceKm'] as num?)?.toDouble() ?? 0.0,
+      city: map['city'] as String? ?? '',
+      state: map['state'] as String? ?? '',
     );
   }
 
-  /// Converts this model to a map suitable for database insertion.
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'name': name,
+      'latitude': lat,
+      'longitude': lng,
       'address': address,
-      'lat': lat,
-      'lng': lng,
       'phone': phone,
+      'city': city,
+      'state': state,
+      // Extensible helper values
       'districtCode': districtCode,
       'is24Hours': is24Hours ? 1 : 0,
     };
   }
 
-  /// Returns a copy with the computed distance field populated.
+  String toJson() => json.encode(toMap());
+
+  factory PoliceStation.fromJson(String source) => 
+      PoliceStation.fromMap(json.decode(source) as Map<String, dynamic>);
+
   PoliceStation copyWithDistance({required double distanceKm}) {
     return PoliceStation(
       id: id,
@@ -72,9 +87,39 @@ class PoliceStation extends Equatable {
       districtCode: districtCode,
       is24Hours: is24Hours,
       distanceKm: distanceKm,
+      city: city,
+      state: state,
+    );
+  }
+
+  PoliceStation copyWith({
+    String? id,
+    String? name,
+    String? address,
+    double? lat,
+    double? lng,
+    String? phone,
+    String? districtCode,
+    bool? is24Hours,
+    double? distanceKm,
+    String? city,
+    String? state,
+  }) {
+    return PoliceStation(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      address: address ?? this.address,
+      lat: lat ?? this.lat,
+      lng: lng ?? this.lng,
+      phone: phone ?? this.phone,
+      districtCode: districtCode ?? this.districtCode,
+      is24Hours: is24Hours ?? this.is24Hours,
+      distanceKm: distanceKm ?? this.distanceKm,
+      city: city ?? this.city,
+      state: state ?? this.state,
     );
   }
 
   @override
-  List<Object?> get props => [id];
+  List<Object?> get props => [id, name, address, lat, lng, phone, distanceKm, city, state];
 }

@@ -6,7 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/services/auth_service.dart';
-import '../../../data/database/database_helper.dart';
+import '../../../data/repositories/medical_repository.dart';
 import '../../../data/models/medical_profile.dart';
 
 /// Complete, production-grade Medical ID screen for paramedics and first responders.
@@ -19,7 +19,7 @@ class MedicalIdScreen extends StatefulWidget {
 }
 
 class _MedicalIdScreenState extends State<MedicalIdScreen> {
-  final DatabaseHelper _db = DatabaseHelper();
+  final MedicalRepository _medicalRepo = MedicalRepository();
   bool _isLoading = true;
   bool _isEditing = false;
   MedicalProfile? _profile;
@@ -72,11 +72,8 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
     });
 
     try {
-      // Ensure database is initialized
-      await _db.initialize();
-      
       final currentUserId = AuthService.instance.currentUserId ?? 'me';
-      MedicalProfile? profile = await _db.getMedicalProfile(currentUserId);
+      MedicalProfile? profile = await _medicalRepo.getMedicalProfile(currentUserId);
       
       if (profile == null) {
         final email = AuthService.instance.currentUserEmail ?? 'rahul.rathod@gmail.com';
@@ -96,7 +93,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
           organDonor: true,
           emergencyNotes: 'No critical notes.',
         );
-        await _db.upsertMedicalProfile(profile);
+        await _medicalRepo.saveMedicalProfile(profile);
       }
 
       _nameController.text = profile.fullName;
@@ -157,7 +154,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
         emergencyNotes: _notesController.text.trim(),
       );
 
-      await _db.upsertMedicalProfile(updatedProfile);
+      await _medicalRepo.saveMedicalProfile(updatedProfile);
       
       setState(() {
         _profile = updatedProfile;

@@ -8,7 +8,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
-import '../../../data/database/database_helper.dart';
+import '../../../data/repositories/settings_repository.dart';
+import '../../../data/models/settings.dart' as model;
 import '../../crash_detection/crash_detector.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/config/ai_config.dart';
@@ -23,7 +24,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final DatabaseHelper _db = DatabaseHelper();
+  final SettingsRepository _settingsRepo = SettingsRepository();
 
   // Protection Settings
   bool _crashDetectionOn = true;
@@ -51,21 +52,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadSettings();
   }
 
-  /// Loads configuration values from SharedPreferences.
+  /// Loads configuration values from SettingsRepository.
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     
     // Fetch actual record count & file size directly from SQLite
-    final int count = await _db.getDatabaseRecordCount();
-    final int sizeInBytes = await _db.getDatabaseSizeInBytes();
+    final int count = await _settingsRepo.getDatabaseRecordCount();
+    final int sizeInBytes = await _settingsRepo.getDatabaseSizeInBytes();
     final geminiKey = await AiConfig.getGeminiApiKey();
 
+    final settings = await _settingsRepo.getSettings();
+
     setState(() {
-      _crashDetectionOn = prefs.getBool('crash_detection') ?? true;
-      _voiceSOSOn = prefs.getBool('voice_sos') ?? false;
+      _crashDetectionOn = settings.crashDetectionEnabled;
+      _voiceSOSOn = settings.voiceSosEnabled;
       _voiceSOSAlwaysListening = prefs.getBool('voice_sos_always_listening') ?? false;
       _sensitivityLabel = prefs.getString('sensitivity_label') ?? "Medium";
-      _sosCountdown = prefs.getInt('sos_countdown') ?? 10;
+      _sosCountdown = settings.sosCountdown;
       _lastSync = prefs.getString('last_sync') ?? "Yesterday, 14:32";
       _dbRecordCount = count;
       _dbSizeKb = sizeInBytes / 1024.0;
@@ -74,9 +77,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           : (geminiKey.length > 8
               ? '${geminiKey.substring(0, 4)}...${geminiKey.substring(geminiKey.length - 4)}'
               : 'Configured');
-      _darkModeOn = prefs.getBool('dark_mode') ?? true;
-      _autoShareOn = prefs.getBool('emergency_auto_share') ?? true;
-      _aiAssistantOn = prefs.getBool('ai_chatbot_enabled') ?? true;
+      _darkModeOn = settings.darkMode;
+      _autoShareOn = settings.emergencyAutoShare;
+      _aiAssistantOn = settings.aiAssistantEnabled;
     });
 
     // Keep active sensor daemon synced with settings state
@@ -89,6 +92,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final double accel = prefs.getDouble('sensitivity_accel') ?? 25.0;
     final double gyro = prefs.getDouble('sensitivity_gyro') ?? 4.0;
     CrashDetector.instance.updateThresholds(accel: accel, gyro: gyro);
+  }
+
+  /// Updates settings both locally and in the repository.
+  Future<void> _updateSetting({
+    bool? voiceSosEnabled,
+    bool? darkMode,
+    bool? emergencyAutoShare,
+    bool? aiAssistantEnabled,
+    int? sosCountdown,
+    bool? crashDetectionEnabled,
+  }) async {
+    final current = await _settingsRepo.getSettings();
+    final updated = current.copyWith(
+      voiceSosEnabled: voiceSosEnabled,
+      darkMode: darkMode,
+      emergencyAutoShare: emergencyAutoShare,
+      aiAssistantEnabled: aiAssistantEnabled,
+      sosCountdown: sosCountdown,
+      crashDetectionEnabled: crashDetectionEnabled,
+    );
+    await _settingsRepo.saveSettings(updated);
   }
 
   /// Syncs local database nodes by deleting and re-seeding the expanded seeder.
@@ -105,12 +129,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final now = DateTime.now();
         _lastSync = "Today, ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
       } else {
-        final database = await _db.database;
-        await database.delete('hospitals');
-        await database.delete('police_stations');
-        await database.delete('towing_services');
-        await database.delete('emergency_shelters');
-        await _db.seedDemoData(database);
+        await _settingsRepo.syncDatabaseDemoData();
 
         // Simulate API fetch delay
         await Future.delayed(const Duration(milliseconds: 1200));
@@ -120,8 +139,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
 
       // Query updated values
-      final int count = await _db.getDatabaseRecordCount();
-      final int sizeInBytes = await _db.getDatabaseSizeInBytes();
+      final int count = await _settingsRepo.getDatabaseRecordCount();
+      final int sizeInBytes = await _settingsRepo.getDatabaseSizeInBytes();
 
       setState(() {
         _lastSync = _lastSync;
@@ -404,7 +423,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return GestureDetector(
           onTap: () {
             setState(() => _sosCountdown = seconds);
-            SharedPreferences.getInstance().then((p) => p.setInt('sos_countdown', seconds));
+            _updateSetting(sosCountdown: seconds);
           },
           child: Container(
             margin: const EdgeInsets.only(left: 8),
@@ -542,7 +561,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         activeTrackColor: AppColors.safeGreen,
                         onChanged: (v) {
                           setState(() => _crashDetectionOn = v);
-                          SharedPreferences.getInstance().then((p) => p.setBool('crash_detection', v));
+                          _updateSetting(crashDetectionEnabled: v);
                           if (v) {
                             CrashDetector.instance.startListening();
                           } else {
@@ -579,7 +598,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               SharedPreferences.getInstance().then((p) => p.setBool('voice_sos_always_listening', false));
                             }
                           });
-                          SharedPreferences.getInstance().then((p) => p.setBool('voice_sos', v));
+                          _updateSetting(voiceSosEnabled: v);
                         },
                       ),
                     ),
@@ -604,7 +623,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         activeTrackColor: AppColors.safeGreen,
                         onChanged: (v) {
                           setState(() => _darkModeOn = v);
-                          SharedPreferences.getInstance().then((p) => p.setBool('dark_mode', v));
+                          _updateSetting(darkMode: v);
                         },
                       ),
                     ),
@@ -616,7 +635,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         activeTrackColor: AppColors.safeGreen,
                         onChanged: (v) {
                           setState(() => _autoShareOn = v);
-                          SharedPreferences.getInstance().then((p) => p.setBool('emergency_auto_share', v));
+                          _updateSetting(emergencyAutoShare: v);
                         },
                       ),
                     ),
@@ -667,7 +686,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         activeTrackColor: AppColors.safeGreen,
                         onChanged: (v) {
                           setState(() => _aiAssistantOn = v);
-                          SharedPreferences.getInstance().then((p) => p.setBool('ai_chatbot_enabled', v));
+                          _updateSetting(aiAssistantEnabled: v);
                         },
                       ),
                     ),

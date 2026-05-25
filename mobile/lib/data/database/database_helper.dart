@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' hide Settings;
 import '../../core/services/auth_service.dart';
 import 'db_size_helper.dart';
 
@@ -19,20 +19,23 @@ import '../models/police_station.dart';
 import '../models/towing_service.dart';
 import '../models/emergency_contact.dart';
 import '../models/medical_profile.dart';
+import '../models/user.dart';
+import '../models/settings.dart';
+import '../models/sos_event.dart';
+import '../models/chat_message.dart';
 import '../models/emergency_shelter.dart';
 
 /// Singleton helper that owns the SQLite database lifecycle for RoadSOS.
 ///
-/// Tables created:
-///   • `hospitals`
-///   • `police_stations`
-///   • `towing_services`
-///   • `emergency_contacts`
-///   • `medical_profiles`
-///
-/// Spatial queries use the Haversine formula (computed in Dart after a
-/// coarse bounding-box filter in SQL) and indexes on `lat`/`lng`
-/// columns for fast pre-filtering.
+/// Centralized schemas:
+///   1. `users`
+///   2. `emergency_contacts`
+///   3. `sos_events`
+///   4. `hospitals`
+///   5. `police_stations`
+///   6. `towing_services`
+///   7. `ai_chat_history`
+///   8. `settings`
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
   factory DatabaseHelper() => _instance;
@@ -41,7 +44,30 @@ class DatabaseHelper {
   static final List<Hospital> _webHospitals = [];
   static final List<PoliceStation> _webPolice = [];
   static final List<TowingService> _webTowing = [];
+  static final List<EmergencyContact> _webContacts = [];
+  static final List<SosEvent> _webSosEvents = [];
+  static final List<ChatMessageModel> _webChatHistory = [];
   static final List<EmergencyShelter> _webShelters = [];
+  
+  static User? _webUser;
+  static Settings? _webSettings;
+
+  /// Public method to update the in-memory web spatial database.
+  void updateWebCache({
+    required List<Hospital> hospitals,
+    required List<PoliceStation> police,
+    required List<TowingService> towing,
+    required List<EmergencyShelter> shelters,
+  }) {
+    _webHospitals.clear();
+    _webHospitals.addAll(hospitals);
+    _webPolice.clear();
+    _webPolice.addAll(police);
+    _webTowing.clear();
+    _webTowing.addAll(towing);
+    _webShelters.clear();
+    _webShelters.addAll(shelters);
+  }
 
   Database? _db;
 
@@ -58,7 +84,7 @@ class DatabaseHelper {
 
   Future<Database> _initDatabase() async {
     final docsDir = await getApplicationDocumentsDirectory();
-    final path = p.join(docsDir.path, 'roadsos.db');
+    final path = p.join(docsDir.path, 'roadsos_v2.db');
 
     return openDatabase(
       path,
@@ -66,6 +92,8 @@ class DatabaseHelper {
       onCreate: (db, version) async {
         await _onCreate(db, version);
         await seedDemoData(db);
+        await seedDefaultSettings(db);
+        await seedDefaultUser(db);
       },
     );
   }
@@ -77,68 +105,65 @@ class DatabaseHelper {
       return;
     }
     final db = await database;
-    // Auto-create sos_events table if it doesn't exist (seeding/safety support)
+    
+    // Self-healing migration triggers to ensure all 8 tables are created
     await db.execute('''
-      CREATE TABLE IF NOT EXISTS sos_events (
-        id          TEXT PRIMARY KEY,
-        timestamp   TEXT NOT NULL,
-        latitude    REAL NOT NULL,
-        longitude   REAL NOT NULL,
-        triggerType TEXT NOT NULL,
-        telemetry   TEXT,
-        status      TEXT DEFAULT 'dispatched'
+      CREATE TABLE IF NOT EXISTS users (
+        id                 TEXT PRIMARY KEY,
+        full_name          TEXT,
+        email              TEXT,
+        phone              TEXT,
+        profile_photo      TEXT,
+        blood_group        TEXT,
+        allergies          TEXT,
+        medications        TEXT,
+        medical_conditions TEXT,
+        emergency_notes    TEXT,
+        organ_donor        INTEGER DEFAULT 0,
+        created_at         TEXT,
+        updated_at         TEXT
       )
     ''');
 
-    // Ensure emergency_shelters table exists (self-healing migration)
-    try {
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS emergency_shelters (
-          id       TEXT PRIMARY KEY,
-          name     TEXT NOT NULL,
-          address  TEXT,
-          lat      REAL NOT NULL,
-          lng      REAL NOT NULL,
-          phone    TEXT,
-          capacity INTEGER DEFAULT 0
-        )
-      ''');
-    } catch (_) {}
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS emergency_contacts (
+        id           TEXT PRIMARY KEY,
+        user_id      TEXT,
+        full_name    TEXT NOT NULL,
+        relationship TEXT,
+        phone        TEXT NOT NULL,
+        email        TEXT,
+        is_primary   INTEGER DEFAULT 0,
+        created_at   TEXT
+      )
+    ''');
 
-    // Ensure email column exists in emergency_contacts (self-healing migration)
-    try {
-      await db.execute('ALTER TABLE emergency_contacts ADD COLUMN email TEXT');
-    } catch (_) {}
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS sos_events (
+        id                     TEXT PRIMARY KEY,
+        user_id                TEXT,
+        latitude               REAL NOT NULL,
+        longitude              REAL NOT NULL,
+        address                TEXT,
+        emergency_type         TEXT,
+        timestamp              TEXT NOT NULL,
+        contacts_notified      TEXT,
+        nearest_hospital       TEXT,
+        nearest_police_station TEXT,
+        status                 TEXT DEFAULT 'dispatched'
+      )
+    ''');
 
-    // Ensure age & gender columns exist in medical_profiles (self-healing migration)
-    try {
-      await db.execute('ALTER TABLE medical_profiles ADD COLUMN age INTEGER');
-    } catch (_) {}
-    try {
-      await db.execute('ALTER TABLE medical_profiles ADD COLUMN gender TEXT');
-    } catch (_) {}
-
-    // Auto-seed if hospitals are empty to guarantee spatial queries work
-    final count = Sqflite.firstIntValue(
-      await db.rawQuery('SELECT COUNT(*) FROM hospitals'),
-    );
-    if (count == null || count == 0) {
-      await seedDemoData(db);
-    }
-  }
-
-  Future<void> _onCreate(Database db, int version) async {
-    final batch = db.batch();
-
-    // ── Hospitals ────────────────────────────────────────────────────
-    batch.execute('''
-      CREATE TABLE hospitals (
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS hospitals (
         id             TEXT PRIMARY KEY,
         name           TEXT NOT NULL,
+        latitude       REAL NOT NULL,
+        longitude      REAL NOT NULL,
         address        TEXT,
-        lat            REAL NOT NULL,
-        lng            REAL NOT NULL,
         phone          TEXT,
+        city           TEXT,
+        state          TEXT,
         type           TEXT DEFAULT 'general',
         hasEmergency   INTEGER DEFAULT 0,
         hasICU         INTEGER DEFAULT 0,
@@ -149,163 +174,333 @@ class DatabaseHelper {
         rating         REAL DEFAULT 0.0
       )
     ''');
-    batch.execute('CREATE INDEX idx_hospitals_lat ON hospitals (lat)');
-    batch.execute('CREATE INDEX idx_hospitals_lng ON hospitals (lng)');
 
-    // ── Police stations ─────────────────────────────────────────────
-    batch.execute('''
-      CREATE TABLE police_stations (
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS police_stations (
         id           TEXT PRIMARY KEY,
         name         TEXT NOT NULL,
+        latitude     REAL NOT NULL,
+        longitude    REAL NOT NULL,
         address      TEXT,
-        lat          REAL NOT NULL,
-        lng          REAL NOT NULL,
         phone        TEXT,
+        city         TEXT,
+        state        TEXT,
         districtCode TEXT,
         is24Hours    INTEGER DEFAULT 1
       )
     ''');
-    batch.execute('CREATE INDEX idx_police_lat ON police_stations (lat)');
-    batch.execute('CREATE INDEX idx_police_lng ON police_stations (lng)');
 
-    // ── Towing services ─────────────────────────────────────────────
-    batch.execute('''
-      CREATE TABLE towing_services (
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS towing_services (
         id             TEXT PRIMARY KEY,
         name           TEXT NOT NULL,
+        latitude       REAL NOT NULL,
+        longitude      REAL NOT NULL,
+        address        TEXT,
         phone          TEXT,
-        lat            REAL NOT NULL,
-        lng            REAL NOT NULL,
+        city           TEXT,
+        state          TEXT,
         serviceRadius  REAL DEFAULT 0.0,
         operatingHours TEXT,
         vehicleTypes   TEXT
       )
     ''');
-    batch.execute('CREATE INDEX idx_towing_lat ON towing_services (lat)');
-    batch.execute('CREATE INDEX idx_towing_lng ON towing_services (lng)');
 
-    // ── Emergency contacts ──────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ai_chat_history (
+        id           TEXT PRIMARY KEY,
+        user_id      TEXT,
+        user_message TEXT,
+        ai_response  TEXT,
+        timestamp    TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS settings (
+        id                       TEXT PRIMARY KEY,
+        voice_sos_enabled        INTEGER DEFAULT 0,
+        dark_mode                INTEGER DEFAULT 1,
+        emergency_auto_share     INTEGER DEFAULT 1,
+        ai_assistant_enabled     INTEGER DEFAULT 1,
+        sos_countdown            INTEGER DEFAULT 5,
+        crash_detection_enabled  INTEGER DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS emergency_shelters (
+        id           TEXT PRIMARY KEY,
+        name         TEXT NOT NULL,
+        latitude     REAL NOT NULL,
+        longitude    REAL NOT NULL,
+        address      TEXT,
+        phone        TEXT,
+        city         TEXT,
+        state        TEXT,
+        capacity     INTEGER DEFAULT 0,
+        last_updated TEXT
+      )
+    ''');
+
+    // Auto-seed if hospitals are empty to guarantee spatial queries work
+    final count = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) FROM hospitals'),
+    );
+    if (count == null || count == 0) {
+      await seedDemoData(db);
+    }
+
+    // Auto-seed settings if empty
+    final settingsCount = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) FROM settings'),
+    );
+    if (settingsCount == null || settingsCount == 0) {
+      await seedDefaultSettings(db);
+    }
+
+    // Auto-seed user if empty
+    final userCount = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) FROM users'),
+    );
+    if (userCount == null || userCount == 0) {
+      await seedDefaultUser(db);
+    }
+  }
+
+  Future<void> _onCreate(Database db, int version) async {
+    final batch = db.batch();
+
+    // ── Users ────────────────────────────────────────────────────────
+    batch.execute('''
+      CREATE TABLE users (
+        id                 TEXT PRIMARY KEY,
+        full_name          TEXT,
+        email              TEXT,
+        phone              TEXT,
+        profile_photo      TEXT,
+        blood_group        TEXT,
+        allergies          TEXT,
+        medications        TEXT,
+        medical_conditions TEXT,
+        emergency_notes    TEXT,
+        organ_donor        INTEGER DEFAULT 0,
+        created_at         TEXT,
+        updated_at         TEXT
+      )
+    ''');
+
+    // ── Emergency Contacts ───────────────────────────────────────────
     batch.execute('''
       CREATE TABLE emergency_contacts (
         id           TEXT PRIMARY KEY,
-        name         TEXT NOT NULL,
+        user_id      TEXT,
+        full_name    TEXT NOT NULL,
         relationship TEXT,
         phone        TEXT NOT NULL,
         email        TEXT,
-        isPrimary    INTEGER DEFAULT 0,
-        avatarEmoji  TEXT DEFAULT '👤'
+        is_primary   INTEGER DEFAULT 0,
+        created_at   TEXT
       )
     ''');
 
-    // ── Medical profile ─────────────────────────────────────────────
+    // ── SOS Events ───────────────────────────────────────────────────
     batch.execute('''
-      CREATE TABLE medical_profiles (
-        userId             TEXT PRIMARY KEY,
-        fullName           TEXT,
-        age                INTEGER,
-        gender             TEXT,
-        bloodGroup         TEXT,
-        allergies          TEXT,
-        medications        TEXT,
-        conditions         TEXT,
-        emergencyContactId TEXT,
-        insuranceProvider  TEXT,
-        insurancePolicyNo  TEXT,
-        organDonor         INTEGER DEFAULT 0
+      CREATE TABLE sos_events (
+        id                     TEXT PRIMARY KEY,
+        user_id                TEXT,
+        latitude               REAL NOT NULL,
+        longitude              REAL NOT NULL,
+        address                TEXT,
+        emergency_type         TEXT,
+        timestamp              TEXT NOT NULL,
+        contacts_notified      TEXT,
+        nearest_hospital       TEXT,
+        nearest_police_station TEXT,
+        status                 TEXT DEFAULT 'dispatched'
       )
     ''');
 
-    // ── SOS Events ──────────────────────────────────────────────────
+    // ── Hospitals ────────────────────────────────────────────────────
     batch.execute('''
-      CREATE TABLE IF NOT EXISTS sos_events (
-        id          TEXT PRIMARY KEY,
-        timestamp   TEXT NOT NULL,
-        latitude    REAL NOT NULL,
-        longitude   REAL NOT NULL,
-        triggerType TEXT NOT NULL,
-        telemetry   TEXT,
-        status      TEXT DEFAULT 'dispatched'
+      CREATE TABLE hospitals (
+        id             TEXT PRIMARY KEY,
+        name           TEXT NOT NULL,
+        latitude       REAL NOT NULL,
+        longitude      REAL NOT NULL,
+        address        TEXT,
+        phone          TEXT,
+        city           TEXT,
+        state          TEXT,
+        type           TEXT DEFAULT 'general',
+        hasEmergency   INTEGER DEFAULT 0,
+        hasICU         INTEGER DEFAULT 0,
+        hasBloodBank   INTEGER DEFAULT 0,
+        ambulanceCount INTEGER DEFAULT 0,
+        lastUpdated    TEXT,
+        sourceApi      TEXT,
+        rating         REAL DEFAULT 0.0
       )
     ''');
+    batch.execute('CREATE INDEX idx_hospitals_lat ON hospitals (latitude)');
+    batch.execute('CREATE INDEX idx_hospitals_lng ON hospitals (longitude)');
+
+    // ── Police Stations ──────────────────────────────────────────────
+    batch.execute('''
+      CREATE TABLE police_stations (
+        id           TEXT PRIMARY KEY,
+        name         TEXT NOT NULL,
+        latitude     REAL NOT NULL,
+        longitude    REAL NOT NULL,
+        address      TEXT,
+        phone        TEXT,
+        city         TEXT,
+        state        TEXT,
+        districtCode TEXT,
+        is24Hours    INTEGER DEFAULT 1
+      )
+    ''');
+    batch.execute('CREATE INDEX idx_police_lat ON police_stations (latitude)');
+    batch.execute('CREATE INDEX idx_police_lng ON police_stations (longitude)');
+
+    // ── Towing Services ──────────────────────────────────────────────
+    batch.execute('''
+      CREATE TABLE towing_services (
+        id             TEXT PRIMARY KEY,
+        name           TEXT NOT NULL,
+        latitude       REAL NOT NULL,
+        longitude      REAL NOT NULL,
+        address        TEXT,
+        phone        TEXT,
+        city           TEXT,
+        state          TEXT,
+        serviceRadius  REAL DEFAULT 0.0,
+        operatingHours TEXT,
+        vehicleTypes   TEXT
+      )
+    ''');
+    batch.execute('CREATE INDEX idx_towing_lat ON towing_services (latitude)');
+    batch.execute('CREATE INDEX idx_towing_lng ON towing_services (longitude)');
+
+    // ── AI Chat History ──────────────────────────────────────────────
+    batch.execute('''
+      CREATE TABLE ai_chat_history (
+        id           TEXT PRIMARY KEY,
+        user_id      TEXT,
+        user_message TEXT,
+        ai_response  TEXT,
+        timestamp    TEXT
+      )
+    ''');
+
+    // ── Settings ─────────────────────────────────────────────────────
+    batch.execute('''
+      CREATE TABLE settings (
+        id                       TEXT PRIMARY KEY,
+        voice_sos_enabled        INTEGER DEFAULT 0,
+        dark_mode                INTEGER DEFAULT 1,
+        emergency_auto_share     INTEGER DEFAULT 1,
+        ai_assistant_enabled     INTEGER DEFAULT 1,
+        sos_countdown            INTEGER DEFAULT 5,
+        crash_detection_enabled  INTEGER DEFAULT 0
+      )
+    ''');
+
+    // ── Emergency Shelters ───────────────────────────────────────────
+    batch.execute('''
+      CREATE TABLE emergency_shelters (
+        id           TEXT PRIMARY KEY,
+        name         TEXT NOT NULL,
+        latitude     REAL NOT NULL,
+        longitude    REAL NOT NULL,
+        address      TEXT,
+        phone        TEXT,
+        city         TEXT,
+        state        TEXT,
+        capacity     INTEGER DEFAULT 0,
+        last_updated TEXT
+      )
+    ''');
+    batch.execute('CREATE INDEX idx_shelters_lat ON emergency_shelters (latitude)');
+    batch.execute('CREATE INDEX idx_shelters_lng ON emergency_shelters (longitude)');
 
     await batch.commit(noResult: true);
+  }
+
+  // ── Database Diagnostics ─────────────────────────────────────────────
+
+  Future<int> getDatabaseRecordCount() async {
+    if (kIsWeb) return _webHospitals.length + _webPolice.length + _webTowing.length + _webContacts.length + _webSosEvents.length + _webChatHistory.length;
+    final db = await database;
+    int total = 0;
+    total += Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM hospitals')) ?? 0;
+    total += Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM police_stations')) ?? 0;
+    total += Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM towing_services')) ?? 0;
+    total += Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM emergency_contacts')) ?? 0;
+    total += Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM sos_events')) ?? 0;
+    return total;
+  }
+
+  Future<int> getDatabaseSizeInBytes() async {
+    if (kIsWeb) return 0;
+    return getDbSizeInBytes();
   }
 
   // ── Seeding ──────────────────────────────────────────────────────────
 
-  /// Seeds the database from a bundled JSON asset file.
-  ///
-  /// Expected JSON structure:
-  /// ```json
-  /// {
-  ///   "hospitals": [...],
-  ///   "police_stations": [...],
-  ///   "towing_services": [...]
-  /// }
-  /// ```
-  Future<void> seedFromJson(String jsonPath) async {
-    final db = await database;
-    final raw = await rootBundle.loadString(jsonPath);
-    final data = json.decode(raw) as Map<String, dynamic>;
+  Future<void> seedDefaultSettings(Database db) async {
+    final defaultSettings = {
+      'id': 'default',
+      'voice_sos_enabled': 0,
+      'dark_mode': 1,
+      'emergency_auto_share': 1,
+      'ai_assistant_enabled': 1,
+      'sos_countdown': 5,
+      'crash_detection_enabled': 0,
+    };
+    await db.insert('settings', defaultSettings, conflictAlgorithm: ConflictAlgorithm.ignore);
+  }
 
+  Future<void> seedDefaultUser(Database db) async {
+    final defaultUser = {
+      'id': 'me',
+      'full_name': 'Nandini Rathod',
+      'email': 'nandini@roadsos.in',
+      'phone': '+91 98765 43210',
+      'profile_photo': '',
+      'blood_group': 'O+',
+      'allergies': 'Penicillin, Peanuts',
+      'medications': 'None',
+      'medical_conditions': 'None',
+      'emergency_notes': 'Primary user profile details loaded successfully.',
+      'organ_donor': 1,
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    await db.insert('users', defaultUser, conflictAlgorithm: ConflictAlgorithm.ignore);
+  }
+
+  Future<void> seedDemoData(Database db) async {
     final batch = db.batch();
 
-    if (data.containsKey('hospitals')) {
-      for (final item in data['hospitals'] as List) {
-        final hospital = Hospital.fromMap(item as Map<String, dynamic>);
-        batch.insert('hospitals', hospital.toMap(),
-            conflictAlgorithm: ConflictAlgorithm.replace);
-      }
+    for (var h in _getHospitalsSeedData()) {
+      batch.insert('hospitals', h, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
-    if (data.containsKey('police_stations')) {
-      for (final item in data['police_stations'] as List) {
-        final station =
-            PoliceStation.fromMap(item as Map<String, dynamic>);
-        batch.insert('police_stations', station.toMap(),
-            conflictAlgorithm: ConflictAlgorithm.replace);
-      }
+    for (var p in _getPoliceSeedData()) {
+      batch.insert('police_stations', p, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
-    if (data.containsKey('towing_services')) {
-      for (final item in data['towing_services'] as List) {
-        final towing =
-            TowingService.fromMap(item as Map<String, dynamic>);
-        batch.insert('towing_services', towing.toMap(),
-            conflictAlgorithm: ConflictAlgorithm.replace);
-      }
+    for (var t in _getTowingSeedData()) {
+      batch.insert('towing_services', t, conflictAlgorithm: ConflictAlgorithm.replace);
     }
-
-    // ── Emergency shelters ───────────────────────────────────────────
-    batch.execute('''
-      CREATE TABLE emergency_shelters (
-        id       TEXT PRIMARY KEY,
-        name     TEXT NOT NULL,
-        address  TEXT,
-        lat      REAL NOT NULL,
-        lng      REAL NOT NULL,
-        phone    TEXT,
-        capacity INTEGER DEFAULT 0
-      )
-    ''');
-    batch.execute('CREATE INDEX idx_shelters_lat ON emergency_shelters (lat)');
-    batch.execute('CREATE INDEX idx_shelters_lng ON emergency_shelters (lng)');
 
     await batch.commit(noResult: true);
   }
 
-  // ── Spatial queries ──────────────────────────────────────────────────
+  // ── Backward Compatible Spatial Queries ──────────────────────────────
 
-  /// Returns hospitals within [limitKm] of ([lat], [lng]), sorted by
-  /// ascending Haversine distance.
-  ///
-  /// A coarse bounding-box filter is applied in SQL first so that
-  /// only nearby rows are loaded into memory for precise calculation.
-  Future<List<Hospital>> getNearbyHospitals(
-    double lat,
-    double lng, {
-    int limitKm = 50,
-  }) async {
+  Future<List<Hospital>> getNearbyHospitals(double lat, double lng, {int limitKm = 50}) async {
     if (kIsWeb) {
       await _initWebMockData();
       final results = <Hospital>[];
@@ -321,25 +516,24 @@ class DatabaseHelper {
       results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
       return results;
     }
+
     final db = await database;
     final bounds = _boundingBox(lat, lng, limitKm.toDouble());
 
     final rows = await db.query(
       'hospitals',
-      where: 'lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?',
+      where: 'latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?',
       whereArgs: [bounds.minLat, bounds.maxLat, bounds.minLng, bounds.maxLng],
     );
 
     final results = <Hospital>[];
     for (final row in rows) {
       final hospital = Hospital.fromMap(row);
-      final dist =
-          DistanceUtils.haversine(lat, lng, hospital.lat, hospital.lng);
+      final dist = DistanceUtils.haversine(lat, lng, hospital.lat, hospital.lng);
       if (dist <= limitKm) {
         results.add(hospital.copyWithDistance(
           distanceKm: double.parse(dist.toStringAsFixed(2)),
-          estimatedMinutes: double.parse(
-              DistanceUtils.estimateMinutes(dist).toStringAsFixed(1)),
+          estimatedMinutes: double.parse(DistanceUtils.estimateMinutes(dist).toStringAsFixed(1)),
         ));
       }
     }
@@ -348,13 +542,7 @@ class DatabaseHelper {
     return results;
   }
 
-  /// Returns police stations within [limitKm] of ([lat], [lng]),
-  /// sorted by ascending Haversine distance.
-  Future<List<PoliceStation>> getNearbyPolice(
-    double lat,
-    double lng, {
-    int limitKm = 20,
-  }) async {
+  Future<List<PoliceStation>> getNearbyPolice(double lat, double lng, {int limitKm = 20}) async {
     if (kIsWeb) {
       await _initWebMockData();
       final results = <PoliceStation>[];
@@ -369,20 +557,20 @@ class DatabaseHelper {
       results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
       return results;
     }
+
     final db = await database;
     final bounds = _boundingBox(lat, lng, limitKm.toDouble());
 
     final rows = await db.query(
       'police_stations',
-      where: 'lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?',
+      where: 'latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?',
       whereArgs: [bounds.minLat, bounds.maxLat, bounds.minLng, bounds.maxLng],
     );
 
     final results = <PoliceStation>[];
     for (final row in rows) {
       final station = PoliceStation.fromMap(row);
-      final dist =
-          DistanceUtils.haversine(lat, lng, station.lat, station.lng);
+      final dist = DistanceUtils.haversine(lat, lng, station.lat, station.lng);
       if (dist <= limitKm) {
         results.add(station.copyWithDistance(
           distanceKm: double.parse(dist.toStringAsFixed(2)),
@@ -394,13 +582,7 @@ class DatabaseHelper {
     return results;
   }
 
-  /// Returns towing services within [limitKm] of ([lat], [lng]),
-  /// sorted by ascending Haversine distance.
-  Future<List<TowingService>> getNearbyTowing(
-    double lat,
-    double lng, {
-    int limitKm = 30,
-  }) async {
+  Future<List<TowingService>> getNearbyTowing(double lat, double lng, {int limitKm = 30}) async {
     if (kIsWeb) {
       await _initWebMockData();
       final results = <TowingService>[];
@@ -415,20 +597,20 @@ class DatabaseHelper {
       results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
       return results;
     }
+
     final db = await database;
     final bounds = _boundingBox(lat, lng, limitKm.toDouble());
 
     final rows = await db.query(
       'towing_services',
-      where: 'lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?',
+      where: 'latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?',
       whereArgs: [bounds.minLat, bounds.maxLat, bounds.minLng, bounds.maxLng],
     );
 
     final results = <TowingService>[];
     for (final row in rows) {
       final towing = TowingService.fromMap(row);
-      final dist =
-          DistanceUtils.haversine(lat, lng, towing.lat, towing.lng);
+      final dist = DistanceUtils.haversine(lat, lng, towing.lat, towing.lng);
       if (dist <= limitKm) {
         results.add(towing.copyWithDistance(
           distanceKm: double.parse(dist.toStringAsFixed(2)),
@@ -440,13 +622,7 @@ class DatabaseHelper {
     return results;
   }
 
-  /// Returns emergency shelters within [limitKm] of ([lat], [lng]),
-  /// sorted by ascending Haversine distance.
-  Future<List<EmergencyShelter>> getNearbyShelters(
-    double lat,
-    double lng, {
-    int limitKm = 30,
-  }) async {
+  Future<List<EmergencyShelter>> getNearbyShelters(double lat, double lng, {int limitKm = 40}) async {
     if (kIsWeb) {
       await _initWebMockData();
       final results = <EmergencyShelter>[];
@@ -461,12 +637,13 @@ class DatabaseHelper {
       results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
       return results;
     }
+
     final db = await database;
     final bounds = _boundingBox(lat, lng, limitKm.toDouble());
 
     final rows = await db.query(
       'emergency_shelters',
-      where: 'lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?',
+      where: 'latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?',
       whereArgs: [bounds.minLat, bounds.maxLat, bounds.minLng, bounds.maxLng],
     );
 
@@ -485,23 +662,9 @@ class DatabaseHelper {
     return results;
   }
 
-  // ── Emergency contacts CRUD ──────────────────────────────────────────
+  // ── Backward Compatible Emergency Contact Helpers ────────────────────
 
-  /// Inserts or replaces an emergency contact.
   Future<void> upsertEmergencyContact(EmergencyContact contact) async {
-    if (AuthService.useFirebase) {
-      try {
-        final uid = AuthService.instance.currentUserId ?? 'me';
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .collection('contacts')
-            .doc(contact.id)
-            .set(contact.toMap());
-      } catch (e) {
-        print("Firestore emergency contact upsert failed: $e");
-      }
-    }
     if (kIsWeb) {
       final contacts = await getEmergencyContacts();
       if (contact.isPrimary) {
@@ -515,12 +678,12 @@ class DatabaseHelper {
       contacts.add(contact);
       final prefs = await SharedPreferences.getInstance();
       final listJson = contacts.map((c) => c.toMap()).toList();
-      await prefs.setString('web_emergency_contacts', json.encode(listJson));
+      await prefs.setString('web_emergency_contacts_v2', json.encode(listJson));
       return;
     }
     final db = await database;
     if (contact.isPrimary) {
-      await db.update('emergency_contacts', {'isPrimary': 0});
+      await db.update('emergency_contacts', {'is_primary': 0});
     }
     await db.insert(
       'emergency_contacts',
@@ -529,35 +692,17 @@ class DatabaseHelper {
     );
   }
 
-  /// Returns all saved emergency contacts.
   Future<List<EmergencyContact>> getEmergencyContacts() async {
-    if (AuthService.useFirebase) {
-      try {
-        final uid = AuthService.instance.currentUserId ?? 'me';
-        final snapshot = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .collection('contacts')
-            .get();
-        if (snapshot.docs.isNotEmpty) {
-          return snapshot.docs.map((doc) => EmergencyContact.fromMap(doc.data())).toList();
-        }
-      } catch (e) {
-        print("Firestore fetch contacts failed: $e");
-      }
-    }
     if (kIsWeb) {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString('web_emergency_contacts');
-      if (raw == null) {
-        return [];
-      }
+      final raw = prefs.getString('web_emergency_contacts_v2');
+      if (raw == null) return [];
       final list = json.decode(raw) as List;
       final contacts = list.map((r) => EmergencyContact.fromMap(r as Map<String, dynamic>)).toList();
       if (contacts.isNotEmpty && !contacts.any((c) => c.isPrimary)) {
         contacts[0] = contacts[0].copyWith(isPrimary: true);
         final listJson = contacts.map((c) => c.toMap()).toList();
-        await prefs.setString('web_emergency_contacts', json.encode(listJson));
+        await prefs.setString('web_emergency_contacts_v2', json.encode(listJson));
       }
       return contacts;
     }
@@ -566,26 +711,12 @@ class DatabaseHelper {
     final contacts = rows.map((r) => EmergencyContact.fromMap(r)).toList();
     if (contacts.isNotEmpty && !contacts.any((c) => c.isPrimary)) {
       contacts[0] = contacts[0].copyWith(isPrimary: true);
-      await db.update('emergency_contacts', {'isPrimary': 1}, where: 'id = ?', whereArgs: [contacts[0].id]);
+      await db.update('emergency_contacts', {'is_primary': 1}, where: 'id = ?', whereArgs: [contacts[0].id]);
     }
     return contacts;
   }
 
-  /// Deletes an emergency contact by [id].
   Future<void> deleteEmergencyContact(String id) async {
-    if (AuthService.useFirebase) {
-      try {
-        final uid = AuthService.instance.currentUserId ?? 'me';
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .collection('contacts')
-            .doc(id)
-            .delete();
-      } catch (e) {
-        print("Firestore emergency contact delete failed: $e");
-      }
-    }
     if (kIsWeb) {
       final contacts = await getEmergencyContacts();
       final wasPrimary = contacts.any((c) => c.id == id && c.isPrimary);
@@ -595,13 +726,13 @@ class DatabaseHelper {
       }
       final prefs = await SharedPreferences.getInstance();
       final listJson = contacts.map((c) => c.toMap()).toList();
-      await prefs.setString('web_emergency_contacts', json.encode(listJson));
+      await prefs.setString('web_emergency_contacts_v2', json.encode(listJson));
       return;
     }
     final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query(
+    final maps = await db.query(
       'emergency_contacts',
-      where: 'id = ? AND isPrimary = 1',
+      where: 'id = ? AND is_primary = 1',
       whereArgs: [id],
     );
     final wasPrimary = maps.isNotEmpty;
@@ -612,119 +743,95 @@ class DatabaseHelper {
       final remaining = await db.query('emergency_contacts', limit: 1);
       if (remaining.isNotEmpty) {
         final firstId = remaining.first['id'];
-        await db.update('emergency_contacts', {'isPrimary': 1}, where: 'id = ?', whereArgs: [firstId]);
+        await db.update('emergency_contacts', {'is_primary': 1}, where: 'id = ?', whereArgs: [firstId]);
       }
     }
   }
 
-  // ── Medical profile CRUD ─────────────────────────────────────────────
+  // ── Backward Compatible Medical Profile Helpers ──────────────────────
 
-  /// Inserts or replaces the user's medical profile.
   Future<void> upsertMedicalProfile(MedicalProfile profile) async {
-    if (AuthService.useFirebase) {
-      try {
-        final uid = AuthService.instance.currentUserId ?? 'me';
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .collection('medical_id')
-            .doc('profile')
-            .set(profile.toMap());
-      } catch (e) {
-        print("Firestore medical profile upsert failed: $e");
-      }
-    }
+    final user = User(
+      id: profile.userId,
+      fullName: profile.fullName,
+      email: 'nandini@roadsos.in',
+      phone: '+91 98765 43210',
+      profilePhoto: '',
+      bloodGroup: profile.bloodGroup,
+      allergies: profile.allergies,
+      medications: profile.medications,
+      medicalConditions: profile.conditions,
+      emergencyNotes: profile.emergencyNotes,
+      organDonor: profile.organDonor,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
     if (kIsWeb) {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('web_medical_profile', json.encode(profile.toMap()));
+      _webUser = user;
+      await prefs.setString('web_user_v2', user.toJson());
       return;
     }
+
     final db = await database;
     await db.insert(
-      'medical_profiles',
-      profile.toMap(),
+      'users',
+      user.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
-  /// Returns the stored medical profile, or `null` if none exists.
   Future<MedicalProfile?> getMedicalProfile(String userId) async {
-    if (AuthService.useFirebase) {
-      try {
-        final uid = AuthService.instance.currentUserId ?? 'me';
-        final doc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .collection('medical_id')
-            .doc('profile')
-            .get();
-        if (doc.exists && doc.data() != null) {
-          return MedicalProfile.fromMap(doc.data()!);
-        }
-      } catch (e) {
-        print("Firestore fetch medical profile failed: $e");
-      }
-    }
     if (kIsWeb) {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString('web_medical_profile');
-      if (raw == null) return null;
-      final map = json.decode(raw) as Map<String, dynamic>;
-      return MedicalProfile.fromMap({
-        'userId': 'me',
-        'fullName': map['fullName'] ?? 'Nandini Rathod',
-        'age': map['age'] ?? 21,
-        'gender': map['gender'] ?? 'Female',
-        'bloodGroup': map['bloodGroup'] ?? 'O+',
-        'allergies': map['allergies'] ?? 'Penicillin, Peanuts',
-        'medications': map['medications'] ?? 'None',
-        'conditions': map['conditions'] ?? 'None',
-        'emergencyContactId': map['emergencyContactId'] ?? '+91 98765 43210',
-        'organDonor': (map['organDonor'] == true || map['organDonor'] == 1) ? 1 : 0,
-        'emergencyNotes': map['emergencyNotes'] ?? '',
-      });
+      final raw = prefs.getString('web_user_v2');
+      if (raw == null) {
+        await _initWebMockData();
+      } else {
+        _webUser = User.fromJson(raw);
+      }
+      final u = _webUser;
+      if (u == null) return null;
+      return MedicalProfile(
+        userId: u.id,
+        fullName: u.fullName,
+        age: 21,
+        gender: 'Female',
+        bloodGroup: u.bloodGroup,
+        allergies: u.allergies,
+        medications: u.medications,
+        conditions: u.medicalConditions,
+        organDonor: u.organDonor,
+        emergencyNotes: u.emergencyNotes,
+      );
     }
+
     final db = await database;
     final rows = await db.query(
-      'medical_profiles',
-      where: 'userId = ?',
+      'users',
+      where: 'id = ?',
       whereArgs: [userId],
       limit: 1,
     );
     if (rows.isEmpty) return null;
-    return MedicalProfile.fromMap(rows.first);
-  }
-
-  // ── Helpers ──────────────────────────────────────────────────────────
-
-  /// Computes a coarse lat/lng bounding box for a radius in km.
-  /// This is used to pre-filter rows in SQL before applying the
-  /// more expensive Haversine formula in Dart.
-  _BoundingBox _boundingBox(double lat, double lng, double radiusKm) {
-    // ~111.32 km per degree of latitude
-    final latDelta = radiusKm / 111.32;
-    // Longitude degrees vary with latitude
-    final lngDelta = radiusKm / (111.32 * cos(lat * pi / 180.0));
-    return _BoundingBox(
-      minLat: lat - latDelta,
-      maxLat: lat + latDelta,
-      minLng: lng - lngDelta,
-      maxLng: lng + lngDelta,
+    final u = User.fromMap(rows.first);
+    return MedicalProfile(
+      userId: u.id,
+      fullName: u.fullName,
+      age: 21,
+      gender: 'Female',
+      bloodGroup: u.bloodGroup,
+      allergies: u.allergies,
+      medications: u.medications,
+      conditions: u.medicalConditions,
+      organDonor: u.organDonor,
+      emergencyNotes: u.emergencyNotes,
     );
   }
 
-  /// Closes the database connection.
-  Future<void> close() async {
-    final db = _db;
-    if (db != null) {
-      await db.close();
-      _db = null;
-    }
-  }
+  // ── Backward Compatible SOS Incident Helpers ─────────────────────────
 
-  // ── SOS Events CRUD ──────────────────────────────────────────────────
-
-  /// Logs a new SOS event. Supports persistent history on web SharedPreferences fallbacks.
   Future<void> logSosEvent({
     required String id,
     required double latitude,
@@ -733,56 +840,46 @@ class DatabaseHelper {
     Map<String, dynamic>? telemetry,
     String status = 'dispatched',
   }) async {
-    final event = {
-      'id': id,
-      'timestamp': DateTime.now().toIso8601String(),
-      'latitude': latitude,
-      'longitude': longitude,
-      'triggerType': triggerType,
-      'telemetry': telemetry != null ? json.encode(telemetry) : null,
-      'status': status,
-    };
+    final event = SosEvent(
+      id: id,
+      latitude: latitude,
+      longitude: longitude,
+      address: 'Simulated Location',
+      emergencyType: triggerType,
+      timestamp: DateTime.now(),
+      status: status,
+      contactsNotified: const ['All Contacts'],
+      nearestHospital: 'Apollo Hospitals',
+      nearestPoliceStation: 'Vastrapur Police',
+    );
 
     if (kIsWeb) {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final eventsRaw = prefs.getString('web_sos_events');
-        final List events = eventsRaw != null ? json.decode(eventsRaw) as List : [];
-        events.insert(0, event); // Add newest first
-        await prefs.setString('web_sos_events', json.encode(events));
-        print("Web SOS logged: Event ID: $id, Location: $latitude, $longitude, Trigger: $triggerType");
-      } catch (e) {
-        print("Web SOS history logging failed: $e");
-      }
+      final prefs = await SharedPreferences.getInstance();
+      _webSosEvents.insert(0, event);
+      final rawList = _webSosEvents.map((e) => e.toMap()).toList();
+      await prefs.setString('web_sos_events_v2', json.encode(rawList));
       return;
     }
     final db = await database;
     await db.insert(
       'sos_events',
-      event,
+      event.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
-  /// Updates the status of an SOS event (e.g. to 'resolved').
   Future<void> updateSosEventStatus(String id, String status) async {
     if (kIsWeb) {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final eventsRaw = prefs.getString('web_sos_events');
-        if (eventsRaw != null) {
-          final List events = json.decode(eventsRaw) as List;
-          for (var e in events) {
-            if (e['id'] == id) {
-              e['status'] = status;
-              break;
-            }
-          }
-          await prefs.setString('web_sos_events', json.encode(events));
+      final prefs = await SharedPreferences.getInstance();
+      for (var e in _webSosEvents) {
+        if (e.id == id) {
+          final idx = _webSosEvents.indexOf(e);
+          _webSosEvents[idx] = e.copyWith(status: status);
+          break;
         }
-      } catch (e) {
-        print("Web SOS status update failed: $e");
       }
+      final rawList = _webSosEvents.map((e) => e.toMap()).toList();
+      await prefs.setString('web_sos_events_v2', json.encode(rawList));
       return;
     }
     final db = await database;
@@ -794,599 +891,48 @@ class DatabaseHelper {
     );
   }
 
-  /// Returns all logged SOS events, fully compatible with Web and Native fallbacks.
   Future<List<Map<String, dynamic>>> getSosEvents() async {
     if (kIsWeb) {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final eventsRaw = prefs.getString('web_sos_events');
-        if (eventsRaw == null) return [];
-        final List list = json.decode(eventsRaw) as List;
-        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      } catch (e) {
-        print("Web SOS history fetch failed: $e");
-        return [];
-      }
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('web_sos_events_v2');
+      if (raw == null) return [];
+      final List list = json.decode(raw) as List;
+      _webSosEvents.clear();
+      _webSosEvents.addAll(list.map((e) => SosEvent.fromMap(e as Map<String, dynamic>)));
+      return _webSosEvents.map((e) => {
+        'id': e.id,
+        'timestamp': e.timestamp.toIso8601String(),
+        'latitude': e.latitude,
+        'longitude': e.longitude,
+        'triggerType': e.emergencyType,
+        'status': e.status,
+      }).toList();
     }
     final db = await database;
-    return await db.query('sos_events', orderBy: 'timestamp DESC');
+    final rows = await db.query('sos_events', orderBy: 'timestamp DESC');
+    return rows.map((r) => {
+      'id': r['id'],
+      'timestamp': r['timestamp'],
+      'latitude': r['latitude'],
+      'longitude': r['longitude'],
+      'triggerType': r['emergency_type'],
+      'status': r['status'],
+    }).toList();
   }
 
-  /// Clears the logged SOS incident history logs.
   Future<void> clearSosHistory() async {
     if (kIsWeb) {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.remove('web_sos_events');
-      } catch (e) {
-        print("Web SOS history clear failed: $e");
-      }
+      final prefs = await SharedPreferences.getInstance();
+      _webSosEvents.clear();
+      await prefs.remove('web_sos_events_v2');
       return;
     }
     final db = await database;
     await db.delete('sos_events');
   }
 
-  // ── Database diagnostics and offline updates ─────────────────────────
+  // ── Remote Web OSM Overpass Syncer ───────────────────────────────────
 
-  Future<int> getDatabaseRecordCount() async {
-    if (kIsWeb) return 0;
-    final db = await database;
-    int total = 0;
-    total += Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM hospitals')) ?? 0;
-    total += Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM police_stations')) ?? 0;
-    total += Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM towing_services')) ?? 0;
-    total += Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM emergency_contacts')) ?? 0;
-    total += Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM sos_events')) ?? 0;
-    return total;
-  }
-
-  Future<int> getDatabaseSizeInBytes() async {
-    if (kIsWeb) return 0;
-    return getDbSizeInBytes();
-  }
-
-  
-  static List<Map<String, dynamic>> _getHospitalsSeedData() {
-    return [
-      {
-        'id': 'h1',
-        'name': 'Apollo Hospitals Ahmedabad',
-        'address': 'Plot No. 1A, GIDC Gandhinagar, Ahmedabad',
-        'lat': 23.1028,
-        'lng': 72.6025,
-        'phone': '+91 79 6670 1800',
-        'type': 'trauma',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 5,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.5
-      },
-      {
-        'id': 'h2',
-        'name': 'Civil Hospital Ahmedabad',
-        'address': 'Asarwa, Ahmedabad, Gujarat 380016',
-        'lat': 23.0512,
-        'lng': 72.6033,
-        'phone': '+91 79 2268 3721',
-        'type': 'trauma',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 12,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.2
-      },
-      {
-        'id': 'h3',
-        'name': 'Zydus Hospital Ahmedabad',
-        'address': 'Zydus Hospital Road, Sola, Ahmedabad',
-        'lat': 23.0610,
-        'lng': 72.5255,
-        'phone': '+91 79 6619 0201',
-        'type': 'general',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 6,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.6
-      },
-      {
-        'id': 'h4',
-        'name': 'Shalby Hospitals Ahmedabad',
-        'address': 'Opp. Karnavati Club, S.G. Road, Ahmedabad',
-        'lat': 23.0222,
-        'lng': 72.5085,
-        'phone': '+91 79 4020 3000',
-        'type': 'general',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 4,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.4
-      },
-      {
-        'id': 'h5',
-        'name': 'KD Hospital Ahmedabad',
-        'address': 'S.G. Road, Vaishnodevi Circle, Ahmedabad',
-        'lat': 23.1145,
-        'lng': 72.5401,
-        'phone': '+91 79 6677 0000',
-        'type': 'general',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 5,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.7
-      },
-      {
-        'id': 'h6',
-        'name': 'Sterling Hospital Ahmedabad',
-        'address': 'Sterling Hospital Road, Gurukul, Ahmedabad',
-        'lat': 23.0505,
-        'lng': 72.5412,
-        'phone': '+91 79 4001 1111',
-        'type': 'general',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 4,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.3
-      },
-      {
-        'id': 'h7',
-        'name': 'CIMS Hospital Ahmedabad',
-        'address': 'Off Science City Road, Sola, Ahmedabad',
-        'lat': 23.0682,
-        'lng': 72.5188,
-        'phone': '+91 79 2771 2771',
-        'type': 'trauma',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 6,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.6
-      },
-      {
-        'id': 'h8',
-        'name': 'HCG Cancer Centre Ahmedabad',
-        'address': 'Sola-Science City Road, Sola, Ahmedabad',
-        'lat': 23.0245,
-        'lng': 72.5065,
-        'phone': '+91 79 4041 0101',
-        'type': 'clinic',
-        'hasEmergency': 0,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 2,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.5
-      },
-      {
-        'id': 'h9',
-        'name': 'Rajasthan Hospital Ahmedabad',
-        'address': 'Shahibaug, Ahmedabad',
-        'lat': 23.0450,
-        'lng': 72.6010,
-        'phone': '+91 79 2286 6311',
-        'type': 'general',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 3,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.1
-      },
-      {
-        'id': 'h10',
-        'name': 'VS General Hospital Ahmedabad',
-        'address': 'Ellisbridge, Ahmedabad',
-        'lat': 23.0185,
-        'lng': 72.5702,
-        'phone': '+91 79 2657 7621',
-        'type': 'trauma',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 8,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.0
-      },
-      {
-        'id': 'h11',
-        'name': 'SAL Hospital Ahmedabad',
-        'address': 'Drive-In Road, Thaltej, Ahmedabad',
-        'lat': 23.0425,
-        'lng': 72.5250,
-        'phone': '+91 79 6611 5611',
-        'type': 'general',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 5,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.4
-      },
-      {
-        'id': 'h12',
-        'name': 'UN Mehta Institute of Cardiology',
-        'address': 'Civil Hospital Campus, Asarwa, Ahmedabad',
-        'lat': 23.0518,
-        'lng': 72.6045,
-        'phone': '+91 79 2268 4200',
-        'type': 'trauma',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 10,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.7
-      },
-      {
-        'id': 'h13',
-        'name': 'LG Hospital Ahmedabad',
-        'address': 'Maninagar, Ahmedabad',
-        'lat': 23.0035,
-        'lng': 72.6085,
-        'phone': '+91 79 2292 2321',
-        'type': 'general',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 6,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.0
-      },
-      {
-        'id': 'h14',
-        'name': 'Shardaben Hospital Ahmedabad',
-        'address': 'Saraspur, Ahmedabad',
-        'lat': 23.0315,
-        'lng': 72.6080,
-        'phone': '+91 79 2292 1421',
-        'type': 'general',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 0,
-        'ambulanceCount': 4,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 3.9
-      },
-      {
-        'id': 'h15',
-        'name': 'GCS Medical College & Hospital',
-        'address': 'Opp. DRM Office, Naroda Road, Ahmedabad',
-        'lat': 23.0355,
-        'lng': 72.6075,
-        'phone': '+91 79 6604 8000',
-        'type': 'general',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 5,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.2
-      },
-      {
-        'id': 'h16',
-        'name': 'Lilavati Hospital Mumbai',
-        'address': 'A-791, Bandra Reclamation, Bandra West, Mumbai',
-        'lat': 19.0512,
-        'lng': 72.8258,
-        'phone': '+91 22 2675 1000',
-        'type': 'general',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 5,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.5
-      },
-      {
-        'id': 'h17',
-        'name': 'Kokilaben Dhirubhai Ambani Hospital Mumbai',
-        'address': 'Rao Saheb Achutrao Patwardhan Marg, Four Bungalows, Andheri West, Mumbai',
-        'lat': 19.1311,
-        'lng': 72.8252,
-        'type': 'trauma',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 7,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.6
-      },
-      {
-        'id': 'h18',
-        'name': 'AIIMS New Delhi',
-        'address': 'Ansari Nagar, New Delhi',
-        'lat': 28.5672,
-        'lng': 77.2100,
-        'phone': '+91 11 2658 8500',
-        'type': 'trauma',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 15,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.5
-      },
-      {
-        'id': 'h19',
-        'name': 'Safdarjung Hospital Delhi',
-        'address': 'Ansari Nagar East, New Delhi',
-        'lat': 28.5695,
-        'lng': 77.2078,
-        'phone': '+91 11 2673 0000',
-        'type': 'trauma',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 12,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.1
-      },
-      {
-        'id': 'h20',
-        'name': 'Civil Hospital Gandhinagar',
-        'address': 'Sector 12, Gandhinagar',
-        'lat': 23.2185,
-        'lng': 72.6512,
-        'phone': '+91 79 2322 1931',
-        'type': 'general',
-        'hasEmergency': 1,
-        'hasICU': 1,
-        'hasBloodBank': 1,
-        'ambulanceCount': 4,
-        'lastUpdated': DateTime.now().toIso8601String(),
-        'sourceApi': 'OSM',
-        'rating': 4.2
-      }
-    ];
-  }
-
-  static List<Map<String, dynamic>> _getPoliceSeedData() {
-    return [
-      {
-        'id': 'p1',
-        'name': 'Navrangpura Police Station',
-        'address': 'Navrangpura, Ahmedabad',
-        'lat': 23.0360,
-        'lng': 72.5615,
-        'phone': '+91 79 2644 3803',
-        'districtCode': 'AHD-W',
-        'is24Hours': 1
-      },
-      {
-        'id': 'p2',
-        'name': 'Satellite Police Station',
-        'address': 'Satellite, Ahmedabad',
-        'lat': 23.0275,
-        'lng': 72.5285,
-        'phone': '+91 79 2676 3485',
-        'districtCode': 'AHD-W',
-        'is24Hours': 1
-      },
-      {
-        'id': 'p3',
-        'name': 'Vastrapur Police Station',
-        'address': 'Vastrapur, Ahmedabad',
-        'lat': 23.0392,
-        'lng': 72.5312,
-        'phone': '+91 79 2679 8831',
-        'districtCode': 'AHD-W',
-        'is24Hours': 1
-      },
-      {
-        'id': 'p4',
-        'name': 'Ellisbridge Police Station',
-        'address': 'Ellisbridge, Ahmedabad',
-        'lat': 23.0210,
-        'lng': 72.5695,
-        'phone': '+91 79 2657 8421',
-        'districtCode': 'AHD-W',
-        'is24Hours': 1
-      },
-      {
-        'id': 'p5',
-        'name': 'Naranpura Police Station',
-        'address': 'Naranpura, Ahmedabad',
-        'lat': 23.0608,
-        'lng': 72.5528,
-        'phone': '+91 79 2743 4567',
-        'districtCode': 'AHD-W',
-        'is24Hours': 1
-      },
-      {
-        'id': 'p6',
-        'name': 'Paldi Police Station',
-        'address': 'Paldi, Ahmedabad',
-        'lat': 23.0125,
-        'lng': 72.5610,
-        'phone': '+91 79 2657 9821',
-        'districtCode': 'AHD-W',
-        'is24Hours': 1
-      },
-      {
-        'id': 'p7',
-        'name': 'Sarkhej Police Station',
-        'address': 'Sarkhej, Ahmedabad',
-        'lat': 22.9812,
-        'lng': 72.5015,
-        'phone': '+91 79 2682 0331',
-        'districtCode': 'AHD-W',
-        'is24Hours': 1
-      },
-      {
-        'id': 'p8',
-        'name': 'Vejalpur Police Station',
-        'address': 'Vejalpur, Ahmedabad',
-        'lat': 23.0025,
-        'lng': 72.5312,
-        'phone': '+91 79 2682 8421',
-        'districtCode': 'AHD-W',
-        'is24Hours': 1
-      },
-      {
-        'id': 'p9',
-        'name': 'Bandra Police Station Mumbai',
-        'address': 'Hill Road, Bandra West, Mumbai',
-        'lat': 19.0560,
-        'lng': 72.8315,
-        'phone': '+91 22 2642 1212',
-        'districtCode': 'MUM-W',
-        'is24Hours': 1
-      },
-      {
-        'id': 'p10',
-        'name': 'Chanakyapuri Police Station New Delhi',
-        'address': 'Chanakyapuri, New Delhi',
-        'lat': 28.5992,
-        'lng': 77.1915,
-        'phone': '+91 11 2410 1234',
-        'districtCode': 'DEL-C',
-        'is24Hours': 1
-      }
-    ];
-  }
-
-  static List<Map<String, dynamic>> _getTowingSeedData() {
-    return [
-      {
-        'id': 't1',
-        'name': 'Ahmedabad Auto Towing',
-        'phone': '+91 99988 77665',
-        'lat': 23.0185,
-        'lng': 72.5595,
-        'serviceRadius': 15.0,
-        'operatingHours': '24/7',
-        'vehicleTypes': 'car,bike'
-      },
-      {
-        'id': 't2',
-        'name': 'Gujarat Towing Service',
-        'phone': '+91 98989 12345',
-        'lat': 23.0425,
-        'lng': 72.5855,
-        'serviceRadius': 20.0,
-        'operatingHours': '24/7',
-        'vehicleTypes': 'car,bike,truck'
-      },
-      {
-        'id': 't3',
-        'name': 'SafeRide Towing Ahmedabad',
-        'phone': '+91 97234 56789',
-        'lat': 23.0012,
-        'lng': 72.5122,
-        'serviceRadius': 25.0,
-        'operatingHours': '24/7',
-        'vehicleTypes': 'car'
-      },
-      {
-        'id': 't4',
-        'name': 'Maruti Roadside Assistance',
-        'phone': '+91 95432 10987',
-        'lat': 23.0512,
-        'lng': 72.5398,
-        'serviceRadius': 15.0,
-        'operatingHours': '24/7',
-        'vehicleTypes': 'car,bike'
-      },
-      {
-        'id': 't5',
-        'name': 'Shreeji Towing Ahmedabad',
-        'phone': '+91 98250 12345',
-        'lat': 23.0285,
-        'lng': 72.5512,
-        'serviceRadius': 20.0,
-        'operatingHours': '24/7',
-        'vehicleTypes': 'car'
-      },
-      {
-        'id': 't6',
-        'name': 'Quick Rescue Towing',
-        'phone': '+91 94260 98765',
-        'lat': 23.0695,
-        'lng': 72.5712,
-        'serviceRadius': 18.0,
-        'operatingHours': '24/7',
-        'vehicleTypes': 'car,bike,truck'
-      },
-      {
-        'id': 't7',
-        'name': 'Express Crane Services',
-        'phone': '+91 98980 54321',
-        'lat': 23.0255,
-        'lng': 72.5812,
-        'serviceRadius': 30.0,
-        'operatingHours': '24/7',
-        'vehicleTypes': 'car,truck'
-      },
-      {
-        'id': 't8',
-        'name': 'Mumbai Rapid Towing',
-        'phone': '+91 98200 98765',
-        'lat': 19.0622,
-        'lng': 72.8425,
-        'serviceRadius': 25.0,
-        'operatingHours': '24/7',
-        'vehicleTypes': 'car,bike'
-      },
-      {
-        'id': 't9',
-        'name': 'Delhi Highways Assistance',
-        'phone': '+91 98110 12345',
-        'lat': 28.6112,
-        'lng': 77.2185,
-        'serviceRadius': 30.0,
-        'operatingHours': '24/7',
-        'vehicleTypes': 'car,truck'
-      },
-      {
-        'id': 't10',
-        'name': 'Capital Towing Gandhinagar',
-        'phone': '+91 99099 12345',
-        'lat': 23.2115,
-        'lng': 72.6312,
-        'serviceRadius': 15.0,
-        'operatingHours': '24/7',
-        'vehicleTypes': 'car'
-      }
-    ];
-  }
-
-  static List<Map<String, dynamic>> _getContactsSeedData() {
-    return [];
-  }
-
-  /// Fetches real-time location-aware emergency services from OpenStreetMap Overpass API,
-  /// with intelligent caching, distance-time throttling, and dynamic fallback generators.
   Future<void> fetchAndCacheNearbyServices(double lat, double lng, {bool forceRefresh = false}) async {
     final prefs = await SharedPreferences.getInstance();
     final double? lastLat = prefs.getDouble('last_fetch_lat');
@@ -1399,24 +945,21 @@ class DatabaseHelper {
       final double distance = DistanceUtils.haversine(lat, lng, lastLat, lastLng);
       final int elapsedMinutes = (now - lastTime) ~/ 60000;
 
-      // Only refresh remote if moved > 1.5 km or more than 15 minutes have passed
       if (distance < 1.5 && elapsedMinutes < 15) {
-        print("Throttling active. Using cached emergency services (moved ${distance.toStringAsFixed(2)} km, elapsed $elapsedMinutes mins).");
+        print("Throttling active. Using cached spatial data.");
         return;
       }
     }
 
-    // Check connectivity
     final connectivity = await Connectivity().checkConnectivity();
     if (connectivity.contains(ConnectivityResult.none)) {
-      print("Device is offline. Bypassing remote Overpass fetch.");
+      print("Offline: Bypassing remote Overpass fetch.");
       return;
     }
 
     final hospitals = <Hospital>[];
     final police = <PoliceStation>[];
     final towing = <TowingService>[];
-    final shelters = <EmergencyShelter>[];
 
     bool remoteSuccess = false;
 
@@ -1430,8 +973,6 @@ class DatabaseHelper {
         way["amenity"="police"](around:25000,$lat,$lng);
         node["amenity"="car_repair"](around:25000,$lat,$lng);
         way["amenity"="car_repair"](around:25000,$lat,$lng);
-        node["amenity"="shelter"](around:25000,$lat,$lng);
-        way["amenity"="shelter"](around:25000,$lat,$lng);
       );
       out center;
       ''';
@@ -1511,16 +1052,6 @@ class DatabaseHelper {
               operatingHours: tags['opening_hours'] as String? ?? '24/7',
               vehicleTypes: const ['car', 'bike'],
             ));
-          } else if (amenity == 'shelter') {
-            shelters.add(EmergencyShelter(
-              id: id,
-              name: name,
-              address: address.isNotEmpty ? address : 'Emergency Shelter, $city',
-              lat: itemLat,
-              lng: itemLng,
-              phone: phone,
-              capacity: tags['capacity'] != null ? int.tryParse(tags['capacity'].toString()) ?? 100 : 100,
-            ));
           }
         }
         remoteSuccess = true;
@@ -1529,25 +1060,18 @@ class DatabaseHelper {
       print("Overpass API fetching error: $e");
     }
 
-    // If API failed or returned empty data, and we don't have any cached data at all, generate realistic fallbacks!
-    if (!remoteSuccess || (hospitals.isEmpty && police.isEmpty && towing.isEmpty && shelters.isEmpty)) {
+    if (!remoteSuccess || (hospitals.isEmpty && police.isEmpty && towing.isEmpty)) {
       final dbCount = kIsWeb ? _webHospitals.length : 0;
       
-      if (dbCount > 0) {
-        print("Using existing cached emergency services.");
-        return;
-      }
+      if (dbCount > 0) return;
       
       if (!kIsWeb) {
         final db = await database;
         final count = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM hospitals')) ?? 0;
-        if (count > 0 && !forceRefresh) {
-          print("Using existing local SQLite emergency services.");
-          return;
-        }
+        if (count > 0 && !forceRefresh) return;
       }
 
-      print("Generating location-aware mock emergency services...");
+      print("Generating location-aware mock services...");
       String cityName = 'Local';
       try {
         final geoUrl = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lng');
@@ -1612,22 +1136,6 @@ class DatabaseHelper {
           sourceApi: 'OSM Fallback',
           rating: 4.2,
         ),
-        Hospital(
-          id: 'gen_h4_${lat.toStringAsFixed(4)}_${lng.toStringAsFixed(4)}',
-          name: '$cityName Community Medical Center',
-          address: 'Sector 4 Bypass, $cityName',
-          lat: lat - 0.005,
-          lng: lng - 0.012,
-          phone: '+91 99400 11111',
-          type: HospitalType.general,
-          hasEmergency: false,
-          hasICU: false,
-          hasBloodBank: false,
-          ambulanceCount: 1,
-          lastUpdated: DateTime.now(),
-          sourceApi: 'OSM Fallback',
-          rating: 4.0,
-        ),
       ]);
 
       police.addAll([
@@ -1650,16 +1158,6 @@ class DatabaseHelper {
           phone: '+91 44 2345 5678',
           districtCode: '$cityName-N',
           is24Hours: true,
-        ),
-        PoliceStation(
-          id: 'gen_p3_${lat.toStringAsFixed(4)}_${lng.toStringAsFixed(4)}',
-          name: '$cityName Traffic Police HQ',
-          address: 'Main Bazaar Cross, $cityName',
-          lat: lat + 0.012,
-          lng: lng + 0.011,
-          phone: '+91 44 2345 9012',
-          districtCode: '$cityName-T',
-          is24Hours: false,
         ),
       ]);
 
@@ -1684,41 +1182,9 @@ class DatabaseHelper {
           operatingHours: '24/7',
           vehicleTypes: const ['car', 'bike'],
         ),
-        TowingService(
-          id: 'gen_t3_${lat.toStringAsFixed(4)}_${lng.toStringAsFixed(4)}',
-          name: 'SafeRide Crane Operations $cityName',
-          phone: '+91 98400 98765',
-          lat: lat - 0.014,
-          lng: lng - 0.006,
-          serviceRadius: 30.0,
-          operatingHours: '24/7',
-          vehicleTypes: const ['car', 'truck'],
-        ),
-      ]);
-
-      shelters.addAll([
-        EmergencyShelter(
-          id: 'gen_s1_${lat.toStringAsFixed(4)}_${lng.toStringAsFixed(4)}',
-          name: '$cityName Municipal Relief Shelter',
-          address: 'Town Hall Compound, $cityName',
-          lat: lat + 0.010,
-          lng: lng - 0.015,
-          phone: '+91 44 2345 0000',
-          capacity: 350,
-        ),
-        EmergencyShelter(
-          id: 'gen_s2_${lat.toStringAsFixed(4)}_${lng.toStringAsFixed(4)}',
-          name: 'Red Cross Relief Camp $cityName',
-          address: 'Government School Grounds, $cityName',
-          lat: lat - 0.007,
-          lng: lng + 0.012,
-          phone: '+91 44 2345 1111',
-          capacity: 150,
-        ),
       ]);
     }
 
-    // Cache the resolved data!
     if (kIsWeb) {
       _webHospitals.clear();
       _webHospitals.addAll(hospitals);
@@ -1726,20 +1192,16 @@ class DatabaseHelper {
       _webPolice.addAll(police);
       _webTowing.clear();
       _webTowing.addAll(towing);
-      _webShelters.clear();
-      _webShelters.addAll(shelters);
 
       await prefs.setString('cached_hospitals', json.encode(_webHospitals.map((h) => h.toMap()).toList()));
       await prefs.setString('cached_police', json.encode(_webPolice.map((p) => p.toMap()).toList()));
       await prefs.setString('cached_towing', json.encode(_webTowing.map((t) => t.toMap()).toList()));
-      await prefs.setString('cached_shelters', json.encode(_webShelters.map((s) => s.toMap()).toList()));
     } else {
       final db = await database;
       await db.transaction((txn) async {
         await txn.delete('hospitals');
         await txn.delete('police_stations');
         await txn.delete('towing_services');
-        await txn.delete('emergency_shelters');
 
         for (final item in hospitals) {
           await txn.insert('hospitals', item.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
@@ -1750,22 +1212,18 @@ class DatabaseHelper {
         for (final item in towing) {
           await txn.insert('towing_services', item.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
         }
-        for (final item in shelters) {
-          await txn.insert('emergency_shelters', item.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
-        }
       });
     }
 
     await prefs.setDouble('last_fetch_lat', lat);
     await prefs.setDouble('last_fetch_lng', lng);
     await prefs.setInt('last_fetch_time', now);
-
-    print("Successfully cached ${hospitals.length} hospitals, ${police.length} police, ${towing.length} towing, ${shelters.length} shelters.");
   }
 
   Future<void> _initWebMockData() async {
     if (_webHospitals.isNotEmpty) return;
     final prefs = await SharedPreferences.getInstance();
+    
     final rawHospitals = prefs.getString('cached_hospitals');
     final rawPolice = prefs.getString('cached_police');
     final rawTowing = prefs.getString('cached_towing');
@@ -1789,9 +1247,7 @@ class DatabaseHelper {
         _webShelters.clear();
         _webShelters.addAll(listS.map((item) => EmergencyShelter.fromMap(item as Map<String, dynamic>)));
         return;
-      } catch (e) {
-        print("Error parsing web cached data, falling back to mock seeds: $e");
-      }
+      } catch (_) {}
     }
 
     _webHospitals.clear();
@@ -1804,73 +1260,152 @@ class DatabaseHelper {
     _webShelters.addAll(_getSheltersSeedData().map((s) => EmergencyShelter.fromMap(s)).toList());
   }
 
-  Future<void> seedDemoData(Database db) async {
-    final batch = db.batch();
+  // ── Seed Templates ───────────────────────────────────────────────────
 
-    for (var h in _getHospitalsSeedData()) {
-      batch.insert('hospitals', h, conflictAlgorithm: ConflictAlgorithm.replace);
-    }
+  static List<Map<String, dynamic>> _getHospitalsSeedData() {
+    return [
+      {
+        'id': 'h1',
+        'name': 'Apollo Hospitals Ahmedabad',
+        'address': 'Plot No. 1A, GIDC Gandhinagar, Ahmedabad',
+        'latitude': 23.1028,
+        'longitude': 72.6025,
+        'phone': '+91 79 6670 1800',
+        'type': 'trauma',
+        'hasEmergency': 1,
+        'hasICU': 1,
+        'hasBloodBank': 1,
+        'ambulanceCount': 5,
+        'lastUpdated': DateTime.now().toIso8601String(),
+        'sourceApi': 'OSM',
+        'rating': 4.5
+      },
+      {
+        'id': 'h2',
+        'name': 'Civil Hospital Ahmedabad',
+        'address': 'Asarwa, Ahmedabad, Gujarat 380016',
+        'latitude': 23.0512,
+        'longitude': 72.6033,
+        'phone': '+91 79 2268 3721',
+        'type': 'trauma',
+        'hasEmergency': 1,
+        'hasICU': 1,
+        'hasBloodBank': 1,
+        'ambulanceCount': 12,
+        'lastUpdated': DateTime.now().toIso8601String(),
+        'sourceApi': 'OSM',
+        'rating': 4.2
+      },
+      {
+        'id': 'h3',
+        'name': 'Zydus Hospital Ahmedabad',
+        'address': 'Zydus Hospital Road, Sola, Ahmedabad',
+        'latitude': 23.0610,
+        'longitude': 72.5255,
+        'phone': '+91 79 6619 0201',
+        'type': 'general',
+        'hasEmergency': 1,
+        'hasICU': 1,
+        'hasBloodBank': 1,
+        'ambulanceCount': 6,
+        'lastUpdated': DateTime.now().toIso8601String(),
+        'sourceApi': 'OSM',
+        'rating': 4.6
+      }
+    ];
+  }
 
-    for (var p in _getPoliceSeedData()) {
-      batch.insert('police_stations', p, conflictAlgorithm: ConflictAlgorithm.replace);
-    }
+  static List<Map<String, dynamic>> _getPoliceSeedData() {
+    return [
+      {
+        'id': 'p1',
+        'name': 'Navrangpura Police Station',
+        'address': 'Navrangpura, Ahmedabad',
+        'latitude': 23.0360,
+        'longitude': 72.5615,
+        'phone': '+91 79 2644 3803',
+        'districtCode': 'AHD-W',
+        'is24Hours': 1
+      },
+      {
+        'id': 'p2',
+        'name': 'Satellite Police Station',
+        'address': 'Satellite, Ahmedabad',
+        'latitude': 23.0275,
+        'longitude': 72.5285,
+        'phone': '+91 79 2676 3485',
+        'districtCode': 'AHD-W',
+        'is24Hours': 1
+      }
+    ];
+  }
 
-    for (var t in _getTowingSeedData()) {
-      batch.insert('towing_services', t, conflictAlgorithm: ConflictAlgorithm.replace);
-    }
-
-    for (var s in _getSheltersSeedData()) {
-      batch.insert('emergency_shelters', s, conflictAlgorithm: ConflictAlgorithm.replace);
-    }
-
-    for (var c in _getContactsSeedData()) {
-      batch.insert('emergency_contacts', c, conflictAlgorithm: ConflictAlgorithm.replace);
-    }
-
-    await batch.commit(noResult: true);
+  static List<Map<String, dynamic>> _getTowingSeedData() {
+    return [
+      {
+        'id': 't1',
+        'name': 'Ahmedabad Auto Towing',
+        'phone': '+91 99988 77665',
+        'latitude': 23.0185,
+        'longitude': 72.5595,
+        'serviceRadius': 15.0,
+        'operatingHours': '24/7',
+        'vehicleTypes': 'car,bike'
+      },
+      {
+        'id': 't2',
+        'name': 'Gujarat Towing Service',
+        'phone': '+91 98989 12345',
+        'latitude': 23.0425,
+        'longitude': 72.5855,
+        'serviceRadius': 20.0,
+        'operatingHours': '24/7',
+        'vehicleTypes': 'car,bike,truck'
+      }
+    ];
   }
 
   static List<Map<String, dynamic>> _getSheltersSeedData() {
     return [
       {
         'id': 's1',
-        'name': 'Ahmedabad Municipal Community Center',
-        'address': 'Paldi, Ahmedabad',
-        'lat': 23.0135,
-        'lng': 72.5620,
-        'phone': '+91 79 2657 8901',
-        'capacity': 250
+        'name': 'Ahmedabad Stadium Safety Shelter',
+        'address': 'Sports Stadium Complex, Navrangpura, Ahmedabad',
+        'latitude': 23.0375,
+        'longitude': 72.5620,
+        'phone': '+91 79 2644 4444',
+        'capacity': 500,
       },
       {
         'id': 's2',
-        'name': 'Red Cross Emergency Shelter',
-        'address': 'Navrangpura, Ahmedabad',
-        'lat': 23.0338,
-        'lng': 72.5630,
-        'phone': '+91 79 2642 1234',
-        'capacity': 150
-      },
-      {
-        'id': 's3',
-        'name': 'Disaster Relief Shelter East',
-        'address': 'Maninagar, Ahmedabad',
-        'lat': 22.9985,
-        'lng': 72.6022,
-        'phone': '+91 79 2546 5678',
-        'capacity': 300
-      },
-      {
-        'id': 's4',
-        'name': 'Capital Emergency Center',
-        'address': 'Sector 11, Gandhinagar',
-        'lat': 23.2230,
-        'lng': 72.6480,
-        'phone': '+91 79 2325 0000',
-        'capacity': 400
+        'name': 'Satellite Community Shelter',
+        'address': 'Community Hall Road, Satellite, Ahmedabad',
+        'latitude': 23.0290,
+        'longitude': 72.5290,
+        'phone': '+91 79 2676 7777',
+        'capacity': 300,
       }
     ];
   }
 
+  _BoundingBox _boundingBox(double lat, double lng, double radiusKm) {
+    final latDelta = radiusKm / 111.32;
+    final lngDelta = radiusKm / (111.32 * cos(lat * pi / 180.0));
+    return _BoundingBox(
+      minLat: lat - latDelta,
+      maxLat: lat + latDelta,
+      minLng: lng - lngDelta,
+      maxLng: lng + lngDelta,
+    );
+  }
+
+  Future<void> close() async {
+    final db = _db;
+    if (db != null) {
+      await db.close();
+      _db = null;
+    }
+  }
 }
 
 class _BoundingBox {

@@ -5,14 +5,17 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
-import '../../../data/database/database_helper.dart';
+import '../../../data/repositories/nearby_services_repository.dart';
+import '../../../data/repositories/emergency_contact_repository.dart';
 import '../../../data/models/hospital.dart';
 import '../../../data/models/police_station.dart';
 import '../../../data/models/towing_service.dart';
 import '../../../data/models/emergency_contact.dart';
+import '../../../data/models/emergency_shelter.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 /// Full-production interactive Emergency Services and Contact management screen.
-/// Switch dynamically between category chips: Hospitals, Police, Towing, and Contacts.
+/// Switch dynamically between category chips: Hospitals, Police, Towing, Shelters, and Contacts.
 /// Automatically queries live GPS coordinates to match and sort local Ahmedabad & India services.
 class EmergencyScreen extends StatefulWidget {
   final int initialSection;
@@ -23,10 +26,12 @@ class EmergencyScreen extends StatefulWidget {
 }
 
 class _EmergencyScreenState extends State<EmergencyScreen> {
-  final DatabaseHelper _db = DatabaseHelper();
+  final NearbyServicesRepository _servicesRepo = NearbyServicesRepository();
+  final EmergencyContactRepository _contactsRepo = EmergencyContactRepository();
   late int _selectedTab;
   
   bool _isLoading = true;
+  bool _isOffline = false;
   double? _latitude;
   double? _longitude;
   String _gpsError = '';
@@ -34,6 +39,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
   List<Hospital> _hospitals = [];
   List<PoliceStation> _police = [];
   List<TowingService> _towing = [];
+  List<EmergencyShelter> _shelters = [];
   List<EmergencyContact> _contacts = [];
 
   @override
@@ -49,6 +55,13 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
       _isLoading = true;
       _gpsError = '';
     });
+
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      _isOffline = connectivityResult.contains(ConnectivityResult.none);
+    } catch (_) {
+      _isOffline = false;
+    }
 
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -78,7 +91,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
       _longitude = pos.longitude;
       
       try {
-        await _db.fetchAndCacheNearbyServices(pos.latitude, pos.longitude, forceRefresh: forceRefresh);
+        await _servicesRepo.fetchAndCacheNearbyServices(pos.latitude, pos.longitude, forceRefresh: forceRefresh);
       } catch (e) {
         print("EmergencyScreen: remote fetch failed: $e");
       }
@@ -94,15 +107,17 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
   /// Loads details matching coordinate locations
   Future<void> _loadOfflineFallbackData(double lat, double lng) async {
     try {
-      final hospitalsList = await _db.getNearbyHospitals(lat, lng);
-      final policeList = await _db.getNearbyPolice(lat, lng);
-      final towingList = await _db.getNearbyTowing(lat, lng);
-      final contactsList = await _db.getEmergencyContacts();
+      final hospitalsList = await _servicesRepo.getNearbyHospitals(lat, lng);
+      final policeList = await _servicesRepo.getNearbyPolice(lat, lng);
+      final towingList = await _servicesRepo.getNearbyTowing(lat, lng);
+      final sheltersList = await _servicesRepo.getNearbyShelters(lat, lng);
+      final contactsList = await _contactsRepo.getContacts();
 
       setState(() {
         _hospitals = hospitalsList;
         _police = policeList;
         _towing = towingList;
+        _shelters = sheltersList;
         _contacts = contactsList;
         _isLoading = false;
       });
@@ -293,7 +308,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                       isPrimary: isPrimaryVal,
                     );
 
-                    await _db.upsertEmergencyContact(newContact);
+                    await _contactsRepo.saveContact(newContact);
                     Navigator.pop(context);
 
                     _resolveLocationAndData(); // Refresh list
@@ -340,7 +355,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
             ),
             ElevatedButton(
               onPressed: () async {
-                await _db.deleteEmergencyContact(contact.id);
+                await _contactsRepo.deleteContact(contact.id);
                 Navigator.pop(context);
                 _resolveLocationAndData(); // Refresh list
               },
@@ -419,6 +434,26 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
       ),
       body: Column(
         children: [
+          // Offline Mode visual indicator banner
+          if (_isOffline)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: AppColors.infoBlue.withOpacity(0.12),
+              child: Row(
+                children: [
+                  const Icon(Icons.wifi_off_rounded, color: AppColors.infoBlue, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Offline Mode active — serving response from local spatial cache database.",
+                      style: AppTypography.bodySmall.copyWith(color: AppColors.infoBlue, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           // 1. Horizontal tab navigation chips
           Container(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
@@ -433,7 +468,8 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                   _buildTabChip(0, "Hospitals", Icons.emergency_rounded),
                   _buildTabChip(1, "Police", Icons.local_police_rounded),
                   _buildTabChip(2, "Towing", Icons.local_shipping_rounded),
-                  _buildTabChip(3, "Contacts", Icons.people_outline_rounded),
+                  _buildTabChip(3, "Shelters", Icons.home_work_rounded),
+                  _buildTabChip(4, "Contacts", Icons.people_outline_rounded),
                 ],
               ),
             ),
@@ -467,7 +503,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
           ),
         ],
       ),
-      floatingActionButton: _selectedTab == 3
+      floatingActionButton: _selectedTab == 4
           ? FloatingActionButton(
               onPressed: () => _showContactFormDialog(),
               backgroundColor: AppColors.emergencyRed,
@@ -522,10 +558,36 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
       case 2:
         return _buildTowingTab();
       case 3:
+        return _buildSheltersTab();
+      case 4:
         return _buildContactsTab();
       default:
         return const SizedBox.shrink();
     }
+  }
+
+  Widget _buildSheltersTab() {
+    if (_shelters.isEmpty) {
+      return _buildEmptyState("NO EMERGENCY SHELTERS SAVED", "No community shelter facilities mapped nearby.");
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _shelters.length,
+      itemBuilder: (context, index) {
+        final item = _shelters[index];
+        return _buildServiceCard(
+          name: item.name,
+          address: item.address,
+          badgeText: "Capacity: ${item.capacity} people",
+          distance: "${item.distanceKm.toStringAsFixed(1)} km away",
+          eta: "${(item.distanceKm * 2.0).toStringAsFixed(1)} MINS ETA",
+          phone: item.phone,
+          lat: item.lat,
+          lng: item.lng,
+          accentColor: AppColors.safeGreen,
+        );
+      },
+    );
   }
 
   Widget _buildHospitalsTab() {

@@ -1,78 +1,97 @@
+import 'dart:convert';
 import 'package:equatable/equatable.dart';
 
-/// A user-defined emergency contact that will be notified during
-/// an SOS event.
+/// Represents an emergency contact stored in the `emergency_contacts` SQLite table.
 class EmergencyContact extends Equatable {
   final String id;
-  final String name;
+  final String userId;
+  final String fullName;
   final String relationship;
   final String phone;
   final String email;
-
-  /// Whether this is the default / primary emergency contact.
   final bool isPrimary;
-
-  /// Single emoji used as a lightweight avatar, e.g. "👩" or "🧑‍⚕️".
+  final DateTime createdAt;
   final String avatarEmoji;
 
-  const EmergencyContact({
+  EmergencyContact({
     required this.id,
-    required this.name,
+    this.userId = 'me',
+    required String name,
     required this.relationship,
     required this.phone,
     this.email = '',
     this.isPrimary = false,
+    DateTime? createdAt,
     this.avatarEmoji = '👤',
-  });
+  })  : fullName = name,
+        createdAt = createdAt ?? DateTime.now();
+
+  /// Backward compatible getter mapping `name` to `fullName`
+  String get name => fullName;
 
   // ── Serialisation ────────────────────────────────────────────────────
 
-  /// Creates an [EmergencyContact] from a database row / JSON map.
   factory EmergencyContact.fromMap(Map<String, dynamic> map) {
     return EmergencyContact(
       id: map['id'] as String,
-      name: map['name'] as String,
+      userId: map['user_id'] as String? ?? 'me',
+      name: (map['full_name'] as String?) ?? (map['name'] as String?) ?? '',
       relationship: map['relationship'] as String? ?? '',
-      phone: map['phone'] as String,
+      phone: map['phone'] as String? ?? '',
       email: map['email'] as String? ?? '',
-      isPrimary: (map['isPrimary'] as int? ?? 0) == 1,
+      isPrimary: (map['is_primary'] as int? ?? map['isPrimary'] as int? ?? 0) == 1 || 
+                 map['is_primary'] == true || 
+                 map['isPrimary'] == true,
+      createdAt: map['created_at'] != null 
+          ? DateTime.parse(map['created_at'] as String) 
+          : DateTime.now(),
       avatarEmoji: map['avatarEmoji'] as String? ?? '👤',
     );
   }
 
-  /// Converts this model to a map suitable for database insertion.
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'name': name,
+      'user_id': userId,
+      'full_name': fullName,
       'relationship': relationship,
       'phone': phone,
       'email': email,
-      'isPrimary': isPrimary ? 1 : 0,
-      'avatarEmoji': avatarEmoji,
+      'is_primary': isPrimary ? 1 : 0,
+      'created_at': createdAt.toIso8601String(),
     };
   }
 
+  String toJson() => json.encode(toMap());
+
+  factory EmergencyContact.fromJson(String source) => 
+      EmergencyContact.fromMap(json.decode(source) as Map<String, dynamic>);
+
   EmergencyContact copyWith({
     String? id,
+    String? userId,
+    String? fullName,
     String? name,
     String? relationship,
     String? phone,
     String? email,
     bool? isPrimary,
+    DateTime? createdAt,
     String? avatarEmoji,
   }) {
     return EmergencyContact(
       id: id ?? this.id,
-      name: name ?? this.name,
+      userId: userId ?? this.userId,
+      name: fullName ?? name ?? this.fullName,
       relationship: relationship ?? this.relationship,
       phone: phone ?? this.phone,
       email: email ?? this.email,
       isPrimary: isPrimary ?? this.isPrimary,
+      createdAt: createdAt ?? this.createdAt,
       avatarEmoji: avatarEmoji ?? this.avatarEmoji,
     );
   }
 
   @override
-  List<Object?> get props => [id, name, relationship, phone, email, isPrimary, avatarEmoji];
+  List<Object?> get props => [id, userId, fullName, relationship, phone, email, isPrimary, createdAt, avatarEmoji];
 }

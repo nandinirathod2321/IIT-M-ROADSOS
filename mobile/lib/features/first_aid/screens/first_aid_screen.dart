@@ -6,6 +6,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/services/gemini_service.dart';
+import '../../../core/services/auth_service.dart';
+import '../../../data/repositories/ai_chat_repository.dart';
+import '../../../data/models/chat_message.dart' as db_model;
+import 'package:uuid/uuid.dart';
 
 /// Message model mapping chat history items.
 class ChatMessage {
@@ -40,6 +44,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
   bool _isTyping = false;
 
   final GeminiService _geminiService = GeminiService();
+  final AiChatRepository _chatRepo = AiChatRepository();
   final List<Map<String, String>> _aiHistory = [];
 
   // Speech integration
@@ -77,6 +82,32 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
     );
 
     _initSpeech();
+    _loadChatHistory();
+  }
+
+  Future<void> _loadChatHistory() async {
+    try {
+      final currentUserId = AuthService.instance.currentUserId ?? 'me';
+      final history = await _chatRepo.getChatHistory(currentUserId);
+      if (history.isNotEmpty) {
+        setState(() {
+          _messages.clear();
+          for (var h in history) {
+            if (h.userMessage.isNotEmpty) {
+              _messages.add(ChatMessage(text: h.userMessage, isUser: true, timestamp: h.timestamp));
+              _aiHistory.add({'role': 'user', 'text': h.userMessage});
+            }
+            if (h.aiResponse.isNotEmpty) {
+              _messages.add(ChatMessage(text: h.aiResponse, isUser: false, timestamp: h.timestamp));
+              _aiHistory.add({'role': 'model', 'text': h.aiResponse});
+            }
+          }
+        });
+        _scrollToBottom();
+      }
+    } catch (e) {
+      print("Failed to load chat history: $e");
+    }
   }
 
   @override
@@ -220,6 +251,20 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
         if (_aiHistory.length > 10) {
           _aiHistory.removeRange(0, _aiHistory.length - 10);
         }
+      }
+
+      try {
+        final currentUserId = AuthService.instance.currentUserId ?? 'me';
+        final modelMsg = db_model.ChatMessageModel(
+          id: const Uuid().v4(),
+          userId: currentUserId,
+          userMessage: query,
+          aiResponse: responseText,
+          timestamp: DateTime.now(),
+        );
+        await _chatRepo.saveChatMessage(modelMsg);
+      } catch (e) {
+        print("Failed to save chat history item: $e");
       }
     }
   }
