@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import '../constants/api_constants.dart';
 
 /// Secure config helper for AI features, supporting compile-time defines
 /// and runtime SharedPreferences overrides.
@@ -13,7 +14,7 @@ abstract final class AiConfig {
 
   /// Retrieves the active Gemini API key.
   /// Prioritizes the runtime SharedPreferences override, falling back to
-  /// the compile-time --dart-define value.
+  /// the environment variable or compile-time --dart-define value.
   static Future<String> getGeminiApiKey() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -23,6 +24,11 @@ abstract final class AiConfig {
       }
     } catch (_) {
       // Graceful fallback if SharedPreferences fails or is uninitialized
+    }
+    
+    // Prioritize the dotenv key loaded from .env over compile-time define
+    if (ApiConstants.geminiApiKey.isNotEmpty) {
+      return ApiConstants.geminiApiKey;
     }
     return _defaultKey;
   }
