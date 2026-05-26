@@ -35,8 +35,7 @@ TONE: Military medic — calm, fast, clear.
 
   final List<Map<String, dynamic>> _conversationHistory = [];
 
-  Future<String> sendMessage(
-    String userMessage, {
+  Future<String> sendMessage(String userMessage, {
     String? userLocation,
     String? injuryContext,
   }) async {
@@ -49,28 +48,28 @@ TONE: Military medic — calm, fast, clear.
     // Add to history
     _conversationHistory.add({
       "role": "user",
-      "parts": [
-        {"text": contextualMessage}
-      ]
+      "parts": [{"text": contextualMessage}]
     });
 
     // Build request body
     Map<String, dynamic> requestBody = {
       "system_instruction": {
-        "parts": [
-          {"text": _systemPrompt}
-        ]
+        "parts": [{"text": _systemPrompt}]
       },
       "contents": _conversationHistory,
       "generationConfig": {
-        "temperature": 0.3, // low = more focused, less creative
-        "maxOutputTokens": 200, // keeps responses short
+        "temperature": 0.3,      // low = more focused, less creative
+        "maxOutputTokens": 200,  // keeps responses short
         "topP": 0.8,
       },
       "safetySettings": [
         {
           "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-          "threshold": "BLOCK_NONE" // don't block medical advice
+          "threshold": "BLOCK_NONE"  // don't block medical advice
+        },
+        {
+          "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+          "threshold": "BLOCK_NONE"
         },
         {
           "category": "HARM_CATEGORY_HARASSMENT",
@@ -78,10 +77,6 @@ TONE: Military medic — calm, fast, clear.
         },
         {
           "category": "HARM_CATEGORY_HATE_SPEECH",
-          "threshold": "BLOCK_NONE"
-        },
-        {
-          "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
           "threshold": "BLOCK_NONE"
         }
       ]
@@ -95,15 +90,13 @@ TONE: Military medic — calm, fast, clear.
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        Map<String, dynamic> data = jsonDecode(response.body);
-        String reply = data["candidates"][0]["content"]["parts"][0]["text"];
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        final String reply = data["candidates"][0]["content"]["parts"][0]["text"];
 
         // Add AI response to history (for multi-turn conversation)
         _conversationHistory.add({
           "role": "model",
-          "parts": [
-            {"text": reply}
-          ]
+          "parts": [{"text": reply}]
         });
 
         return reply.trim();
@@ -112,8 +105,6 @@ TONE: Military medic — calm, fast, clear.
       } else {
         return _getFallbackResponse(userMessage);
       }
-    } on TimeoutException {
-      return _getFallbackResponse(userMessage);
     } catch (e) {
       return _getFallbackResponse(userMessage);
     }
@@ -121,7 +112,7 @@ TONE: Military medic — calm, fast, clear.
 
   String _getFallbackResponse(String message) {
     // Offline fallback — keyword matching for most common situations
-    String lower = message.toLowerCase();
+    final String lower = message.toLowerCase();
 
     if (lower.contains("cpr") || lower.contains("not breathing") || lower.contains("heart")) {
       return """1. Lay person flat on back

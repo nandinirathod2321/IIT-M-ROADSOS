@@ -863,7 +863,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
           ),
           const SizedBox(height: 16),
 
-          // AI EMERGENCY ASSISTANT card
+          // "AI EMERGENCY ASSISTANT" card
           Container(
             width: double.infinity,
             height: 80,
@@ -878,7 +878,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
               ),
             ),
             child: InkWell(
-              onTap: () => context.go('/first-aid/ai-chat'),
+              onTap: () => context.push('/first-aid/ai-chat'),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
@@ -890,12 +890,15 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
                         children: [
                           Text(
                             "AI EMERGENCY ASSISTANT",
-                            style: AppTypography.labelCaps.copyWith(color: AppColors.infoBlue),
+                            style: AppTypography.labelCaps.copyWith(
+                              color: AppColors.infoBlue,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             "Talk to Gemini AI — real answers for your emergency",
-                            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],

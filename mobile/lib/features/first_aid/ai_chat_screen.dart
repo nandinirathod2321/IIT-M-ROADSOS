@@ -1,11 +1,13 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
-import '../../../core/theme/colors.dart';
-import '../../../core/theme/typography.dart';
-import '../ai_chat_service.dart';
+
+import '../../core/theme/colors.dart';
+import '../../core/theme/typography.dart';
+import 'ai_chat_service.dart';
 
 class ChatMessage {
   final String text;
@@ -13,7 +15,7 @@ class ChatMessage {
   final DateTime timestamp;
   final bool isError;
 
-  ChatMessage({
+  const ChatMessage({
     required this.text,
     required this.isUser,
     required this.timestamp,
@@ -22,7 +24,7 @@ class ChatMessage {
 }
 
 class AIChatScreen extends StatefulWidget {
-  final String? initialQuestion; // pre-fill from quick action buttons
+  final String? initialQuestion;
 
   const AIChatScreen({super.key, this.initialQuestion});
 
@@ -36,7 +38,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
-  String? _userLocation; // from Geolocator
+  String? _userLocation;
 
   final List<String> _quickActions = [
     "Person not breathing",
@@ -59,48 +61,55 @@ class _AIChatScreenState extends State<AIChatScreen> {
       text: "I'm RoadSOS AI. Tell me what emergency you're dealing with. I'll give you step-by-step instructions.",
       isUser: false,
       timestamp: DateTime.now(),
+      isError: false,
     ));
 
-    if (widget.initialQuestion != null) {
+    if (widget.initialQuestion != null && widget.initialQuestion!.trim().isNotEmpty) {
       // Pre-send the initial question after 500ms
       Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted && widget.initialQuestion!.isNotEmpty) {
+        if (mounted) {
           _sendMessage(widget.initialQuestion!);
         }
       });
     }
   }
 
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadLocation() async {
     try {
-      LocationPermission permission = await Geolocator.checkPermission();
+      final permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+        await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.whileInUse ||
-          permission == LocationPermission.always) {
-        Position pos = await Geolocator.getCurrentPosition();
-        if (mounted) {
-          setState(() {
-            _userLocation = "${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}";
-          });
-        }
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 4),
+      );
+      if (mounted) {
+        setState(() {
+          _userLocation = "${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}";
+        });
       }
     } catch (e) {
-      debugPrint("Failed to load location: $e");
+      print("Could not load location in AI Chat: $e");
     }
   }
 
   Future<void> _sendMessage(String text) async {
     if (text.trim().isEmpty || _isLoading) return;
 
-    final userText = text.trim();
-
     setState(() {
       _messages.add(ChatMessage(
-        text: userText,
+        text: text,
         isUser: true,
         timestamp: DateTime.now(),
+        isError: false,
       ));
       _isLoading = true;
       _controller.clear();
@@ -108,8 +117,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
     _scrollToBottom();
 
-    // Call service
-    final reply = await _service.sendMessage(userText, userLocation: _userLocation);
+    // Call service to get response
+    final reply = await _service.sendMessage(text, userLocation: _userLocation);
 
     if (mounted) {
       setState(() {
@@ -117,6 +126,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
           text: reply,
           isUser: false,
           timestamp: DateTime.now(),
+          isError: false,
         ));
         _isLoading = false;
       });
@@ -136,22 +146,13 @@ class _AIChatScreenState extends State<AIChatScreen> {
     });
   }
 
-  Future<void> _callEmergency() async {
+  Future<void> _makeEmergencyCall() async {
     final Uri url = Uri.parse('tel:112');
     try {
       if (await canLaunchUrl(url)) {
         await launchUrl(url);
       }
-    } catch (e) {
-      debugPrint("Failed to call 112: $e");
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    _scrollController.dispose();
-    super.dispose();
+    } catch (_) {}
   }
 
   @override
@@ -161,7 +162,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ── EMERGENCY BAR (always visible, top) ──
+            // ── EMERGENCY BAR ──
             Container(
               height: 44,
               color: AppColors.emergencyRed,
@@ -178,11 +179,11 @@ class _AIChatScreenState extends State<AIChatScreen> {
                     ),
                   ),
                   GestureDetector(
-                    onTap: _callEmergency,
+                    onTap: _makeEmergencyCall,
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.5),
+                        color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: const Text(
@@ -199,7 +200,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
               ),
             ),
 
-            // ── QUICK ACTION CHIPS ──
+            // ── QUICK ACTION CHIPS (only shown before conversation starts) ──
             if (_messages.length <= 1)
               Container(
                 height: 48,
@@ -222,7 +223,10 @@ class _AIChatScreenState extends State<AIChatScreen> {
                         ),
                         child: Text(
                           label,
-                          style: AppTypography.bodySmall.copyWith(color: Colors.white),
+                          style: AppTypography.bodySmall.copyWith(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     );
@@ -257,9 +261,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                 bottom: 12 + MediaQuery.of(context).viewInsets.bottom,
               ),
               decoration: const BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: AppColors.borderSubtle, width: 1),
-                ),
+                border: Border(top: BorderSide(color: AppColors.borderSubtle, width: 1)),
               ),
               child: Row(
                 children: [
@@ -273,7 +275,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                       onSubmitted: _sendMessage,
                       decoration: InputDecoration(
                         hintText: "Describe the emergency...",
-                        hintStyle: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                        hintStyle: AppTypography.bodyMedium.copyWith(color: AppColors.textMuted),
                         filled: true,
                         fillColor: AppColors.surfaceAlt,
                         border: OutlineInputBorder(
@@ -310,11 +312,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                                 ),
                               ),
                             )
-                          : const Icon(
-                              Icons.send_rounded,
-                              color: Colors.white,
-                              size: 20,
-                            ),
+                          : const Icon(Icons.send_rounded, color: Colors.white, size: 20),
                     ),
                   ),
                 ],
@@ -359,6 +357,7 @@ class _MessageCard extends StatelessWidget {
                 style: AppTypography.labelCaps.copyWith(
                   fontSize: 9,
                   color: msg.isUser ? AppColors.emergencyRed : AppColors.infoBlue,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               const Spacer(),
@@ -366,7 +365,7 @@ class _MessageCard extends StatelessWidget {
                 DateFormat('HH:mm').format(msg.timestamp),
                 style: AppTypography.monoMedium.copyWith(
                   fontSize: 10,
-                  color: AppColors.textSecondary,
+                  color: AppColors.textMuted,
                 ),
               ),
             ],
@@ -379,24 +378,25 @@ class _MessageCard extends StatelessWidget {
   }
 
   Widget _buildMessageContent(String text) {
-    List<String> lines = text.split('\n').where((l) => l.isNotEmpty).toList();
+    final lines = text.split('\n').where((l) => l.isNotEmpty).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: lines.map((line) {
-        bool isStep = RegExp(r'^\d+\.').hasMatch(line.trim());
-        bool isNext = line.trim().startsWith('Next:');
+        final cleanLine = line.trim();
+        final bool isStep = RegExp(r'^\d+\.').hasMatch(cleanLine);
+        final bool isNext = cleanLine.startsWith('Next:');
 
         if (isNext) {
           return Container(
             margin: const EdgeInsets.only(top: 8),
+            width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             color: AppColors.safeGreen.withOpacity(0.1),
-            width: double.infinity,
             child: Text(
               line,
               style: AppTypography.bodyMedium.copyWith(
-                color: const Color(0xFF34D399),
+                color: AppColors.safeGreen,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -432,10 +432,7 @@ class _TypingIndicator extends StatelessWidget {
       decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(
-          left: BorderSide(
-            color: AppColors.infoBlue,
-            width: 3,
-          ),
+          left: BorderSide(color: AppColors.infoBlue, width: 3),
           top: BorderSide(color: AppColors.borderSubtle, width: 0.5),
           right: BorderSide(color: AppColors.borderSubtle, width: 0.5),
           bottom: BorderSide(color: AppColors.borderSubtle, width: 0.5),
@@ -452,6 +449,7 @@ class _TypingIndicator extends StatelessWidget {
                 style: AppTypography.labelCaps.copyWith(
                   fontSize: 9,
                   color: AppColors.infoBlue,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               const Spacer(),
@@ -471,43 +469,21 @@ class _AnimatedDots extends StatefulWidget {
   State<_AnimatedDots> createState() => _AnimatedDotsState();
 }
 
-class _AnimatedDotsState extends State<_AnimatedDots> with TickerProviderStateMixin {
-  late List<AnimationController> _controllers;
-  late List<Animation<double>> _animations;
+class _AnimatedDotsState extends State<_AnimatedDots> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controllers = List.generate(3, (index) {
-      return AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 600),
-      );
-    });
-
-    _animations = _controllers.map((controller) {
-      return Tween<double>(begin: 0.2, end: 1.0).animate(
-        CurvedAnimation(parent: controller, curve: Curves.easeInOut),
-      );
-    }).toList();
-
-    _startAnimations();
-  }
-
-  void _startAnimations() async {
-    for (int i = 0; i < 3; i++) {
-      if (!mounted) return;
-      await Future.delayed(const Duration(milliseconds: 150));
-      if (!mounted) return;
-      _controllers[i].repeat(reverse: true);
-    }
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
   }
 
   @override
   void dispose() {
-    for (var controller in _controllers) {
-      controller.dispose();
-    }
+    _controller.dispose();
     super.dispose();
   }
 
@@ -516,17 +492,21 @@ class _AnimatedDotsState extends State<_AnimatedDots> with TickerProviderStateMi
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: List.generate(3, (index) {
-        return ScaleTransition(
-          scale: _animations[index],
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 2),
-            width: 6,
-            height: 6,
-            decoration: const BoxDecoration(
-              color: AppColors.infoBlue,
-              shape: BoxShape.circle,
-            ),
-          ),
+        return AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            double value = (sin((_controller.value * 2 * pi) - (index * pi / 2)) + 1) / 2;
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 2.0),
+              width: 6,
+              height: 6,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.infoBlue,
+              ),
+              transform: Matrix4.diagonal3Values(0.4 + 0.6 * value, 0.4 + 0.6 * value, 1.0),
+            );
+          },
         );
       }),
     );

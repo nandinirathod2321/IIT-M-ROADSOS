@@ -6,7 +6,7 @@ import '../../features/home/screens/countdown_screen.dart';
 import '../../features/emergency/screens/emergency_screen.dart';
 import '../../features/medical_id/screens/medical_id_screen.dart';
 import '../../features/first_aid/screens/first_aid_screen.dart';
-import '../../features/first_aid/screens/ai_chat_screen.dart';
+import '../../features/first_aid/ai_chat_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
@@ -106,6 +106,14 @@ abstract final class AppRouter {
         },
       ),
       GoRoute(
+        path: '/first-aid/ai-chat',
+        parentNavigatorKey: navigatorKey,
+        builder: (context, state) {
+          final q = state.uri.queryParameters['question'];
+          return AIChatScreen(initialQuestion: q);
+        },
+      ),
+      GoRoute(
         path: '/countdown',
         parentNavigatorKey: navigatorKey,
         builder: (context, state) {
@@ -137,14 +145,6 @@ abstract final class AppRouter {
         path: '/history',
         parentNavigatorKey: navigatorKey,
         builder: (context, state) => const EmergencyHistoryScreen(),
-      ),
-      GoRoute(
-        path: '/first-aid/ai-chat',
-        parentNavigatorKey: navigatorKey,
-        builder: (context, state) {
-          final question = state.uri.queryParameters['question'];
-          return AIChatScreen(initialQuestion: question);
-        },
       ),
     ],
   );
