@@ -5,9 +5,11 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/errors/app_exceptions.dart';
 import '../../core/theme/colors.dart';
 import '../../core/theme/typography.dart';
-import 'ai_chat_service.dart';
+import '../../core/services/gemini_service.dart';
+import '../../core/utils/logger.dart';
 
 class ChatMessage {
   final String text;
@@ -33,7 +35,8 @@ class AIChatScreen extends StatefulWidget {
 }
 
 class _AIChatScreenState extends State<AIChatScreen> {
-  final AIChatService _service = AIChatService();
+  final GeminiService _geminiService = GeminiService();
+  final List<Map<String, String>> _aiHistory = [];
   final List<ChatMessage> _messages = [];
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -98,14 +101,58 @@ class _AIChatScreenState extends State<AIChatScreen> {
         });
       }
     } catch (e) {
-      print("Could not load location in AI Chat: $e");
+      AppLogger.warning('Could not load location in AI Chat', e);
     }
+  }
+
+  String _formatErrorMessage(Object error) {
+    if (error is NetworkException) {
+      return '⚠️ **Connection problem**\n\n${error.message}\n\nCheck internet and tap Retry.';
+    }
+    if (error is ApiException) {
+      final code = error.statusCode;
+      if (code == 401 || code == 403) {
+        return '⚠️ **API key invalid**\n\nConfigure a valid Gemini API key in Settings or .env, then tap Retry.';
+      }
+      if (code == 429) {
+        return '⚠️ **Too many requests**\n\nWait a moment and tap Retry.';
+      }
+      return '⚠️ **AI unavailable**\n\n${error.message}\n\nTap Retry to try again.';
+    }
+    final msg = error.toString().replaceFirst('Exception: ', '');
+    if (msg.toLowerCase().contains('api key') || msg.toLowerCase().contains('not configured')) {
+      return '⚠️ **API key missing**\n\nAdd your Gemini API key in Settings, then tap Retry.';
+    }
+    return '⚠️ **Something went wrong**\n\n$msg\n\nTap Retry to try again.';
+  }
+
+  bool _isApiKeyError(Object error) {
+    if (error is ApiException) {
+      final code = error.statusCode;
+      return code == 401 || code == 403;
+    }
+    final s = error.toString().toLowerCase();
+    return s.contains('api key') || s.contains('not configured');
+  }
+
+  void _showErrorSnackBar(Object error) {
+    final isKey = _isApiKeyError(error);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isKey
+              ? 'Gemini API key is missing or invalid. Configure it in Settings.'
+              : 'Could not reach AI assistant. Check your connection.',
+        ),
+        backgroundColor: isKey ? AppColors.emergencyRed : AppColors.emergencyAmber,
+      ),
+    );
   }
 
   Future<void> _sendMessage(String text) async {
     if (text.trim().isEmpty || _isLoading) return;
 
-    debugPrint("[AntiGravity] User message sent: $text");
+    AppLogger.info('AI chat: user message sent (${text.length} chars).');
 
     setState(() {
       _messages.add(ChatMessage(
@@ -121,11 +168,22 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
     _scrollToBottom();
 
+    final historyForApi = List<Map<String, String>>.from(_aiHistory);
+    var messageToSend = text;
+    if (historyForApi.isEmpty && _userLocation != null) {
+      messageToSend = 'User location (approx): $_userLocation. $text';
+    }
+
     String streamedText = '';
     int? botMessageIndex;
     StreamSubscription<String>? subscription;
 
-    subscription = _service.sendMessageStream(text, userLocation: _userLocation).listen(
+    final stream = _geminiService.streamEmergencyResponse(
+      userMessage: messageToSend,
+      chatHistory: historyForApi,
+    );
+
+    subscription = stream.listen(
       (chunk) {
         if (!mounted) return;
         setState(() {
@@ -152,20 +210,23 @@ class _AIChatScreenState extends State<AIChatScreen> {
       },
       onError: (err) {
         if (!mounted) return;
-        debugPrint("[AntiGravity] Error caught during streaming: $err");
+        AppLogger.error('AI chat stream error', err);
+        _showErrorSnackBar(err);
+
+        final errorText = _formatErrorMessage(err);
         setState(() {
           _isLoading = false;
           _isStreaming = false;
           if (botMessageIndex == null) {
             _messages.add(ChatMessage(
-              text: "Failed to generate response. Tap to retry.",
+              text: errorText,
               isUser: false,
               timestamp: DateTime.now(),
               isError: true,
             ));
           } else {
             _messages[botMessageIndex!] = ChatMessage(
-              text: "Failed to generate response. Tap to retry.",
+              text: errorText,
               isUser: false,
               timestamp: DateTime.now(),
               isError: true,
@@ -177,11 +238,47 @@ class _AIChatScreenState extends State<AIChatScreen> {
       },
       onDone: () {
         if (!mounted) return;
+        if (streamedText.trim().isEmpty) {
+          const emptyError = ApiException('Received an empty response from AI model.');
+          AppLogger.error('AI chat: empty stream response');
+          _showErrorSnackBar(emptyError);
+          final errorText = _formatErrorMessage(emptyError);
+          setState(() {
+            _isLoading = false;
+            _isStreaming = false;
+            if (botMessageIndex == null) {
+              _messages.add(ChatMessage(
+                text: errorText,
+                isUser: false,
+                timestamp: DateTime.now(),
+                isError: true,
+              ));
+            } else {
+              _messages[botMessageIndex!] = ChatMessage(
+                text: errorText,
+                isUser: false,
+                timestamp: DateTime.now(),
+                isError: true,
+              );
+            }
+          });
+          _scrollToBottom();
+          subscription?.cancel();
+          return;
+        }
+
+        AppLogger.info('AI chat: response received (${streamedText.length} chars).');
         setState(() {
           _isLoading = false;
           _isStreaming = false;
         });
         _scrollToBottom();
+
+        _aiHistory.add({'role': 'user', 'text': text});
+        _aiHistory.add({'role': 'model', 'text': streamedText});
+        if (_aiHistory.length > 20) {
+          _aiHistory.removeRange(0, _aiHistory.length - 20);
+        }
         subscription?.cancel();
       },
       cancelOnError: true,

@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:url_launcher/url_launcher.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/errors/app_exceptions.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/services/gemini_service.dart';
+import '../../../core/utils/logger.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../data/repositories/ai_chat_repository.dart';
 import '../../../data/models/chat_message.dart' as db_model;
@@ -107,7 +108,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
         _scrollToBottom();
       }
     } catch (e) {
-      print("Failed to load chat history: $e");
+      AppLogger.warning('Failed to load chat history', e);
     }
   }
 
@@ -203,7 +204,30 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
     });
   }
 
-  /// Sends a message and triggers the local AI medical engine
+  String _formatChatError(Object error) {
+    if (error is NetworkException) {
+      return '⚠️ Connection problem\n\n${error.message}\n\nCheck internet and try again.';
+    }
+    if (error is ApiException) {
+      final code = error.statusCode;
+      if (code == 401 || code == 403) {
+        return '⚠️ API key invalid\n\nConfigure Gemini in Settings or .env.';
+      }
+      return '⚠️ AI unavailable\n\n${error.message}';
+    }
+    return '⚠️ Could not get AI response\n\n${error.toString().replaceFirst('Exception: ', '')}';
+  }
+
+  bool _isApiKeyError(Object error) {
+    if (error is ApiException) {
+      final code = error.statusCode;
+      return code == 401 || code == 403;
+    }
+    final s = error.toString().toLowerCase();
+    return s.contains('api key') || s.contains('not configured');
+  }
+
+  /// Sends a message to Gemini and streams the response into the chat.
   Future<void> _handleSendMessage([String? forcedText]) async {
     if (_isTyping) return;
     final query = forcedText ?? _messageController.text.trim();
@@ -212,57 +236,33 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
     _messageController.clear();
     _stopListening();
 
+    AppLogger.info('First aid AI: user message sent (${query.length} chars).');
+
     setState(() {
       _messages.add(ChatMessage(text: query, isUser: true, timestamp: DateTime.now()));
       _isTyping = true;
     });
     _scrollToBottom();
 
-    // Store turn in conversational memory
-    _aiHistory.add({'role': 'user', 'text': query});
-    if (_aiHistory.length > 10) {
-      _aiHistory.removeRange(0, _aiHistory.length - 10);
-    }
-
+    final historyForApi = List<Map<String, String>>.from(_aiHistory);
     final int aiMessageIndex = _messages.length;
     setState(() {
-      _messages.add(ChatMessage(text: "", isUser: false, timestamp: DateTime.now()));
+      _messages.add(ChatMessage(text: '', isUser: false, timestamp: DateTime.now()));
     });
 
-    String streamedText = "";
-    bool isOfflineFallback = false;
+    String streamedText = '';
+    var success = false;
 
     try {
       final stream = _geminiService.streamEmergencyResponse(
         userMessage: query,
-        chatHistory: _aiHistory,
+        chatHistory: historyForApi,
       );
 
       await for (final chunk in stream) {
-        if (mounted) {
-          setState(() {
-            _isTyping = false;
-            streamedText += chunk;
-            _messages[aiMessageIndex] = ChatMessage(
-              text: streamedText,
-              isUser: false,
-              timestamp: DateTime.now(),
-            );
-          });
-          _scrollToBottom();
-        }
-      }
-
-      if (streamedText.isEmpty) {
-        throw Exception("Empty stream response");
-      }
-    } catch (e) {
-      isOfflineFallback = true;
-      final offlineResponse = _getResponseForQuery(query);
-      streamedText = "⚠️ **[Offline Fallback Mode]**\n\n$offlineResponse";
-      if (mounted) {
+        if (!mounted) return;
+        streamedText += chunk;
         setState(() {
-          _isTyping = false;
           _messages[aiMessageIndex] = ChatMessage(
             text: streamedText,
             isUser: false,
@@ -271,22 +271,52 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
         });
         _scrollToBottom();
       }
+
+      if (streamedText.trim().isEmpty) {
+        throw const ApiException('Received an empty response from AI model.');
+      }
+      success = true;
+      AppLogger.info('First aid AI: response received (${streamedText.length} chars).');
+    } catch (e) {
+      AppLogger.error('First aid AI stream failed', e);
+      if (mounted) {
+        final isKey = _isApiKeyError(e);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isKey
+                  ? 'Gemini API key is missing or invalid. Configure it in Settings.'
+                  : 'Could not reach AI assistant. Check your connection.',
+            ),
+            backgroundColor: isKey ? AppColors.emergencyRed : AppColors.emergencyAmber,
+          ),
+        );
+        setState(() {
+          _isTyping = false;
+          _messages[aiMessageIndex] = ChatMessage(
+            text: _formatChatError(e),
+            isUser: false,
+            timestamp: DateTime.now(),
+          );
+        });
+        _scrollToBottom();
+      }
+      return;
     }
 
-    if (mounted) {
-      setState(() {
-        _isTyping = false;
-      });
-      _scrollToBottom();
+    if (!mounted) return;
+    setState(() {
+      _isTyping = false;
+    });
+    _scrollToBottom();
 
-      // Only save success replies to active conversation memory
-      if (!isOfflineFallback) {
-        _aiHistory.add({'role': 'model', 'text': streamedText});
-        if (_aiHistory.length > 10) {
-          _aiHistory.removeRange(0, _aiHistory.length - 10);
-        }
-      }
+    _aiHistory.add({'role': 'user', 'text': query});
+    _aiHistory.add({'role': 'model', 'text': streamedText});
+    if (_aiHistory.length > 20) {
+      _aiHistory.removeRange(0, _aiHistory.length - 20);
+    }
 
+    if (success) {
       try {
         final currentUserId = AuthService.instance.currentUserId ?? 'me';
         final modelMsg = db_model.ChatMessageModel(
@@ -298,7 +328,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
         );
         await _chatRepo.saveChatMessage(modelMsg);
       } catch (e) {
-        print("Failed to save chat history item: $e");
+        AppLogger.warning('Failed to save chat history item', e);
       }
     }
   }
@@ -313,165 +343,6 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
         );
       }
     });
-  }
-
-  /// Direct offline medically accurate keyword-based NLP response selector
-  String _getResponseForQuery(String query) {
-    final q = query.toLowerCase();
-
-    if (q.contains("cpr") || q.contains("cardiopulmonary") || q.contains("resuscitation")) {
-      return "🚨 CPR BASICS (Cardiopulmonary Resuscitation)\n\n"
-          "If the victim is unresponsive and not breathing, start CPR immediately:\n\n"
-          "1. **POSITION**: Place the victim flat on their back on a firm surface. Kneel next to their shoulders.\n"
-          "2. **HANDS**: Place the heel of one hand in the center of their chest (sternum). Interlock your other hand on top.\n"
-          "3. **COMPRESSIONS**: Push hard and fast at a rate of 100 to 120 compressions per minute (e.g. to the beat of 'Staying Alive'). Push down 2 inches deep. Give 30 compressions.\n"
-          "4. **BREATHS**: Pinch their nose, tilt their chin back, and give 2 quick rescue breaths. Make sure their chest rises.\n"
-          "5. **RATIO**: Keep repeating the cycle of **30 compressions followed by 2 breaths** until help arrives.\n\n"
-          "⚠️ **CRITICAL DIRECTIVE**: Call emergency services (112 or 100) immediately before starting chest compressions if possible!";
-    }
-
-    if (q.contains("unconscious") || q.contains("unresponsive") || q.contains("passed out")) {
-      return "🚨 UNCONSCIOUS PATIENT RESPONSE\n\n"
-          "If a person is unresponsive, follow these steps immediately:\n\n"
-          "1. **SHOUT AND SHAKE**: Tap their shoulders and shout loudly: 'Are you okay?'\n"
-          "2. **CHECK AIRWAY**: Tilt their head back gently and lift their chin to open the airway.\n"
-          "3. **CHECK BREATHING**: Put your ear to their mouth. Look, listen, and feel for chest rise or breathing for 10 seconds.\n"
-          "4. **RECOVERY POSITION**: If they are breathing normally, roll them onto their side (recovery position) to keep their airway open and prevent choking.\n"
-          "5. **START CPR**: If they are NOT breathing, begin chest compressions (CPR) immediately!\n\n"
-          "⚠️ **CRITICAL ALERT**: Call 112/100 immediately. Do not leave the unconscious patient alone.";
-    }
-
-    if (q.contains("not breathing") || q.contains("stopped breathing")) {
-      return "🚨 PATIENT NOT BREATHING\n\n"
-          "Act immediately. Every second counts:\n\n"
-          "1. **CALL EMERGENCY SERVICES**: Alert 112 or 100 instantly and ask for an AED.\n"
-          "2. **POSITION**: Place them flat on their back on a hard surface.\n"
-          "3. **CHEST COMPRESSIONS**: Push hard and fast at a rate of 100-120/min in the center of the chest. Give 30 compressions.\n"
-          "4. **RESCUE BREATHS**: Tilt their head back, pinch their nose, and give 2 rescue breaths. Ensure their chest rises.\n"
-          "5. **CONTINUOUS CYCLE**: Continue the **30 compressions and 2 rescue breaths** cycle until medical professionals arrive.\n\n"
-          "⚠️ **SAFETY ALERT**: If you are untrained or uncomfortable with breaths, perform Hands-Only CPR (continuous rapid chest compressions).";
-    }
-
-    if (q.contains("dog bite") || q.contains("animal bite") || q.contains("bite")) {
-      return "🐕 DOG & ANIMAL BITE EMERGENCY FIRST-AID\n\n"
-          "Follow these steps to prevent severe infection and rabies transmission:\n\n"
-          "1. **WASH IMMEDIATELY**: Clean the wound under running tap water with mild soap vigorously for at least 10 to 15 minutes. This is critical to neutralize any potential rabies virus.\n"
-          "2. **CONTROL BLEEDING**: Apply firm pressure with a clean dry cloth to stop any active bleeding.\n"
-          "3. **DISINFECT**: Apply antiseptic solution (like Betadine) or an antibiotic ointment.\n"
-          "4. **DRESS**: Cover the wound loosely with a sterile, non-stick bandage.\n"
-          "5. **MEDICAL EVALUATION**: Go to the nearest clinic immediately. A doctor must evaluate for rabies PEP (post-exposure prophylaxis) and tetanus shots!\n\n"
-          "⚠️ Never stitch or tightly bind an animal bite wound without clinical guidance.";
-    }
-
-    if (q.contains("concussion") || q.contains("head injury") || q.contains("head trauma")) {
-      return "🧠 CONCUSSION & HEAD INJURY GUIDELINES\n\n"
-          "Head injuries can cause internal bleeding. Monitor the victim closely:\n\n"
-          "1. **SPINE IMMOBILIZATION**: Keep their neck and head completely still. Avoid moving them unless there is an immediate threat of fire/explosion.\n"
-          "2. **CHECK SYMPTOMS**: Watch for red flags: confusion, vomiting, dilated pupils, slurred speech, memory loss, or blood/fluid draining from ears/nose.\n"
-          "3. **SCALP BLEEDING**: Scalp cuts bleed heavily. Apply light pressure with a clean cloth. Do not apply heavy pressure if you suspect a skull fracture.\n"
-          "4. **KEEP CALM & AWAKE**: Encourage them to stay still and quiet. Keep checking their breathing and pulse.\n"
-          "5. **NO FLUIDS/MEDS**: Do not give them anything to eat or drink. Do not administer aspirin or ibuprofen as they can thin blood and worsen internal bleeding.\n\n"
-          "⚠️ **CRITICAL WARNING**: Seek emergency medical evaluation immediately for any loss of consciousness, even if brief.";
-    }
-
-    if (q.contains("bleed") || q.contains("bleeding") || q.contains("blood") || q.contains("hemorrhage")) {
-      return "🩸 HEMORRHAGE & BLEEDING CONTROL\n\n"
-          "Follow these steps immediately to prevent severe blood loss:\n\n"
-          "1. **DIRECT PRESSURE**: Place a sterile gauze or clean cloth directly on the wound. Press down firmly and continuously.\n"
-          "2. **ELEVATION**: Keep the pressure applied and raise the bleeding limb above heart level (if no bone break is suspected).\n"
-          "3. **SECURE**: Tie the cloth securely with a bandage. If blood soaks through, add another layer on top instead of removing the first.\n"
-          "4. **TOURNIQUET**: If bleeding is severe and life-threatening on an arm or leg, apply a tourniquet 2 inches above the wound (never on joints). Tighten until bleeding stops.\n\n"
-          "⚠️ Keep the patient lying flat, warm, and quiet to prevent shock.";
-    }
-
-    if (q.contains("heart attack") || q.contains("cardiac") || q.contains("chest pain")) {
-      return "🫀 HEART ATTACK GUIDELINES\n\n"
-          "Signs include chest tightness, radiating arm or jaw pain, sweating, and difficulty breathing:\n\n"
-          "1. **ALERT**: Call 108 or 112 instantly.\n"
-          "2. **SIT & COMFORT**: Help them sit down on the floor leaning back against a wall. This reduces the strain on the heart.\n"
-          "3. **LOOSEN**: Loosen collar buttons, belts, or tight clothes.\n"
-          "4. **ASPIRIN**: If conscious and not allergic, have them chew 1 standard tablet of Aspirin (300mg) slowly.\n"
-          "5. **MONITOR**: Stay beside them. Be prepared to start CPR immediately if they lose consciousness or stop breathing.";
-    }
-
-    if (q.contains("burn") || q.contains("burns") || q.contains("scald")) {
-      return "🔥 EMERGENCY BURN TREATMENT\n\n"
-          "Do NOT apply butter, toothpaste, grease, or ice:\n\n"
-          "1. **COOL**: Run cool (lukewarm) tap water over the burn area for 10 to 20 minutes. Never use ice or freezing water.\n"
-          "2. **REMOVE CONSTRUCTIONS**: Remove rings, watches, or tight clothes before the area swells.\n"
-          "3. **COVER WOUND**: Wrap loosely with sterile plastic wrap, clean cling wrap, or non-stick dressings. Do not apply tight bandages.\n"
-          "4. **AVOID BLISTERS**: Do not pop or pierce any blisters. Do not apply direct pressure.\n\n"
-          "⚠️ **SAFETY BANNER**: For major chemical or high-degree burns, contact professional dispatchers immediately.";
-    }
-
-    if (q.contains("fracture") || q.contains("bone") || q.contains("break") || q.contains("splint")) {
-      return "🦴 FRACTURE & SPLINT HANDLING\n\n"
-          "Do NOT attempt to push or realign a broken bone back in:\n\n"
-          "1. **IMMOBILIZE**: Keep the broken bone completely still. Do not let the patient move the limb.\n"
-          "2. **SUPPORT**: Place wood, splints, or stiff cardboard underneath and bind it gently with bandages to prevent movement.\n"
-          "3. **ICE PACK**: Apply a cold pack wrapped in a cloth to ease swelling and dull severe pain.\n"
-          "4. **WOUNDS**: If bone has pierced the skin, cover gently with sterile wrap. Do not touch or wash the exposed bone.";
-    }
-
-    if (q.contains("snake") || q.contains("bite") || q.contains("snakebite")) {
-      return "🐍 SNAKE BITE EMERGENCY FIRST-AID\n\n"
-          "Do NOT suck out venom, cut the wound, or apply ice:\n\n"
-          "1. **KEEP CALM**: Prevent movement. Agitation increases blood flow and spreads venom through the lymphatic stream.\n"
-          "2. **BELOW HEART**: Position the bitten limb lower than or level with the heart.\n"
-          "3. **REMOVE CONSTRICTIONS**: Take off tight jewelry, rings, and shoes because swelling will start rapidly.\n"
-          "4. **CLEAN & DRESS**: Wash the bite gently with water. Wrap a loose bandage around the area.\n"
-          "5. **ANTI-VENOM**: Transport immediately to an Ahmedabad trauma facility with anti-venom!";
-    }
-
-    if (q.contains("poison") || q.contains("poisoning") || q.contains("chemical")) {
-      return "⚠️ POISONING FIRST AID\n\n"
-          "Do NOT induce vomiting unless explicitly directed by clinical dispatchers:\n\n"
-          "1. **SWALLOWED**: If they are conscious, rinse their mouth out. Do not give water or milk to drink.\n"
-          "2. **INHALED**: Carry the victim into open fresh air immediately. Begin breathing assistance if they choke.\n"
-          "3. **EYES/SKIN**: Flush affected skin or eyes with continuous running water for 15-20 minutes.\n"
-          "4. **IDENTIFY**: Locate the container, pill bottles, or labels to show first responders. Call 112 immediately.";
-    }
-
-    if (q.contains("accident") || q.contains("crash") || q.contains("first aid")) {
-      return "🚗 ROAD ACCIDENT SAFETY PROTOCOL\n\n"
-          "Ensure your own safety first before attempting to help others:\n\n"
-          "1. **SECURE SCENE**: Park safely, put on warning flashers, and look out for leaks or fire.\n"
-          "2. **DO NOT MOVE VICTIMS**: Unless there is a fire threat, keep victims in their seats to prevent spinal injury.\n"
-          "3. **STOP BLEEDING**: Apply firm pressure on bleeding wounds.\n"
-          "4. **CALL RESPONDERS**: Trigger the RoadSOS SOS broadcast for Ahmedabad response support.";
-    }
-
-    if (q.contains("panic") || q.contains("anxiety") || q.contains("panic attack")) {
-      return "🧘 PANIC ATTACK SOOTHING STEPS\n\n"
-          "Follow these steps to help someone through a panic attack:\n\n"
-          "1. **STAY CALM**: Do not panic. Speak in a quiet, low, reassuring tone.\n"
-          "2. **BREATHING**: Guide them to take deep, slow breaths: breathe in for 4 seconds, hold for 4, breathe out for 4.\n"
-          "3. **GROUNDING**: Ask them to name 5 things they see, 4 things they can touch, 3 things they hear, 2 they smell, and 1 they taste.\n"
-          "4. **SAFE SPACE**: Move them away from crowds, bright lights, or noise to a quiet spot.\n"
-          "5. **SUPPORT**: Reassure them that panic attacks are temporary and they are safe.";
-    }
-
-    if (q.contains("choking") || q.contains("choke") || q.contains("heimlich")) {
-      return "💨 CHOKING EMERGENCY (Heimlich Maneuver)\n\n"
-          "If the victim cannot speak, cough, or breathe, perform first aid instantly:\n\n"
-          "1. **5 BACK BLOWS**: Stand behind them. Lean them forward. Give 5 firm blows between their shoulder blades with the heel of your hand.\n"
-          "2. **5 ABDOMINAL THRUSTS**: Wrap your arms around their waist. Make a fist with one hand, place it just above their belly button, grasp it with your other hand, and pull in and up quickly.\n"
-          "3. **REPEAT**: Alternate between **5 back blows and 5 abdominal thrusts** until the blockage is cleared.\n"
-          "4. **UNCONSCIOUS**: If they pass out, lower them gently to the floor and start CPR compressions.";
-    }
-
-    return "🩺 RoadSOS Emergency AI Assistant\n\n"
-        "I am currently operating fully offline to guarantee instant responses during critical situations.\n\n"
-        "I didn't quite catch that. Try asking about these topics:\n"
-        "• 'How to stop bleeding'\n"
-        "• 'CPR chest compressions'\n"
-        "• 'Cardiac / Heart attack'\n"
-        "• 'Snake bite protocol'\n"
-        "• 'First aid for burns'\n"
-        "• 'Fractures & splinting'\n"
-        "• 'Choking protocol'\n"
-        "• 'Panic attack steps'\n\n"
-        "⚠️ **SAFETY ALERT**: Always contact professional emergency services (112 or 100) immediately.";
   }
 
   @override
