@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'core/theme/colors.dart';
 import 'features/crash_detection/crash_detector.dart';
@@ -12,6 +13,14 @@ import 'app.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Load environment variables
+  try {
+    await dotenv.load(fileName: ".env");
+    print("Environment variables loaded successfully.");
+  } catch (e) {
+    print("Failed to load .env file: $e");
+  }
 
   // Lock device orientation to portrait
   await SystemChrome.setPreferredOrientations([
