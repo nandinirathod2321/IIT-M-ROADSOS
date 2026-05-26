@@ -427,6 +427,34 @@ class DatabaseHelper {
     await batch.commit(noResult: true);
   }
 
+  double haversineDistance(double lat1, double lng1, double lat2, double lng2) {
+    const R = 6371.0;
+    double dLat = (lat2 - lat1) * pi / 180;
+    double dLng = (lng2 - lng1) * pi / 180;
+    double a = sin(dLat/2)*sin(dLat/2) +
+               cos(lat1*pi/180)*cos(lat2*pi/180)*
+               sin(dLng/2)*sin(dLng/2);
+    double c = 2 * atan2(sqrt(a), sqrt(1-a));
+    return R * c;
+  }
+
+  Future<int> getHospitalCount(double lat, double lng, {double radiusKm = 50}) async {
+    if (kIsWeb) {
+      final list = await getNearbyHospitals(lat, lng, radiusKm: radiusKm);
+      return list.length;
+    }
+    final db = await database;
+    double latDelta = radiusKm / 111.0;
+    double lngDelta = radiusKm / (111.0 * cos(lat * pi / 180));
+    final count = Sqflite.firstIntValue(
+      await db.rawQuery(
+        'SELECT COUNT(*) FROM hospitals WHERE latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?',
+        [lat - latDelta, lat + latDelta, lng - lngDelta, lng + lngDelta],
+      ),
+    );
+    return count ?? 0;
+  }
+
   // ── Database Diagnostics ─────────────────────────────────────────────
 
   Future<int> getDatabaseRecordCount() async {
@@ -500,16 +528,16 @@ class DatabaseHelper {
 
   // ── Backward Compatible Spatial Queries ──────────────────────────────
 
-  Future<List<Hospital>> getNearbyHospitals(double lat, double lng, {int limitKm = 50}) async {
+  Future<List<Hospital>> getNearbyHospitals(double lat, double lng, {double radiusKm = 50}) async {
     if (kIsWeb) {
       await _initWebMockData();
       final results = <Hospital>[];
       for (final hospital in _webHospitals) {
-        final dist = DistanceUtils.haversine(lat, lng, hospital.lat, hospital.lng);
-        if (dist <= limitKm) {
+        final dist = haversineDistance(lat, lng, hospital.lat, hospital.lng);
+        if (dist <= radiusKm) {
           results.add(hospital.copyWithDistance(
             distanceKm: double.parse(dist.toStringAsFixed(2)),
-            estimatedMinutes: double.parse(DistanceUtils.estimateMinutes(dist).toStringAsFixed(1)),
+            estimatedMinutes: (dist / 0.5).round().toDouble(),
           ));
         }
       }
@@ -518,37 +546,44 @@ class DatabaseHelper {
     }
 
     final db = await database;
-    final bounds = _boundingBox(lat, lng, limitKm.toDouble());
+    double latDelta = radiusKm / 111.0;
+    double lngDelta = radiusKm / (111.0 * cos(lat * pi / 180));
+    
+    String sql = """
+      SELECT *, 
+        ((latitude - ?) * (latitude - ?) + (longitude - ?) * (longitude - ?)) AS dist_sq
+      FROM hospitals
+      WHERE latitude BETWEEN ? AND ?
+        AND longitude BETWEEN ? AND ?
+      ORDER BY dist_sq ASC
+      LIMIT 50
+    """;
+    
+    List<Map<String, dynamic>> results = await db.rawQuery(sql, [
+      lat, lat, lng, lng,
+      lat - latDelta, lat + latDelta,
+      lng - lngDelta, lng + lngDelta,
+    ]);
 
-    final rows = await db.query(
-      'hospitals',
-      where: 'latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?',
-      whereArgs: [bounds.minLat, bounds.maxLat, bounds.minLng, bounds.maxLng],
-    );
-
-    final results = <Hospital>[];
-    for (final row in rows) {
-      final hospital = Hospital.fromMap(row);
-      final dist = DistanceUtils.haversine(lat, lng, hospital.lat, hospital.lng);
-      if (dist <= limitKm) {
-        results.add(hospital.copyWithDistance(
-          distanceKm: double.parse(dist.toStringAsFixed(2)),
-          estimatedMinutes: double.parse(DistanceUtils.estimateMinutes(dist).toStringAsFixed(1)),
-        ));
-      }
-    }
-
-    results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
-    return results;
+    return results.map((r) {
+      Hospital h = Hospital.fromMap(Map<String, dynamic>.from(r));
+      double dist = haversineDistance(lat, lng, h.lat, h.lng);
+      return h.copyWithDistance(
+        distanceKm: double.parse(dist.toStringAsFixed(2)),
+        estimatedMinutes: (dist / 0.5).round().toDouble(),
+      );
+    }).where((h) => h.distanceKm <= radiusKm)
+      .toList()
+      ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
   }
 
-  Future<List<PoliceStation>> getNearbyPolice(double lat, double lng, {int limitKm = 20}) async {
+  Future<List<PoliceStation>> getNearbyPolice(double lat, double lng, {double radiusKm = 20}) async {
     if (kIsWeb) {
       await _initWebMockData();
       final results = <PoliceStation>[];
       for (final station in _webPolice) {
-        final dist = DistanceUtils.haversine(lat, lng, station.lat, station.lng);
-        if (dist <= limitKm) {
+        final dist = haversineDistance(lat, lng, station.lat, station.lng);
+        if (dist <= radiusKm) {
           results.add(station.copyWithDistance(
             distanceKm: double.parse(dist.toStringAsFixed(2)),
           ));
@@ -559,36 +594,43 @@ class DatabaseHelper {
     }
 
     final db = await database;
-    final bounds = _boundingBox(lat, lng, limitKm.toDouble());
+    double latDelta = radiusKm / 111.0;
+    double lngDelta = radiusKm / (111.0 * cos(lat * pi / 180));
+    
+    String sql = """
+      SELECT *, 
+        ((latitude - ?) * (latitude - ?) + (longitude - ?) * (longitude - ?)) AS dist_sq
+      FROM police_stations
+      WHERE latitude BETWEEN ? AND ?
+        AND longitude BETWEEN ? AND ?
+      ORDER BY dist_sq ASC
+      LIMIT 50
+    """;
+    
+    List<Map<String, dynamic>> results = await db.rawQuery(sql, [
+      lat, lat, lng, lng,
+      lat - latDelta, lat + latDelta,
+      lng - lngDelta, lng + lngDelta,
+    ]);
 
-    final rows = await db.query(
-      'police_stations',
-      where: 'latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?',
-      whereArgs: [bounds.minLat, bounds.maxLat, bounds.minLng, bounds.maxLng],
-    );
-
-    final results = <PoliceStation>[];
-    for (final row in rows) {
-      final station = PoliceStation.fromMap(row);
-      final dist = DistanceUtils.haversine(lat, lng, station.lat, station.lng);
-      if (dist <= limitKm) {
-        results.add(station.copyWithDistance(
-          distanceKm: double.parse(dist.toStringAsFixed(2)),
-        ));
-      }
-    }
-
-    results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
-    return results;
+    return results.map((r) {
+      PoliceStation p = PoliceStation.fromMap(Map<String, dynamic>.from(r));
+      double dist = haversineDistance(lat, lng, p.lat, p.lng);
+      return p.copyWithDistance(
+        distanceKm: double.parse(dist.toStringAsFixed(2)),
+      );
+    }).where((p) => p.distanceKm <= radiusKm)
+      .toList()
+      ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
   }
 
-  Future<List<TowingService>> getNearbyTowing(double lat, double lng, {int limitKm = 30}) async {
+  Future<List<TowingService>> getNearbyTowing(double lat, double lng, {double radiusKm = 30}) async {
     if (kIsWeb) {
       await _initWebMockData();
       final results = <TowingService>[];
       for (final towing in _webTowing) {
-        final dist = DistanceUtils.haversine(lat, lng, towing.lat, towing.lng);
-        if (dist <= limitKm) {
+        final dist = haversineDistance(lat, lng, towing.lat, towing.lng);
+        if (dist <= radiusKm) {
           results.add(towing.copyWithDistance(
             distanceKm: double.parse(dist.toStringAsFixed(2)),
           ));
@@ -599,27 +641,34 @@ class DatabaseHelper {
     }
 
     final db = await database;
-    final bounds = _boundingBox(lat, lng, limitKm.toDouble());
+    double latDelta = radiusKm / 111.0;
+    double lngDelta = radiusKm / (111.0 * cos(lat * pi / 180));
+    
+    String sql = """
+      SELECT *, 
+        ((latitude - ?) * (latitude - ?) + (longitude - ?) * (longitude - ?)) AS dist_sq
+      FROM towing_services
+      WHERE latitude BETWEEN ? AND ?
+        AND longitude BETWEEN ? AND ?
+      ORDER BY dist_sq ASC
+      LIMIT 50
+    """;
+    
+    List<Map<String, dynamic>> results = await db.rawQuery(sql, [
+      lat, lat, lng, lng,
+      lat - latDelta, lat + latDelta,
+      lng - lngDelta, lng + lngDelta,
+    ]);
 
-    final rows = await db.query(
-      'towing_services',
-      where: 'latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?',
-      whereArgs: [bounds.minLat, bounds.maxLat, bounds.minLng, bounds.maxLng],
-    );
-
-    final results = <TowingService>[];
-    for (final row in rows) {
-      final towing = TowingService.fromMap(row);
-      final dist = DistanceUtils.haversine(lat, lng, towing.lat, towing.lng);
-      if (dist <= limitKm) {
-        results.add(towing.copyWithDistance(
-          distanceKm: double.parse(dist.toStringAsFixed(2)),
-        ));
-      }
-    }
-
-    results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
-    return results;
+    return results.map((r) {
+      TowingService t = TowingService.fromMap(Map<String, dynamic>.from(r));
+      double dist = haversineDistance(lat, lng, t.lat, t.lng);
+      return t.copyWithDistance(
+        distanceKm: double.parse(dist.toStringAsFixed(2)),
+      );
+    }).where((t) => t.distanceKm <= radiusKm)
+      .toList()
+      ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
   }
 
   Future<List<EmergencyShelter>> getNearbyShelters(double lat, double lng, {int limitKm = 40}) async {

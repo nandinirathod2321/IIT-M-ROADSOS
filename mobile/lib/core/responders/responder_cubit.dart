@@ -109,33 +109,22 @@ class ResponderCubit extends Cubit<ResponderState> {
       offline = conn.contains(ConnectivityResult.none);
     } catch (_) {}
 
-    print('[ResponderCubit] Fetching responders at ($lat, $lng) — '
-        'offline=$offline, forceRefresh=$forceRefresh');
+    print('[ResponderCubit] Fetching responders at ($lat, $lng) exclusively from SQLite cache.');
 
     emit(state.copyWith(
       status: ResponderLoadStatus.loading,
-      isOffline: offline,
+      isOffline: false,
       errorMessage: '',
     ));
 
-    // ── Step 1: Try remote API (skip if offline) ──────────────────────
-    if (!offline) {
-      try {
-        await _repo.fetchAndCacheNearbyServices(lat, lng, forceRefresh: forceRefresh);
-        print('[ResponderCubit] Remote fetch succeeded.');
-      } catch (e) {
-        print('[ResponderCubit] Remote fetch failed: $e — will try cache.');
-      }
-    }
-
-    // ── Step 2: Always load from cache (populated from either remote or previous) ──
+    // ── Step 2: Always load from cache (populated from pre-seeded database) ──
     try {
       final hospitals = await _repo.getNearbyHospitals(lat, lng);
       final police = await _repo.getNearbyPolice(lat, lng);
       final towing = await _repo.getNearbyTowing(lat, lng);
       final shelters = await _repo.getNearbyShelters(lat, lng);
 
-      final fromCache = offline;
+      final fromCache = true;
 
       if (isClosed) return;
 

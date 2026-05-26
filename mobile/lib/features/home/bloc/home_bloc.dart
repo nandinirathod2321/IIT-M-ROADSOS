@@ -161,6 +161,29 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       final address = await performReverseGeocode(event.latitude, event.longitude);
       if (!isClosed) emit(state.copyWith(address: address));
     } catch (_) {}
+
+    // Load counts directly from local database helper
+    try {
+      final hospitalCount = await _db.getHospitalCount(event.latitude, event.longitude, radiusKm: 50.0);
+      final policeList = await _db.getNearbyPolice(event.latitude, event.longitude, radiusKm: 20.0);
+      final towingList = await _db.getNearbyTowing(event.latitude, event.longitude, radiusKm: 30.0);
+      
+      final hospitalsList = await _db.getNearbyHospitals(event.latitude, event.longitude, radiusKm: 50.0);
+      final nearest = hospitalsList.isNotEmpty ? hospitalsList.first : null;
+
+      if (!isClosed) {
+        emit(state.copyWith(
+          nearbyHospitalCount: hospitalCount,
+          nearbyPoliceCount: policeList.length,
+          nearbyTowingCount: towingList.length,
+          nearestHospital: nearest,
+          clearHospital: nearest == null,
+          isRespondersLoading: false,
+        ));
+      }
+    } catch (e) {
+      print('[HomeBloc] Error loading local counts: $e');
+    }
   }
 
   void _onRespondersUpdated(

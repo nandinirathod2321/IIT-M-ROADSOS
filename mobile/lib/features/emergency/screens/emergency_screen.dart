@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
@@ -429,23 +430,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
 
     // GPS available but responders loading
     if (responderState.isLoading && !responderState.hasData) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(color: AppColors.emergencyRed),
-            SizedBox(height: 16),
-            Text("LOADING NEARBY SERVICES...",
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontFamily: 'Inter',
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
-                  fontSize: 12,
-                )),
-          ],
-        ),
-      );
+      return const _ShimmerList();
     }
 
     // Error state and no cache
@@ -870,6 +855,32 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ShimmerList extends StatelessWidget {
+  const _ShimmerList();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      itemCount: 5,
+      padding: const EdgeInsets.all(16),
+      itemBuilder: (_, __) => Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Shimmer.fromColors(
+          baseColor: AppColors.surface,
+          highlightColor: AppColors.surfaceAlt,
+          child: Container(
+            height: 120,
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
       ),
     );
   }
