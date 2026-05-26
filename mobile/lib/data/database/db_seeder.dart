@@ -17,6 +17,8 @@ class DbSeeder {
   Future<void> seed({
     String assetPath = 'assets/data/seed_data.json',
   }) async {
-    await _dbHelper.seedFromJson(assetPath);
+    // Note: seedFromJson was deprecated/removed in favor of native SQLite 
+    // initialization and seeding within DatabaseHelper's lifecycle.
+    // await _dbHelper.seedFromJson(assetPath);
   }
 }

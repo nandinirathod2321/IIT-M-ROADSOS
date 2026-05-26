@@ -670,7 +670,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
                     Expanded(
                       child: TextField(
                         controller: _messageController,
-                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
                         decoration: InputDecoration(
                           hintText: _isListening ? "Listening..." : "Ask AI First Aid...",
                           hintStyle: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
@@ -766,7 +766,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
             Text(
               message.text,
               style: AppTypography.bodyMedium.copyWith(
-                color: message.isUser ? Colors.white : AppColors.textPrimary,
+                color: AppColors.textPrimary,
                 height: 1.5,
               ),
             ),
@@ -1015,14 +1015,14 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
         border: Border.all(color: AppColors.borderSubtle, width: 1),
       ),
       child: Theme(
-        data: ThemeData.dark().copyWith(
+        data: ThemeData.light().copyWith(
           dividerColor: Colors.transparent,
         ),
         child: ExpansionTile(
           leading: Icon(icon, color: iconColor, size: 24),
           title: Text(
             title,
-            style: AppTypography.headlineMedium.copyWith(fontSize: 15, color: Colors.white),
+            style: AppTypography.headlineMedium.copyWith(fontSize: 15, color: AppColors.textPrimary),
           ),
           iconColor: AppColors.textSecondary,
           collapsedIconColor: AppColors.textMuted,
@@ -1051,7 +1051,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
                 children: [
                   TextSpan(
                     text: "$boldPart: ",
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
                   ),
                   TextSpan(text: normalPart),
                 ],

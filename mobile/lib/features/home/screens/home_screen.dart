@@ -458,7 +458,7 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: AppTypography.bodyMedium.copyWith(
-                                        color: Colors.white,
+                                        color: AppColors.textPrimary,
                                         fontWeight: FontWeight.w500,
                                         fontStyle: _wordsSpoken == "Listening..." || _wordsSpoken == "Waiting..." ? FontStyle.italic : FontStyle.normal,
                                       ),
@@ -497,7 +497,7 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
                                             children: [
                                               Text(
                                                 "Microphone Permission Required",
-                                                style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.bold, color: Colors.white),
+                                                style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                                               ),
                                               const SizedBox(height: 2),
                                               Text(

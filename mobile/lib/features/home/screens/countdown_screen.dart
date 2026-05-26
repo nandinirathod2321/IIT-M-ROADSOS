@@ -176,7 +176,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
             const SizedBox(width: 12),
             Text(
               "RESOLVE EMERGENCY",
-              style: AppTypography.headlineMedium.copyWith(color: Colors.white),
+              style: AppTypography.headlineMedium.copyWith(color: AppColors.textPrimary),
             ),
           ],
         ),
@@ -803,12 +803,11 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                   style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 9),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.surfaceAlt,
+                  backgroundColor: AppColors.emergencyRed,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(6),
-                    side: const BorderSide(color: AppColors.borderSubtle, width: 1),
                   ),
                 ),
               ),
@@ -835,7 +834,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
             const SizedBox(width: 12),
             Text(
               "PLACE EMERGENCY CALL",
-              style: AppTypography.headlineMedium.copyWith(color: Colors.white, fontSize: 16),
+              style: AppTypography.headlineMedium.copyWith(color: AppColors.textPrimary, fontSize: 16),
             ),
           ],
         ),
@@ -941,7 +940,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
           ),
           title: Text(
             "EMAIL SYSTEM ALERT",
-            style: AppTypography.headlineMedium.copyWith(color: Colors.white),
+            style: AppTypography.headlineMedium.copyWith(color: AppColors.textPrimary),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -962,7 +961,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                   ),
                   child: SelectableText(
                     "To: $emails\nSubject: 🚨 RoadSOS Emergency Alert\n\n$emailBody",
-                    style: AppTypography.monoMedium.copyWith(fontSize: 10, color: Colors.white),
+                    style: AppTypography.monoMedium.copyWith(fontSize: 10, color: AppColors.textPrimary),
                   ),
                 ),
               ],
@@ -1073,7 +1072,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
         Expanded(
           child: Text(
             value,
-            style: AppTypography.monoMedium.copyWith(fontSize: 11, color: Colors.white),
+            style: AppTypography.monoMedium.copyWith(fontSize: 11, color: AppColors.textPrimary),
           ),
         ),
       ],

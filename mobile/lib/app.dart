@@ -6,7 +6,7 @@ import 'core/location/location_cubit.dart';
 import 'core/responders/responder_cubit.dart';
 
 /// Main Application widget for RoadSOS.
-/// Outfitted with system scale clamps and dark styling tokens.
+/// Outfitted with system scale clamps and light government-style tokens.
 ///
 /// Provides two global cubits at root:
 ///   • [LocationCubit] — single GPS source for the entire app
@@ -28,7 +28,7 @@ class RoadSOSApp extends StatelessWidget {
             child: MaterialApp.router(
               title: 'RoadSOS',
               debugShowCheckedModeBanner: false,
-              theme: AppTheme.dark,
+              theme: AppTheme.light,
               routerConfig: AppRouter.router(initialLocation),
 
               builder: (context, child) {

@@ -118,7 +118,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
               ),
               title: Text(
                 isEditing ? "EDIT CONTACT" : "ADD EMERGENCY CONTACT",
-                style: AppTypography.headlineMedium.copyWith(color: Colors.white),
+                style: AppTypography.headlineMedium.copyWith(color: AppColors.textPrimary),
               ),
               content: Form(
                 key: formKey,
@@ -129,14 +129,14 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: nameCtrl,
-                        style: const TextStyle(color: Colors.white),
+                        style: const TextStyle(color: AppColors.textPrimary),
                         decoration: _inputDeco("Full Name", Icons.person_outline_rounded),
                         validator: (v) => v == null || v.trim().isEmpty ? "Name is required" : null,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: phoneCtrl,
-                        style: const TextStyle(color: Colors.white),
+                        style: const TextStyle(color: AppColors.textPrimary),
                         keyboardType: TextInputType.phone,
                         decoration: _inputDeco("Phone Number", Icons.phone_android_rounded),
                         validator: (v) {
@@ -149,7 +149,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: emailCtrl,
-                        style: const TextStyle(color: Colors.white),
+                        style: const TextStyle(color: AppColors.textPrimary),
                         keyboardType: TextInputType.emailAddress,
                         decoration: _inputDeco("Email Address", Icons.email_outlined),
                         validator: (v) {
@@ -163,7 +163,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                       DropdownButtonFormField<String>(
                         value: relationCtrl.text,
                         dropdownColor: AppColors.surface,
-                        style: const TextStyle(color: Colors.white),
+                        style: const TextStyle(color: AppColors.textPrimary),
                         decoration: _inputDeco("Relationship", Icons.people_outline_rounded),
                         items: ["Family", "Friend", "Spouse", "Doctor", "Work", "Other"]
                             .map((r) => DropdownMenuItem(value: r, child: Text(r)))
@@ -175,7 +175,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                       const SizedBox(height: 16),
                       SwitchListTile(
                         title: Text("Mark as Primary Contact",
-                            style: AppTypography.bodyMedium.copyWith(color: Colors.white)),
+                            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary)),
                         subtitle: Text("Prioritized for SOS alerts",
                             style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
                         value: isPrimaryVal,
@@ -240,7 +240,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
             borderRadius: BorderRadius.circular(12),
             side: const BorderSide(color: AppColors.borderSubtle)),
         title: Text("DELETE CONTACT",
-            style: AppTypography.headlineMedium.copyWith(color: Colors.white)),
+            style: AppTypography.headlineMedium.copyWith(color: AppColors.textPrimary)),
         content: Text(
             "Are you sure you want to delete ${contact.name} from your emergency contacts?",
             style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)),
@@ -309,12 +309,12 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
             title: Text("EMERGENCY RESPONDERS",
                 style: AppTypography.headlineLarge.copyWith(letterSpacing: 0.5)),
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+              icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
               onPressed: () => Navigator.pop(context),
             ),
             actions: [
               IconButton(
-                icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                icon: const Icon(Icons.refresh_rounded, color: AppColors.textPrimary),
                 tooltip: "Force Refresh",
                 onPressed: () {
                   print('[EmergencyScreen] Manual refresh triggered.');
@@ -789,7 +789,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                     const SizedBox(height: 8),
                     Text(name,
                         style: AppTypography.headlineMedium.copyWith(
-                            fontSize: 18, color: Colors.white)),
+                            fontSize: 18, color: AppColors.textPrimary)),
                   ],
                 ),
               ),
@@ -826,9 +826,9 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
               const SizedBox(width: 8),
               ElevatedButton.icon(
                 onPressed: () => _launchMap(lat, lng),
-                icon: const Icon(Icons.map_rounded, size: 12, color: Colors.white),
+                icon: const Icon(Icons.map_rounded, size: 12, color: AppColors.textPrimary),
                 label: Text("MAP",
-                    style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 9)),
+                    style: AppTypography.labelCaps.copyWith(color: AppColors.textPrimary, fontSize: 9)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.surfaceAlt,
                   elevation: 0,
