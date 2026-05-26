@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
@@ -861,6 +862,59 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
             ),
           ),
           const SizedBox(height: 16),
+
+          // AI EMERGENCY ASSISTANT card
+          Container(
+            width: double.infinity,
+            height: 80,
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: const BoxDecoration(
+              color: AppColors.surface,
+              border: Border(
+                left: BorderSide(color: AppColors.infoBlue, width: 5),
+                top: BorderSide(color: AppColors.borderSubtle, width: 0.5),
+                right: BorderSide(color: AppColors.borderSubtle, width: 0.5),
+                bottom: BorderSide(color: AppColors.borderSubtle, width: 0.5),
+              ),
+            ),
+            child: InkWell(
+              onTap: () => context.go('/first-aid/ai-chat'),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            "AI EMERGENCY ASSISTANT",
+                            style: AppTypography.labelCaps.copyWith(color: AppColors.infoBlue),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "Talk to Gemini AI — real answers for your emergency",
+                            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      color: AppColors.infoBlue,
+                      child: Text(
+                        "OPEN CHAT",
+                        style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 9),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
 
           // expandable safety tiles
           _buildGuideTile(
