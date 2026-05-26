@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
+import '../../../core/theme/tokens.dart';
 import '../bloc/home_event.dart';
+import '../../../shared/widgets/app_card.dart';
 
 /// Custom 48px status bar with pulsing green dot, GPS coordinates, and
 /// connectivity indicator.
@@ -57,62 +59,59 @@ class _HomeStatusBarState extends State<HomeStatusBar>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(
-          bottom: BorderSide(color: AppColors.borderSubtle, width: 1),
-        ),
-      ),
-      child: Row(
-        children: [
-          // Pulsing green dot + PROTECTED
-          AnimatedBuilder(
-            animation: _dotScale,
-            builder: (context, _) {
-              return Transform.scale(
-                scale: widget.isProtected ? _dotScale.value : 1.0,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: widget.isProtected
-                        ? AppColors.statusActive
-                        : AppColors.textMuted,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppTokens.s4, AppTokens.s3, AppTokens.s4, 0),
+      child: AppCard(
+        glass: true,
+        padding: const EdgeInsets.symmetric(horizontal: AppTokens.s4, vertical: AppTokens.s3),
+        child: Row(
+          children: [
+            // Pulsing dot + status
+            AnimatedBuilder(
+              animation: _dotScale,
+              builder: (context, _) {
+                return Transform.scale(
+                  scale: widget.isProtected ? _dotScale.value : 1.0,
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: widget.isProtected ? AppColors.statusActive : AppColors.textMuted,
+                      boxShadow: widget.isProtected ? AppTokens.shadowSm : const [],
+                    ),
                   ),
+                );
+              },
+            ),
+            const SizedBox(width: 10),
+            Text(
+              widget.isProtected ? 'PROTECTED' : 'UNPROTECTED',
+              style: AppTypography.labelCaps.copyWith(
+                fontSize: 10,
+                color: widget.isProtected ? AppColors.statusActive : AppColors.textMuted,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                borderRadius: AppTokens.r12,
+                color: AppColors.surfaceAlt,
+                border: Border.all(color: AppColors.borderSubtle),
+              ),
+              child: Text(
+                widget.coordinates,
+                style: AppTypography.monoMedium.copyWith(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
                 ),
-              );
-            },
-          ),
-          const SizedBox(width: 8),
-          Text(
-            widget.isProtected ? 'PROTECTED' : 'UNPROTECTED',
-            style: AppTypography.labelCaps.copyWith(
-              color: widget.isProtected
-                  ? AppColors.statusActive
-                  : AppColors.textMuted,
+              ),
             ),
-          ),
-          const Spacer(),
-          // Coordinates
-          Text(
-            widget.coordinates,
-            style: AppTypography.monoMedium.copyWith(
-              fontSize: 11,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const Spacer(),
-          // Connectivity icon
-          Icon(
-            _connectivityIcon,
-            size: 16,
-            color: _connectivityColor,
-          ),
-        ],
+            const SizedBox(width: 10),
+            Icon(_connectivityIcon, size: 16, color: _connectivityColor),
+          ],
+        ),
       ),
     );
   }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
+import '../../../core/theme/tokens.dart';
+import '../../../shared/widgets/app_card.dart';
 
 /// Horizontal row of 4 quick-service cards for the home screen.
 class QuickServicesRow extends StatelessWidget {
@@ -24,7 +26,8 @@ class QuickServicesRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 90,
+      // Slightly taller to avoid rare 1px RenderFlex overflow on web/small viewports.
+      height: 98,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -83,43 +86,45 @@ class _QuickCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 100,
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: AppColors.borderSubtle, width: 1),
-        ),
+    return SizedBox(
+      width: 118,
+      child: AppCard(
+        glass: true,
+        padding: const EdgeInsets.all(AppTokens.s3),
+        onTap: onTap,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 32,
-              height: 32,
+              width: 34,
+              height: 34,
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: AppTokens.r12,
+                color: color.withValues(alpha: 0.16),
+                border: Border.all(color: color.withValues(alpha: 0.22)),
               ),
               child: Icon(icon, color: color, size: 18),
             ),
             const Spacer(),
             Text(
               label,
-              style: AppTypography.bodySmall.copyWith(
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+              style: AppTypography.bodyMedium.copyWith(
+                fontWeight: FontWeight.w700,
+                height: 1.1,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 4),
             Text(
               count,
               style: AppTypography.bodySmall.copyWith(
-                fontSize: 10,
+                fontSize: 11,
                 color: AppColors.textMuted,
+                height: 1.1,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

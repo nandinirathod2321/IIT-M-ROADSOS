@@ -4,7 +4,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
+import '../../../core/theme/tokens.dart';
 import '../../../data/models/hospital.dart';
+import '../../../shared/widgets/app_card.dart';
 
 /// Full-width card highlighting the nearest trauma centre with
 /// capability pills and tap-to-call.
@@ -26,119 +28,150 @@ class NearestHospitalCard extends StatelessWidget {
     final h = hospital!;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: GestureDetector(
+      padding: const EdgeInsets.symmetric(horizontal: AppTokens.s4),
+      child: AppCard(
+        glass: true,
+        padding: EdgeInsets.zero,
         onTap: () => _makeCall(h.phone),
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: AppColors.borderSubtle, width: 1),
-          ),
-          child: IntrinsicHeight(
-            child: Row(
-              children: [
-                // Left red accent
-                Container(
-                  width: 4,
-                  decoration: const BoxDecoration(
-                    color: AppColors.emergencyRed,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(4),
-                      bottomLeft: Radius.circular(4),
-                    ),
-                  ),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: AppTokens.r16,
+                  gradient: AppColors.emergencyGlow,
                 ),
-                // Content
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(AppTokens.s4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      borderRadius: AppTokens.r16,
+                      color: AppColors.emergencyRed.withValues(alpha: 0.16),
+                      border: Border.all(color: AppColors.emergencyRed.withValues(alpha: 0.25)),
+                    ),
+                    child: const Icon(Icons.emergency_rounded, color: AppColors.emergencyRed),
+                  ),
+                  const SizedBox(width: AppTokens.s3),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'NEAREST TRAUMA CENTRE',
-                          style: AppTypography.labelCaps.copyWith(
-                            color: AppColors.emergencyRed,
-                          ),
+                          'NEAREST HOSPITAL',
+                          style: AppTypography.labelCaps.copyWith(color: AppColors.emergencyRed),
                         ),
                         const SizedBox(height: 6),
-                        Text(h.name, style: AppTypography.headlineMedium),
-                        const SizedBox(height: 4),
                         Text(
-                          '${h.distanceKm} km — ~${h.estimatedMinutes.toInt()} min',
-                          style: AppTypography.monoMedium.copyWith(
-                            color: AppColors.safeGreen,
-                          ),
+                          h.name,
+                          style: AppTypography.headlineLarge.copyWith(fontSize: 20),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        if (h.phone.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            h.phone,
-                            style: AppTypography.bodyLarge.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            _metricChip('${h.distanceKm.toStringAsFixed(1)} km'),
+                            const SizedBox(width: 8),
+                            _metricChip('~${h.estimatedMinutes.toInt()} min'),
+                            const Spacer(),
+                            if (h.phone.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                decoration: BoxDecoration(
+                                  borderRadius: AppTokens.r16,
+                                  color: AppColors.emergencyRed,
+                                  boxShadow: AppTokens.glowEmergency,
+                                ),
+                                child: Text(
+                                  'CALL',
+                                  style: AppTypography.labelCaps.copyWith(
+                                    fontSize: 9,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            if (h.hasEmergency) _pill('24H'),
+                            if (h.hasICU) _pill('ICU'),
+                            if (h.hasBloodBank) _pill('Blood'),
+                          ],
+                        ),
                       ],
                     ),
                   ),
-                ),
-                // Capability pills
-                Padding(
-                  padding: const EdgeInsets.only(right: 14),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (h.hasICU) _pill('ICU'),
-                      if (h.hasBloodBank) _pill('Blood Bank'),
-                      if (h.hasEmergency) _pill('24H'),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _metricChip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: AppTokens.r12,
+        color: AppColors.surfaceAlt,
+        border: Border.all(color: AppColors.borderSubtle),
+      ),
+      child: Text(
+        label,
+        style: AppTypography.monoMedium.copyWith(
+          fontSize: 12,
+          color: AppColors.safeGreen,
         ),
       ),
     );
   }
 
   Widget _pill(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Container(
-        height: 20,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+    return Container(
+        height: 24,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: AppColors.infoBlue,
-          borderRadius: BorderRadius.circular(4),
+          color: AppColors.surfaceAlt,
+          borderRadius: AppTokens.r12,
+          border: Border.all(color: AppColors.borderSubtle),
         ),
         child: Center(
           child: Text(
             label,
             style: AppTypography.bodySmall.copyWith(
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
+              color: AppColors.textSecondary,
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildShimmer() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: AppTokens.s4),
       child: Shimmer.fromColors(
-        baseColor: AppColors.surface,
-        highlightColor: AppColors.surfaceAlt,
+        baseColor: AppColors.surfaceAlt,
+        highlightColor: AppColors.surface,
         child: Container(
           height: 120,
           decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(4),
+            color: AppColors.surfaceAlt,
+            borderRadius: AppTokens.r16,
           ),
         ),
       ),

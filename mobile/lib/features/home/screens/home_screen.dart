@@ -21,7 +21,7 @@ import '../widgets/quick_services_row.dart';
 import '../widgets/nearest_hospital_card.dart';
 import '../widgets/protection_status_card.dart';
 
-import '../../../presentation/blocs/nearby/nearby_cubit.dart';
+import '../../../core/responders/responder_cubit.dart';
 
 /// The central Home Screen for RoadSOS, featuring manual SOS controls,
 /// active mesh telemetry dots, and hands-free voice trigger capabilities.
@@ -33,7 +33,7 @@ class HomeScreen extends StatelessWidget {
     return BlocProvider(
       create: (ctx) => HomeBloc(
         locationCubit: ctx.read<LocationCubit>(),
-        responderCubit: ctx.read<NearbyCubit>(),
+        responderCubit: ctx.read<ResponderCubit>(),
       )..add(const HomeStarted()),
       child: const _HomeView(),
     );
@@ -384,7 +384,9 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
                           contactsCount: state.contactsCount,
                           isLoading: state.isRespondersLoading,
                           onTap: (section) async {
-                            await context.push('/emergency?section=$section');
+                            // Quick row: 0=hospitals, 1=police, 2=towing, 3=contacts
+                            final emergencySection = section == 3 ? 4 : section;
+                            await context.push('/emergency?section=$emergencySection');
                           },
                         ),
 

@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-import '../../../core/utils/geocoder.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
@@ -9,19 +7,14 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/services/auth_service.dart';
-import '../../../data/repositories/sos_repository.dart';
-import '../../../presentation/blocs/nearby/nearby_cubit.dart';
-import '../../../presentation/blocs/nearby/nearby_state.dart';
-import '../../../data/models/nearby_place.dart';
 import '../../../data/repositories/emergency_contact_repository.dart';
 import '../../../data/repositories/medical_repository.dart';
-import '../../../data/models/hospital.dart';
-import '../../../data/models/police_station.dart';
+import '../../../data/repositories/sos_repository.dart';
+import '../../../core/responders/responder_cubit.dart';
 import '../../../data/models/emergency_contact.dart';
 import '../../../shared/widgets/countdown_overlay.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../presentation/blocs/location/location_cubit.dart';
-import '../../../presentation/blocs/location/location_state.dart';
 
 /// Full-screen countdown overlay and premium interactive emergency success screen.
 /// Resolves real coordinates, queries spatial SQLite lists, dials emergency numbers,
@@ -43,8 +36,6 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
   bool _isLoadingDetails = false;
 
   String _eventId = '';
-  List<Hospital> _hospitals = [];
-  List<PoliceStation> _policeStations = [];
   List<EmergencyContact> _contacts = [];
 
   double _latitude = 23.0225;
@@ -253,11 +244,11 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
   @override
   Widget build(BuildContext context) {
     final locState = context.watch<LocationCubit>().state;
-    final responderState = context.watch<NearbyCubit>().state;
+    final responderState = context.watch<ResponderCubit>().state;
 
-    final double lat = locState.latitude ?? 23.0225;
-    final double lng = locState.longitude ?? 72.5714;
-    final String address = locState.city != null ? "${locState.city}, India" : 'Locating...';
+    final double lat = locState.latitude ?? _latitude;
+    final double lng = locState.longitude ?? _longitude;
+    final String address = locState.city != null ? "${locState.city}, India" : _address;
 
     final hospitals = responderState.hospitals;
     final policeStations = responderState.police;
@@ -395,31 +386,8 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
     }
 
     // Dynamic extraction details matching user resolved position
-    final nearestHospital = hospitals.isNotEmpty
-        ? hospitals.first
-        : const NearbyPlace(
-            id: 'h-mock',
-            name: 'Apollo Hospitals Ahmedabad',
-            address: 'Plot No. 1A, GIDC Gandhinagar, Ahmedabad',
-            latitude: 23.1028,
-            longitude: 72.6025,
-            phone: '+91 79 6670 1800',
-            distanceKm: 3.2,
-            type: NearbyPlaceType.hospital,
-          );
-
-    final nearestPolice = policeStations.isNotEmpty
-        ? policeStations.first
-        : const NearbyPlace(
-            id: 'p-mock',
-            name: 'Navrangpura Police Station',
-            address: 'Navrangpura, Ahmedabad',
-            latitude: 23.0360,
-            longitude: 72.5615,
-            phone: '+91 79 2644 3803',
-            distanceKm: 1.8,
-            type: NearbyPlaceType.police,
-          );
+    final nearestHospital = hospitals.isNotEmpty ? hospitals.first : null;
+    final nearestPolice = policeStations.isNotEmpty ? policeStations.first : null;
 
     return Scaffold(
       backgroundColor: AppColors.primary,
@@ -503,29 +471,42 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                     const SizedBox(height: 10),
 
                     // Ambulance Card
-                    _buildResponderCard(
-                      title: "AMBULANCE DISPATCHED",
-                      name: nearestHospital.name,
-                      subtitle: "Trauma Level 1 Facility",
-                      eta: "${(nearestHospital.distanceKm * 1.5).toStringAsFixed(1)} MINS",
-                      distance: "${nearestHospital.distanceKm.toStringAsFixed(1)} km away",
-                      icon: Icons.emergency_rounded,
-                      iconBg: AppColors.emergencyRed,
-                      phone: nearestHospital.phone ?? '',
-                    ),
+                    if (nearestHospital != null)
+                      _buildResponderCard(
+                        title: "AMBULANCE DISPATCHED",
+                        name: nearestHospital.name,
+                        subtitle: "Trauma Level 1 Facility",
+                        eta: "${nearestHospital.estimatedMinutes.toStringAsFixed(1)} MINS",
+                        distance: "${nearestHospital.distanceKm.toStringAsFixed(1)} km away",
+                        icon: Icons.emergency_rounded,
+                        iconBg: AppColors.emergencyRed,
+                        phone: nearestHospital.phone,
+                      )
+                    else
+                      _buildSearchingResponderCard(
+                        title: "SEARCHING NEARBY HOSPITALS",
+                        icon: Icons.emergency_rounded,
+                        iconBg: AppColors.emergencyRed,
+                      ),
                     const SizedBox(height: 12),
 
-                    // Police Station Card
-                    _buildResponderCard(
-                      title: "POLICE STATION NOTIFIED",
-                      name: nearestPolice.name,
-                      subtitle: "Emergency Patrol Unit · 24/7",
-                      eta: "${(nearestPolice.distanceKm * 2.2).toStringAsFixed(1)} MINS",
-                      distance: "${nearestPolice.distanceKm.toStringAsFixed(1)} km away",
-                      icon: Icons.local_police_rounded,
-                      iconBg: AppColors.policeBlue,
-                      phone: nearestPolice.phone ?? '',
-                    ),
+                    if (nearestPolice != null)
+                      _buildResponderCard(
+                        title: "POLICE STATION NOTIFIED",
+                        name: nearestPolice.name,
+                        subtitle: "Emergency Patrol Unit · 24/7",
+                        eta: "${(nearestPolice.distanceKm * 2.2).toStringAsFixed(1)} MINS",
+                        distance: "${nearestPolice.distanceKm.toStringAsFixed(1)} km away",
+                        icon: Icons.local_police_rounded,
+                        iconBg: AppColors.policeBlue,
+                        phone: nearestPolice.phone,
+                      )
+                    else
+                      _buildSearchingResponderCard(
+                        title: "SEARCHING NEARBY POLICE",
+                        icon: Icons.local_police_rounded,
+                        iconBg: AppColors.policeBlue,
+                      ),
                     const SizedBox(height: 28),
 
                     // 2. EMERGENCY CONTACTS SECTION
@@ -820,6 +801,53 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
     );
   }
 
+  Widget _buildSearchingResponderCard({
+    required String title,
+    required IconData icon,
+    required Color iconBg,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderSubtle, width: 1.5),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: iconBg.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, color: iconBg, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: AppTypography.labelCaps.copyWith(color: iconBg, fontSize: 9)),
+                const SizedBox(height: 6),
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textMuted),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Loading nearby services from OpenStreetMap...',
+                  style: AppTypography.bodySmall.copyWith(fontSize: 11, color: AppColors.textMuted),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showCallConfirmationDialog(EmergencyContact primary) {
     showDialog(
       context: context,
@@ -988,8 +1016,12 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
       context: context,
       barrierDismissible: true,
       builder: (context) {
-        final nearestHospName = _hospitals.isNotEmpty ? _hospitals.first.name : 'Apollo Hospitals';
-        final nearestHospEta = _hospitals.isNotEmpty ? "${_hospitals.first.estimatedMinutes.toStringAsFixed(1)} Mins" : '6.0 Mins';
+        final responders = context.read<ResponderCubit>().state;
+        final nearestHosp = responders.hospitals.isNotEmpty ? responders.hospitals.first : null;
+        final nearestHospName = nearestHosp?.name ?? 'Searching nearby hospitals...';
+        final nearestHospEta = nearestHosp != null
+            ? "${nearestHosp.estimatedMinutes.toStringAsFixed(1)} Mins"
+            : 'Pending';
         final contactNames = _contacts.isNotEmpty ? _contacts.map((c) => c.name).join(', ') : 'None Saved';
 
         return AlertDialog(

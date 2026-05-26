@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'home_state.dart';
-import '../../../presentation/blocs/nearby/nearby_state.dart';
+import '../../../core/responders/responder_state.dart';
 
 sealed class HomeEvent extends Equatable {
   const HomeEvent();
@@ -47,7 +47,7 @@ class HomeMeshStatusUpdated extends HomeEvent {
 }
 
 class HomeRespondersUpdated extends HomeEvent {
-  final NearbyState responderState;
+  final ResponderState responderState;
   const HomeRespondersUpdated(this.responderState);
   @override
   List<Object?> get props => [responderState];

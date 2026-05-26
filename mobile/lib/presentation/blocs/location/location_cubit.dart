@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/errors/app_exceptions.dart';
 import '../../../core/services/cache_service.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/geocoder.dart';
@@ -74,7 +75,9 @@ class LocationCubit extends Cubit<LocationState> {
     emit(state.copyWith(status: LocationStatus.loading));
 
     try {
-      final pos = await _locationService.getCurrentLocation();
+      final pos = await _locationService
+          .getCurrentLocation()
+          .timeout(const Duration(seconds: 12));
       await updateLocation(pos.latitude, pos.longitude);
       _startLocationStream();
     } catch (e) {
@@ -83,8 +86,8 @@ class LocationCubit extends Cubit<LocationState> {
         emit(state.copyWith(status: LocationStatus.success));
       } else {
         emit(state.copyWith(
-          status: LocationStatus.failure,
-          errorMessage: e.toString(),
+          status: _statusFromError(e),
+          errorMessage: _messageFromError(e),
         ));
       }
     }
@@ -104,13 +107,15 @@ class LocationCubit extends Cubit<LocationState> {
   Future<void> forceRefreshLocation() async {
     emit(state.copyWith(status: LocationStatus.loading));
     try {
-      final pos = await _locationService.getCurrentLocation();
+      final pos = await _locationService
+          .getCurrentLocation()
+          .timeout(const Duration(seconds: 12));
       await updateLocation(pos.latitude, pos.longitude);
     } catch (e) {
       AppLogger.error('LocationCubit: Force refresh failed', e);
       emit(state.copyWith(
-        status: state.hasLocation ? LocationStatus.success : LocationStatus.failure,
-        errorMessage: 'Failed to acquire location: $e',
+        status: state.hasLocation ? LocationStatus.success : _statusFromError(e),
+        errorMessage: _messageFromError(e),
       ));
     }
   }
@@ -165,5 +170,30 @@ class LocationCubit extends Cubit<LocationState> {
   Future<void> close() {
     _positionSub?.cancel();
     return super.close();
+  }
+
+  LocationStatus _statusFromError(Object e) {
+    final msg = e.toString().toLowerCase();
+    if (msg.contains('permanently denied') || msg.contains('denied forever')) {
+      return LocationStatus.deniedForever;
+    }
+    if (msg.contains('denied') || msg.contains('permission')) {
+      return LocationStatus.denied;
+    }
+    if (msg.contains('timeout') || msg.contains('time limit')) {
+      return LocationStatus.failure;
+    }
+    if (msg.contains('disabled')) {
+      return LocationStatus.failure;
+    }
+    return LocationStatus.failure;
+  }
+
+  String _messageFromError(Object e) {
+    if (e is LocationException) return e.message;
+    if (e is TimeoutException) {
+      return 'GPS lock timed out. Using last known location if available.';
+    }
+    return 'Failed to acquire location: $e';
   }
 }

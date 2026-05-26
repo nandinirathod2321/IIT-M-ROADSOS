@@ -3,84 +3,74 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'colors.dart';
 
-/// RoadSOS typographic scale — Government / USWDS style.
+/// RoadSOS premium typographic scale.
 ///
-/// • Display / headings  → Barlow Condensed (authoritative, condensed)
-/// • Body / labels       → Noto Sans (humanist, gov.nl — readable under stress)
-/// • Mono (data / coords) → Roboto Mono
-///
-/// Design rules:
-///   • Minimum 16 sp body text (112.nl emergency app standard).
-///   • Generous line height (1.8) — readable in panic.
-///   • ALL-CAPS section headers use [labelCaps].
-///   • Zero decorative text effects — weight and size carry hierarchy.
+/// - Headings: Space Grotesk (modern, premium, high clarity)
+/// - Body: Inter (high readability, neutral, system-like)
+/// - Mono: Roboto Mono (coords, IDs)
 abstract final class AppTypography {
   // ── Display ──────────────────────────────────────────────────────────
 
-  /// 48 sp · Bold · Barlow Condensed · –0.5 letter-spacing
-  static TextStyle displayLarge = GoogleFonts.barlowCondensed(
-    fontSize: 48,
+  static TextStyle displayLarge = GoogleFonts.spaceGrotesk(
+    fontSize: 44,
     fontWeight: FontWeight.w700,
-    letterSpacing: -0.5,
+    letterSpacing: -0.6,
+    height: 1.05,
     color: AppColors.textPrimary,
   );
 
-  /// 36 sp · Bold · Barlow Condensed
-  static TextStyle displayMedium = GoogleFonts.barlowCondensed(
-    fontSize: 36,
+  static TextStyle displayMedium = GoogleFonts.spaceGrotesk(
+    fontSize: 34,
     fontWeight: FontWeight.w700,
+    letterSpacing: -0.4,
+    height: 1.10,
     color: AppColors.textPrimary,
   );
 
   // ── Headlines ────────────────────────────────────────────────────────
 
-  /// 28 sp · SemiBold · Barlow Condensed
-  static TextStyle headlineLarge = GoogleFonts.barlowCondensed(
-    fontSize: 28,
-    fontWeight: FontWeight.w600,
+  static TextStyle headlineLarge = GoogleFonts.spaceGrotesk(
+    fontSize: 24,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.2,
+    height: 1.15,
     color: AppColors.textPrimary,
   );
 
-  /// 20 sp · SemiBold · Noto Sans
-  static TextStyle headlineMedium = GoogleFonts.notoSans(
-    fontSize: 20,
-    fontWeight: FontWeight.w600,
+  static TextStyle headlineMedium = GoogleFonts.spaceGrotesk(
+    fontSize: 18,
+    fontWeight: FontWeight.w700,
+    height: 1.2,
     color: AppColors.textPrimary,
   );
 
   // ── Labels ───────────────────────────────────────────────────────────
 
-  /// 11 sp · Bold · Noto Sans · +2.0 letter-spacing · ALL CAPS
-  ///
-  /// Use [Text.toUpperCase()] when applying this style — the style itself
-  /// does not transform casing.
-  static TextStyle labelCaps = GoogleFonts.notoSans(
+  static TextStyle labelCaps = GoogleFonts.inter(
     fontSize: 11,
     fontWeight: FontWeight.w700,
-    letterSpacing: 2.0,
-    color: AppColors.textSecondary,
+    letterSpacing: 1.8,
+    height: 1.1,
+    color: AppColors.textMuted,
   );
 
   // ── Body ─────────────────────────────────────────────────────────────
 
-  /// 16 sp · Regular · Noto Sans · 1.8 line-height
-  static TextStyle bodyLarge = GoogleFonts.notoSans(
+  static TextStyle bodyLarge = GoogleFonts.inter(
     fontSize: 16,
     fontWeight: FontWeight.w400,
-    height: 1.8,
+    height: 1.55,
     color: AppColors.textPrimary,
   );
 
-  /// 14 sp · Regular · Noto Sans · 1.8 line-height
-  static TextStyle bodyMedium = GoogleFonts.notoSans(
+  static TextStyle bodyMedium = GoogleFonts.inter(
     fontSize: 14,
     fontWeight: FontWeight.w400,
-    height: 1.8,
+    height: 1.55,
     color: AppColors.textPrimary,
   );
 
-  /// 12 sp · Regular · Noto Sans · 1.6 line-height
-  static TextStyle bodySmall = GoogleFonts.notoSans(
+  static TextStyle bodySmall = GoogleFonts.inter(
     fontSize: 12,
     fontWeight: FontWeight.w400,
     height: 1.6,
@@ -89,7 +79,6 @@ abstract final class AppTypography {
 
   // ── Monospace ────────────────────────────────────────────────────────
 
-  /// 14 sp · Medium · Roboto Mono — coordinates, distances, event IDs.
   static TextStyle monoMedium = GoogleFonts.robotoMono(
     fontSize: 14,
     fontWeight: FontWeight.w500,

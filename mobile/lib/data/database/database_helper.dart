@@ -91,7 +91,6 @@ class DatabaseHelper {
       version: 1,
       onCreate: (db, version) async {
         await _onCreate(db, version);
-        await seedDemoData(db);
         await seedDefaultSettings(db);
         await seedDefaultUser(db);
       },
@@ -101,7 +100,7 @@ class DatabaseHelper {
   /// Public entry point — ensures the database and all tables exist.
   Future<void> initialize() async {
     if (kIsWeb) {
-      await _initWebMockData();
+      await _ensureWebCacheLoaded();
       return;
     }
     final db = await database;
@@ -531,7 +530,7 @@ class DatabaseHelper {
   Future<List<Hospital>> getNearbyHospitals(double lat, double lng, {double radiusKm = 50}) async {
     debugPrint("[AntiGravity] Fetching hospitals at ($lat, $lng) with radius: $radiusKm");
     if (kIsWeb) {
-      await _initWebMockData(centerLat: lat, centerLng: lng);
+      await _ensureWebCacheLoaded();
       final results = <Hospital>[];
       for (final hospital in _webHospitals) {
         final dist = haversineDistance(lat, lng, hospital.lat, hospital.lng);
@@ -599,7 +598,7 @@ class DatabaseHelper {
   Future<List<PoliceStation>> getNearbyPolice(double lat, double lng, {double radiusKm = 20}) async {
     debugPrint("[AntiGravity] Fetching police stations at ($lat, $lng) with radius: $radiusKm");
     if (kIsWeb) {
-      await _initWebMockData(centerLat: lat, centerLng: lng);
+      await _ensureWebCacheLoaded();
       final results = <PoliceStation>[];
       for (final station in _webPolice) {
         final dist = haversineDistance(lat, lng, station.lat, station.lng);
@@ -664,7 +663,7 @@ class DatabaseHelper {
   Future<List<TowingService>> getNearbyTowing(double lat, double lng, {double radiusKm = 30}) async {
     debugPrint("[AntiGravity] Fetching towing services at ($lat, $lng) with radius: $radiusKm");
     if (kIsWeb) {
-      await _initWebMockData(centerLat: lat, centerLng: lng);
+      await _ensureWebCacheLoaded();
       final results = <TowingService>[];
       for (final towing in _webTowing) {
         final dist = haversineDistance(lat, lng, towing.lat, towing.lng);
@@ -729,7 +728,7 @@ class DatabaseHelper {
   Future<List<EmergencyShelter>> getNearbyShelters(double lat, double lng, {int limitKm = 40}) async {
     debugPrint("[AntiGravity] Fetching shelters at ($lat, $lng) with radius: $limitKm");
     if (kIsWeb) {
-      await _initWebMockData(centerLat: lat, centerLng: lng);
+      await _ensureWebCacheLoaded();
       final results = <EmergencyShelter>[];
       for (final shelter in _webShelters) {
         final dist = DistanceUtils.haversine(lat, lng, shelter.lat, shelter.lng);
@@ -900,7 +899,7 @@ class DatabaseHelper {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString('web_user_v2');
       if (raw == null) {
-        await _initWebMockData();
+        await _ensureWebCacheLoaded();
       } else {
         _webUser = User.fromJson(raw);
       }
@@ -1370,41 +1369,42 @@ class DatabaseHelper {
     await prefs.setInt('last_fetch_time', now);
   }
 
-  Future<void> _initWebMockData({double? centerLat, double? centerLng}) async {
-    final double baseLat = centerLat ?? 23.0225;
-    final double baseLng = centerLng ?? 72.5714;
-
-    bool shouldReinit = _webHospitals.isEmpty;
-    if (!shouldReinit) {
-      final double dist = haversineDistance(baseLat, baseLng, _webHospitals.first.lat, _webHospitals.first.lng);
-      if (dist > 50.0) {
-        shouldReinit = true;
-      }
+  Future<void> _ensureWebCacheLoaded() async {
+    if (_webHospitals.isNotEmpty ||
+        _webPolice.isNotEmpty ||
+        _webTowing.isNotEmpty ||
+        _webShelters.isNotEmpty) {
+      return;
     }
 
-    if (!shouldReinit) return;
-
-    final prefs = await SharedPreferences.getInstance();
-
-    debugPrint("[AntiGravity] Initializing dynamic web mock data centered around ($baseLat, $baseLng)...");
-
-    _webHospitals.clear();
-    _webHospitals.addAll(_getHospitalsSeedData(baseLat, baseLng).map((h) => Hospital.fromMap(h)).toList());
-    _webPolice.clear();
-    _webPolice.addAll(_getPoliceSeedData(baseLat, baseLng).map((p) => PoliceStation.fromMap(p)).toList());
-    _webTowing.clear();
-    _webTowing.addAll(_getTowingSeedData(baseLat, baseLng).map((t) => TowingService.fromMap(t)).toList());
-    _webShelters.clear();
-    _webShelters.addAll(_getSheltersSeedData(baseLat, baseLng).map((s) => EmergencyShelter.fromMap(s)).toList());
-
     try {
-      await prefs.setString('cached_hospitals', json.encode(_webHospitals.map((h) => h.toMap()).toList()));
-      await prefs.setString('cached_police', json.encode(_webPolice.map((p) => p.toMap()).toList()));
-      await prefs.setString('cached_towing', json.encode(_webTowing.map((t) => t.toMap()).toList()));
-      await prefs.setString('cached_shelters', json.encode(_webShelters.map((s) => s.toMap()).toList()));
-      debugPrint("[AntiGravity] Web mock data stored successfully in SharedPreferences.");
+      final prefs = await SharedPreferences.getInstance();
+      final hJson = prefs.getString('cached_hospitals');
+      final pJson = prefs.getString('cached_police');
+      final tJson = prefs.getString('cached_towing');
+      final sJson = prefs.getString('cached_shelters');
+
+      if (hJson != null) {
+        final list = (json.decode(hJson) as List).cast<Map<String, dynamic>>();
+        _webHospitals.addAll(list.map(Hospital.fromMap));
+      }
+      if (pJson != null) {
+        final list = (json.decode(pJson) as List).cast<Map<String, dynamic>>();
+        _webPolice.addAll(list.map(PoliceStation.fromMap));
+      }
+      if (tJson != null) {
+        final list = (json.decode(tJson) as List).cast<Map<String, dynamic>>();
+        _webTowing.addAll(list.map(TowingService.fromMap));
+      }
+      if (sJson != null) {
+        final list = (json.decode(sJson) as List).cast<Map<String, dynamic>>();
+        _webShelters.addAll(list.map(EmergencyShelter.fromMap));
+      }
+
+      debugPrint('[DatabaseHelper] Loaded web cache: ${_webHospitals.length} hospitals, '
+          '${_webPolice.length} police, ${_webTowing.length} towing');
     } catch (e) {
-      debugPrint("[AntiGravity] Error caching mock data to SharedPreferences: $e");
+      debugPrint('[DatabaseHelper] Failed to load web cache from SharedPreferences: $e');
     }
   }
 

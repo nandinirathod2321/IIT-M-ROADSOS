@@ -2,15 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/colors.dart';
 import '../../core/theme/typography.dart';
+import '../../core/theme/tokens.dart';
 
 /// Shell scaffold wrapping the bottom navigation bar around child routes.
-///
-/// Design spec:
-///   • Icons only, no labels, tooltips on long-press
-///   • Active indicator: emergencyRed horizontal line ABOVE the icon
-///   • Outlined icons normally, filled when active
-///   • Height: 64px
-///   • No ripple — instant color change
 class NavigationShell extends StatelessWidget {
   final Widget child;
   final String matchedLocation;
@@ -62,57 +56,71 @@ class NavigationShell extends StatelessWidget {
 
     return Scaffold(
       body: child,
-      bottomNavigationBar: Container(
-        height: 64,
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          border: Border(
-            top: BorderSide(color: AppColors.borderSubtle, width: 1),
-          ),
-        ),
-        child: Row(
-          children: List.generate(_tabs.length, (i) {
-            final isActive = currentIndex == i;
-            final tab = _tabs[i];
-            return Expanded(
-              child: Tooltip(
-                message: tab.tooltip,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    if (currentIndex != i) {
-                      context.go(tab.path);
-                    }
-                  },
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    children: [
-                      // Active indicator line ABOVE icon
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        height: 3,
-                        width: isActive ? 24 : 0,
-                        margin: const EdgeInsets.only(top: 0),
-                        decoration: BoxDecoration(
-                          color: AppColors.emergencyRed,
-                          borderRadius: BorderRadius.circular(2),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(AppTokens.s4, 0, AppTokens.s4, AppTokens.s3),
+          child: Container(
+            height: 72,
+            decoration: BoxDecoration(
+              borderRadius: AppTokens.r20,
+              border: Border.all(color: AppColors.borderSubtle),
+              color: AppColors.surfaceOverlay,
+              boxShadow: AppTokens.shadowMd,
+              gradient: AppColors.surfaceSheen,
+            ),
+            child: ClipRRect(
+              borderRadius: AppTokens.r20,
+              child: Row(
+                children: List.generate(_tabs.length, (i) {
+                  final isActive = currentIndex == i;
+                  final tab = _tabs[i];
+                  return Expanded(
+                    child: Tooltip(
+                      message: tab.tooltip,
+                      child: InkWell(
+                        onTap: () {
+                          if (currentIndex != i) context.go(tab.path);
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOut,
+                          margin: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            borderRadius: AppTokens.r16,
+                            color: isActive ? const Color(0x1AFF3B4C) : Colors.transparent,
+                            border: Border.all(
+                              color: isActive ? const Color(0x33FF3B4C) : Colors.transparent,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                isActive ? tab.activeIcon : tab.icon,
+                                size: 24,
+                                color: isActive ? AppColors.emergencyRed : AppColors.textMuted,
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                tab.tooltip.toUpperCase(),
+                                style: AppTypography.labelCaps.copyWith(
+                                  fontSize: 9,
+                                  color: isActive ? AppColors.textPrimary : AppColors.textMuted,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const Spacer(),
-                      Icon(
-                        isActive ? tab.activeIcon : tab.icon,
-                        size: 24,
-                        color: isActive
-                            ? AppColors.textPrimary
-                            : AppColors.textMuted,
-                      ),
-                      const Spacer(),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                }),
               ),
-            );
-          }),
+            ),
+          ),
         ),
       ),
     );

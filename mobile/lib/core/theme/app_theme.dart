@@ -2,27 +2,19 @@ import 'package:flutter/material.dart';
 
 import 'colors.dart';
 import 'typography.dart';
+import 'tokens.dart';
 
-/// Builds the single, light-mode [ThemeData] for RoadSOS.
-///
-/// Design rules (gov.nl / USWDS):
-///   • Light background (#FFFFFF), near-black text (#111111).
-///   • Emergency Red (#CC0000) is the ONLY accent color.
-///   • Buttons are rectangular — zero border radius (government style).
-///   • ElevatedButton minimum height is 52 px (60px tap target goal).
-///   • No elevation shadows — elements use 1 px [AppColors.borderSubtle] borders.
-///   • AppBar is white with no elevation.
-///   • Bottom nav uses [AppColors.surface] with [AppColors.emergencyRed] indicator.
+/// Builds the premium dark [ThemeData] for RoadSOS.
 abstract final class AppTheme {
   static ThemeData get light {
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.light,
+      brightness: Brightness.dark,
 
       // ── Colour scheme ────────────────────────────────────────────────
-      colorScheme: const ColorScheme.light(
+      colorScheme: const ColorScheme.dark(
         primary: AppColors.emergencyRed,
-        secondary: AppColors.trustNavy,
+        secondary: AppColors.infoBlue,
         surface: AppColors.surface,
         error: AppColors.emergencyRed,
         onPrimary: Colors.white,
@@ -50,8 +42,8 @@ abstract final class AppTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.zero,
-          side: const BorderSide(color: AppColors.borderSubtle, width: 1),
+          borderRadius: AppTokens.r16,
+          side: AppTokens.border,
         ),
       ),
 
@@ -67,7 +59,7 @@ abstract final class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: AppColors.surface,
         elevation: 0,
-        indicatorColor: AppColors.emergencyRed.withOpacity(0.10),
+        indicatorColor: const Color(0x1AFF3B4C),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return AppTypography.bodySmall
@@ -84,16 +76,14 @@ abstract final class AppTheme {
         }),
       ),
 
-      // ── Elevated Button (sharp, government style) ────────────────────
+      // ── Elevated Button ──────────────────────────────────────────────
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.emergencyRed,
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(52),
           elevation: 0,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.zero,
-          ),
+          shape: const RoundedRectangleBorder(borderRadius: AppTokens.r16),
           textStyle: AppTypography.bodyLarge.copyWith(
             fontWeight: FontWeight.w600,
           ),
@@ -105,10 +95,8 @@ abstract final class AppTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.textPrimary,
           minimumSize: const Size.fromHeight(52),
-          side: const BorderSide(color: AppColors.borderSubtle),
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.zero,
-          ),
+          side: AppTokens.border,
+          shape: const RoundedRectangleBorder(borderRadius: AppTokens.r16),
           textStyle: AppTypography.bodyLarge.copyWith(
             fontWeight: FontWeight.w600,
           ),
@@ -119,9 +107,7 @@ abstract final class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.emergencyRed,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.zero,
-          ),
+          shape: const RoundedRectangleBorder(borderRadius: AppTokens.r16),
           textStyle: AppTypography.bodyMedium.copyWith(
             fontWeight: FontWeight.w600,
           ),
@@ -133,23 +119,23 @@ abstract final class AppTheme {
         filled: true,
         fillColor: AppColors.bgSurfaceAlt,
         border: const OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
-          borderSide: BorderSide(color: AppColors.borderSubtle),
+          borderRadius: AppTokens.r16,
+          borderSide: AppTokens.border,
         ),
         enabledBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
-          borderSide: BorderSide(color: AppColors.borderSubtle),
+          borderRadius: AppTokens.r16,
+          borderSide: AppTokens.border,
         ),
         focusedBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
+          borderRadius: AppTokens.r16,
           borderSide: BorderSide(color: AppColors.emergencyRed, width: 2),
         ),
         errorBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
+          borderRadius: AppTokens.r16,
           borderSide: BorderSide(color: AppColors.emergencyRed, width: 2),
         ),
         focusedErrorBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
+          borderRadius: AppTokens.r16,
           borderSide: BorderSide(color: AppColors.emergencyRed, width: 2),
         ),
         floatingLabelBehavior: FloatingLabelBehavior.never,
@@ -186,8 +172,8 @@ abstract final class AppTheme {
         backgroundColor: AppColors.bgPrimary,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.zero,
-          side: const BorderSide(color: AppColors.borderSubtle, width: 1),
+          borderRadius: AppTokens.r20,
+          side: AppTokens.border,
         ),
       ),
     );

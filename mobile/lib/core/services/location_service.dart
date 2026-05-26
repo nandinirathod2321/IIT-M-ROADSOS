@@ -40,7 +40,7 @@ class LocationService {
           'Location permissions are permanently denied. Please enable them in device settings.');
     }
 
-    final timeoutSecs = kIsWeb ? 8 : 5;
+    final timeoutSecs = kIsWeb ? 12 : 8;
     AppLogger.info('Location services approved. Fetching coordinates (timeout: $timeoutSecs s)...');
 
     try {
