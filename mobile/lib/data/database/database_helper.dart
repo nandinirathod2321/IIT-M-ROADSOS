@@ -840,17 +840,54 @@ class DatabaseHelper {
     Map<String, dynamic>? telemetry,
     String status = 'dispatched',
   }) async {
+    // 1. Resolve actual nearby hospital
+    String hospitalName = 'Apollo Hospitals';
+    try {
+      final hospitals = await getNearbyHospitals(latitude, longitude);
+      if (hospitals.isNotEmpty) {
+        hospitalName = hospitals.first.name;
+      }
+    } catch (_) {}
+
+    // 2. Resolve actual nearby police station
+    String policeName = 'Navrangpura Police';
+    try {
+      final police = await getNearbyPolice(latitude, longitude);
+      if (police.isNotEmpty) {
+        policeName = police.first.name;
+      }
+    } catch (_) {}
+
+    // 3. Resolve emergency contacts notified
+    List<String> contactsList = ['All Contacts'];
+    try {
+      final contacts = await getEmergencyContacts();
+      if (contacts.isNotEmpty) {
+        contactsList = contacts.map((c) => "${c.name} (${c.relationship})").toList();
+      }
+    } catch (_) {}
+
+    // 4. Resolve address
+    String resolvedAddress = 'Ahmedabad, India';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? cachedCity = prefs.getString('cached_city');
+      if (cachedCity != null && cachedCity.isNotEmpty) {
+        resolvedAddress = "$cachedCity, India";
+      }
+    } catch (_) {}
+
     final event = SosEvent(
       id: id,
       latitude: latitude,
       longitude: longitude,
-      address: 'Simulated Location',
+      address: resolvedAddress,
       emergencyType: triggerType,
       timestamp: DateTime.now(),
       status: status,
-      contactsNotified: const ['All Contacts'],
-      nearestHospital: 'Apollo Hospitals',
-      nearestPoliceStation: 'Vastrapur Police',
+      contactsNotified: contactsList,
+      nearestHospital: hospitalName,
+      nearestPoliceStation: policeName,
     );
 
     if (kIsWeb) {

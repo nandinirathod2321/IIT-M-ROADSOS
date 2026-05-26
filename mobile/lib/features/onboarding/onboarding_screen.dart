@@ -174,7 +174,10 @@ class _OnboardingPageContainer extends StatelessWidget {
           ),
           Expanded(
             flex: 4,
-            child: content,
+            child: SingleChildScrollView(
+              physics: const NeverScrollableScrollPhysics(),
+              child: content,
+            ),
           ),
         ],
       ),

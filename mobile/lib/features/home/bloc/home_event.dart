@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'home_state.dart';
+import '../../../core/responders/responder_state.dart';
 
 sealed class HomeEvent extends Equatable {
   const HomeEvent();
@@ -43,6 +44,13 @@ class HomeMeshStatusUpdated extends HomeEvent {
   );
   @override
   List<Object?> get props => [status, nearbyDevicesCount, signalQuality, syncStatus];
+}
+
+class HomeRespondersUpdated extends HomeEvent {
+  final ResponderState responderState;
+  const HomeRespondersUpdated(this.responderState);
+  @override
+  List<Object?> get props => [responderState];
 }
 
 enum ConnectivityType { wifi, mobile, offline }

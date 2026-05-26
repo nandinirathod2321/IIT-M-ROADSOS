@@ -9,6 +9,8 @@ class GeminiService {
   static const String _modelName = 'gemini-1.5-flash';
   static const String _endpointUrl =
       'https://generativelanguage.googleapis.com/v1beta/models/$_modelName:generateContent';
+  static const String _streamEndpointUrl =
+      'https://generativelanguage.googleapis.com/v1beta/models/$_modelName:streamGenerateContent';
 
   static const String _systemInstruction =
       'You are RoadSOS, a professional, extremely calm, and highly experienced emergency medical first-aid assistant. '
@@ -100,5 +102,99 @@ class GeminiService {
     }
 
     return result.trim();
+  }
+
+  /// Sends a chat message to Gemini for real-time text token streaming.
+  /// Yields parts of the generated response in chunks.
+  Stream<String> streamEmergencyResponse({
+    required String userMessage,
+    required List<Map<String, String>> chatHistory,
+  }) async* {
+    // 1. Check internet connectivity
+    final connectivity = await Connectivity().checkConnectivity();
+    if (connectivity.contains(ConnectivityResult.none)) {
+      throw Exception('No active internet connection.');
+    }
+
+    // 2. Fetch the Gemini API Key
+    final apiKey = await AiConfig.getGeminiApiKey();
+    if (apiKey.isEmpty) {
+      throw Exception('Gemini API Key is not configured.');
+    }
+
+    final url = Uri.parse('$_streamEndpointUrl?key=$apiKey');
+
+    // 3. Format contents with multi-turn history
+    final List<Map<String, dynamic>> contents = [];
+    for (final turn in chatHistory) {
+      final role = turn['role'] ?? 'user';
+      final text = turn['text'] ?? '';
+      if (text.isNotEmpty) {
+        contents.add({
+          'role': role == 'model' ? 'model' : 'user',
+          'parts': [
+            {'text': text}
+          ]
+        });
+      }
+    }
+
+    // Append current message
+    contents.add({
+      'role': 'user',
+      'parts': [
+        {'text': userMessage}
+      ]
+    });
+
+    final Map<String, dynamic> requestBody = {
+      'contents': contents,
+      'systemInstruction': {
+        'parts': [
+          {'text': _systemInstruction}
+        ]
+      },
+      'generationConfig': {
+        'temperature': 0.25,
+        'maxOutputTokens': 650,
+      }
+    };
+
+    // 4. Send REST streaming request
+    final client = http.Client();
+    final request = http.Request('POST', url);
+    request.headers['Content-Type'] = 'application/json';
+    request.body = json.encode(requestBody);
+
+    final response = await client.send(request).timeout(const Duration(seconds: 8));
+
+    if (response.statusCode != 200) {
+      throw Exception('Gemini API Streaming failed (Status: ${response.statusCode})');
+    }
+
+    // 5. Yield parsed chunks reactively
+    final stream = response.stream.transform(utf8.decoder).transform(const LineSplitter());
+    await for (final line in stream) {
+      final cleanLine = line.trim();
+      if (cleanLine.isEmpty || cleanLine == '[' || cleanLine == ']') continue;
+      
+      String jsonStr = cleanLine;
+      if (jsonStr.startsWith(',')) {
+        jsonStr = jsonStr.substring(1).trim();
+      }
+      if (jsonStr.endsWith(',')) {
+        jsonStr = jsonStr.substring(0, jsonStr.length - 1).trim();
+      }
+      
+      try {
+        final data = json.decode(jsonStr) as Map<String, dynamic>;
+        final chunkText = data['candidates']?[0]?['content']?['parts']?[0]?['text'] ?? '';
+        if (chunkText.isNotEmpty) {
+          yield chunkText;
+        }
+      } catch (_) {
+        // If it's a partial chunk or array wrapper, let's gracefully suppress or log
+      }
+    }
   }
 }

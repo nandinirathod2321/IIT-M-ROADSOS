@@ -19,7 +19,8 @@ class NearbyServicesRepository {
         _cacheService = cacheService ?? LocalCacheService();
 
   /// Forces or conditionally throttles the remote OSM Overpass fetch & database caching.
-  Future<void> fetchAndCacheNearbyServices(double lat, double lng, {bool forceRefresh = false}) async {
+  Future<void> fetchAndCacheNearbyServices(double lat, double lng,
+      {bool forceRefresh = false, int radiusMeters = 10000}) async {
     final prefs = await SharedPreferences.getInstance();
     final double? lastLat = prefs.getDouble('last_fetch_lat');
     final double? lastLng = prefs.getDouble('last_fetch_lng');
@@ -27,13 +28,13 @@ class NearbyServicesRepository {
 
     final int now = DateTime.now().millisecondsSinceEpoch;
 
-    // 1. Throttling gate
-    if (!forceRefresh && lastLat != null && lastLng != null && lastTime != null) {
+    // 1. Throttling gate (only applies when using default radius and not forcing)
+    if (!forceRefresh && radiusMeters == 10000 && lastLat != null && lastLng != null && lastTime != null) {
       final double distance = DistanceUtils.haversine(lat, lng, lastLat, lastLng);
       final int elapsedMinutes = (now - lastTime) ~/ 60000;
 
       if (distance < 1.5 && elapsedMinutes < 15) {
-        print("Throttling active. Using cached spatial data.");
+        print("Throttling active. Using cached emergency services (moved ${distance.toStringAsFixed(2)} km, elapsed $elapsedMinutes mins).");
         return;
       }
     }
@@ -53,7 +54,7 @@ class NearbyServicesRepository {
     bool remoteSuccess = false;
 
     try {
-      final remoteData = await _apiService.fetchNearbyServices(lat, lng);
+      final remoteData = await _apiService.fetchNearbyServices(lat, lng, radiusMeters: radiusMeters);
       
       hospitals.addAll(remoteData['hospitals'] as List<Hospital>);
       police.addAll(remoteData['police'] as List<PoliceStation>);
@@ -65,15 +66,20 @@ class NearbyServicesRepository {
       print("Overpass API fetching error: $e");
     }
 
-    // 3. Fallback to location-aware mock services if empty or failed
+    // 3. Fallback to location-aware mock services if empty or failed AND cache is completely empty
     if (!remoteSuccess || (hospitals.isEmpty && police.isEmpty && towing.isEmpty && shelters.isEmpty)) {
-      // Avoid overwriting populated cache if we had a temporary query failure but have data already
       final existing = await _cacheService.getCachedServices(lat, lng);
-      if (existing['hospitals']!.isNotEmpty && !forceRefresh) {
+      final bool hasCachedData = (existing['hospitals'] as List).isNotEmpty ||
+                                 (existing['police'] as List).isNotEmpty ||
+                                 (existing['towing'] as List).isNotEmpty ||
+                                 (existing['shelters'] as List).isNotEmpty;
+      
+      if (hasCachedData) {
+        print("[NearbyServicesRepository] Remote fetch failed/empty, but cache is available. Serving cached data and preventing mock override.");
         return;
       }
 
-      print("Generating location-aware mock services...");
+      print("[NearbyServicesRepository] Remote fetch failed/empty AND cache is empty. Generating mock fallback...");
       final cityName = await _apiService.fetchCityName(lat, lng);
 
       hospitals.addAll([

@@ -39,9 +39,24 @@ class LocationCubit extends Cubit<LocationState> {
 
   /// Entry point to initialize global GPS and request permissions.
   /// Fetches the location exactly once during startup.
+  /// Safe to call multiple times — ignores if already loading or resolved.
   Future<void> initLocation() async {
-    // If location is already loading or resolved successfully, bypass duplicate triggers
+    // If already loading, skip (another init in progress)
     if (state.status == LocationStatus.loading) return;
+
+    // Load from cache first if we don't have location yet
+    if (!state.hasLocation) {
+      await loadFromCache();
+    }
+
+    // If we have a cached location, we can resolve fresh GPS in the background
+    // without blocking the user interface on startup.
+    if (state.hasLocation) {
+      print('[LocationCubit] GPS cached location found — resolving fresh GPS in background.');
+      _resolvePositionInBackground();
+      _startLocationStream();
+      return;
+    }
 
     emit(state.copyWith(status: LocationStatus.loading));
 
@@ -94,6 +109,28 @@ class LocationCubit extends Cubit<LocationState> {
         status: state.hasLocation ? LocationStatus.success : LocationStatus.failure,
         errorMessage: 'GPS initialization failed: $e',
       ));
+    }
+  }
+
+  /// Resolves fresh GPS position in the background without modifying loading status.
+  Future<void> _resolvePositionInBackground() async {
+    try {
+      bool serviceEnabled = false;
+      try {
+        serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      } catch (_) {
+        serviceEnabled = true;
+      }
+      if (!serviceEnabled) return;
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        return;
+      }
+
+      await _resolvePosition();
+    } catch (e) {
+      print("[LocationCubit] Background GPS resolve failed: $e");
     }
   }
 

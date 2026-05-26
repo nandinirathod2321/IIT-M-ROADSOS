@@ -6,6 +6,7 @@ enum MeshSOSStatus { active, connecting, disabled, offline }
 
 class HomeState extends Equatable {
   final bool isLoading;
+  final bool isRespondersLoading;
   final double? latitude;
   final double? longitude;
   final String address;
@@ -26,6 +27,7 @@ class HomeState extends Equatable {
 
   const HomeState({
     this.isLoading = true,
+    this.isRespondersLoading = true,
     this.latitude,
     this.longitude,
     this.address = 'Locating...',
@@ -71,6 +73,7 @@ class HomeState extends Equatable {
 
   HomeState copyWith({
     bool? isLoading,
+    bool? isRespondersLoading,
     double? latitude,
     double? longitude,
     String? address,
@@ -92,6 +95,7 @@ class HomeState extends Equatable {
   }) {
     return HomeState(
       isLoading: isLoading ?? this.isLoading,
+      isRespondersLoading: isRespondersLoading ?? this.isRespondersLoading,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       address: address ?? this.address,
@@ -114,7 +118,7 @@ class HomeState extends Equatable {
 
   @override
   List<Object?> get props => [
-        isLoading, latitude, longitude, address, connectivity,
+        isLoading, isRespondersLoading, latitude, longitude, address, connectivity,
         crashDetectionEnabled, meshStatus, nearbyDevicesCount,
         signalQuality, syncStatus, lastDbSync,
         nearbyHospitalCount, nearbyPoliceCount, nearbyTowingCount,

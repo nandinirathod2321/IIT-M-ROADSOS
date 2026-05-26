@@ -8,6 +8,7 @@ class QuickServicesRow extends StatelessWidget {
   final int policeCount;
   final int towingCount;
   final int contactsCount;
+  final bool isLoading;
   final void Function(int section) onTap;
 
   const QuickServicesRow({
@@ -16,6 +17,7 @@ class QuickServicesRow extends StatelessWidget {
     required this.policeCount,
     required this.towingCount,
     required this.contactsCount,
+    this.isLoading = false,
     required this.onTap,
   });
 
@@ -31,7 +33,7 @@ class QuickServicesRow extends StatelessWidget {
             icon: Icons.local_hospital_rounded,
             color: AppColors.infoBlue,
             label: 'Hospitals',
-            count: '$hospitalCount nearby',
+            count: isLoading ? 'Loading...' : '$hospitalCount nearby',
             onTap: () => onTap(0),
           ),
           const SizedBox(width: 10),
@@ -39,7 +41,7 @@ class QuickServicesRow extends StatelessWidget {
             icon: Icons.shield_rounded,
             color: AppColors.policeBlue,
             label: 'Police',
-            count: '$policeCount nearby',
+            count: isLoading ? 'Loading...' : '$policeCount nearby',
             onTap: () => onTap(1),
           ),
           const SizedBox(width: 10),
@@ -47,7 +49,7 @@ class QuickServicesRow extends StatelessWidget {
             icon: Icons.local_shipping_rounded,
             color: AppColors.towingOrange,
             label: 'Towing',
-            count: '$towingCount nearby',
+            count: isLoading ? 'Loading...' : '$towingCount nearby',
             onTap: () => onTap(2),
           ),
           const SizedBox(width: 10),

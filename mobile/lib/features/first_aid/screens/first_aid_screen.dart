@@ -204,6 +204,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
 
   /// Sends a message and triggers the local AI medical engine
   Future<void> _handleSendMessage([String? forcedText]) async {
+    if (_isTyping) return;
     final query = forcedText ?? _messageController.text.trim();
     if (query.isEmpty || query == "Listening...") return;
 
@@ -222,32 +223,64 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
       _aiHistory.removeRange(0, _aiHistory.length - 10);
     }
 
-    String responseText = '';
+    final int aiMessageIndex = _messages.length;
+    setState(() {
+      _messages.add(ChatMessage(text: "", isUser: false, timestamp: DateTime.now()));
+    });
+
+    String streamedText = "";
     bool isOfflineFallback = false;
 
     try {
-      // Direct live Gemini API call
-      responseText = await _geminiService.generateEmergencyResponse(
+      final stream = _geminiService.streamEmergencyResponse(
         userMessage: query,
         chatHistory: _aiHistory,
       );
+
+      await for (final chunk in stream) {
+        if (mounted) {
+          setState(() {
+            _isTyping = false;
+            streamedText += chunk;
+            _messages[aiMessageIndex] = ChatMessage(
+              text: streamedText,
+              isUser: false,
+              timestamp: DateTime.now(),
+            );
+          });
+          _scrollToBottom();
+        }
+      }
+
+      if (streamedText.isEmpty) {
+        throw Exception("Empty stream response");
+      }
     } catch (e) {
-      // Graceful fallback to offline local guide logic
       isOfflineFallback = true;
       final offlineResponse = _getResponseForQuery(query);
-      responseText = "⚠️ **[Offline Fallback Mode]**\n\n$offlineResponse";
+      streamedText = "⚠️ **[Offline Fallback Mode]**\n\n$offlineResponse";
+      if (mounted) {
+        setState(() {
+          _isTyping = false;
+          _messages[aiMessageIndex] = ChatMessage(
+            text: streamedText,
+            isUser: false,
+            timestamp: DateTime.now(),
+          );
+        });
+        _scrollToBottom();
+      }
     }
 
     if (mounted) {
       setState(() {
-        _messages.add(ChatMessage(text: responseText, isUser: false, timestamp: DateTime.now()));
         _isTyping = false;
       });
       _scrollToBottom();
 
       // Only save success replies to active conversation memory
       if (!isOfflineFallback) {
-        _aiHistory.add({'role': 'model', 'text': responseText});
+        _aiHistory.add({'role': 'model', 'text': streamedText});
         if (_aiHistory.length > 10) {
           _aiHistory.removeRange(0, _aiHistory.length - 10);
         }
@@ -259,7 +292,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
           id: const Uuid().v4(),
           userId: currentUserId,
           userMessage: query,
-          aiResponse: responseText,
+          aiResponse: streamedText,
           timestamp: DateTime.now(),
         );
         await _chatRepo.saveChatMessage(modelMsg);
@@ -294,6 +327,50 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
           "4. **BREATHS**: Pinch their nose, tilt their chin back, and give 2 quick rescue breaths. Make sure their chest rises.\n"
           "5. **RATIO**: Keep repeating the cycle of **30 compressions followed by 2 breaths** until help arrives.\n\n"
           "⚠️ **CRITICAL DIRECTIVE**: Call emergency services (112 or 100) immediately before starting chest compressions if possible!";
+    }
+
+    if (q.contains("unconscious") || q.contains("unresponsive") || q.contains("passed out")) {
+      return "🚨 UNCONSCIOUS PATIENT RESPONSE\n\n"
+          "If a person is unresponsive, follow these steps immediately:\n\n"
+          "1. **SHOUT AND SHAKE**: Tap their shoulders and shout loudly: 'Are you okay?'\n"
+          "2. **CHECK AIRWAY**: Tilt their head back gently and lift their chin to open the airway.\n"
+          "3. **CHECK BREATHING**: Put your ear to their mouth. Look, listen, and feel for chest rise or breathing for 10 seconds.\n"
+          "4. **RECOVERY POSITION**: If they are breathing normally, roll them onto their side (recovery position) to keep their airway open and prevent choking.\n"
+          "5. **START CPR**: If they are NOT breathing, begin chest compressions (CPR) immediately!\n\n"
+          "⚠️ **CRITICAL ALERT**: Call 112/100 immediately. Do not leave the unconscious patient alone.";
+    }
+
+    if (q.contains("not breathing") || q.contains("stopped breathing")) {
+      return "🚨 PATIENT NOT BREATHING\n\n"
+          "Act immediately. Every second counts:\n\n"
+          "1. **CALL EMERGENCY SERVICES**: Alert 112 or 100 instantly and ask for an AED.\n"
+          "2. **POSITION**: Place them flat on their back on a hard surface.\n"
+          "3. **CHEST COMPRESSIONS**: Push hard and fast at a rate of 100-120/min in the center of the chest. Give 30 compressions.\n"
+          "4. **RESCUE BREATHS**: Tilt their head back, pinch their nose, and give 2 rescue breaths. Ensure their chest rises.\n"
+          "5. **CONTINUOUS CYCLE**: Continue the **30 compressions and 2 rescue breaths** cycle until medical professionals arrive.\n\n"
+          "⚠️ **SAFETY ALERT**: If you are untrained or uncomfortable with breaths, perform Hands-Only CPR (continuous rapid chest compressions).";
+    }
+
+    if (q.contains("dog bite") || q.contains("animal bite") || q.contains("bite")) {
+      return "🐕 DOG & ANIMAL BITE EMERGENCY FIRST-AID\n\n"
+          "Follow these steps to prevent severe infection and rabies transmission:\n\n"
+          "1. **WASH IMMEDIATELY**: Clean the wound under running tap water with mild soap vigorously for at least 10 to 15 minutes. This is critical to neutralize any potential rabies virus.\n"
+          "2. **CONTROL BLEEDING**: Apply firm pressure with a clean dry cloth to stop any active bleeding.\n"
+          "3. **DISINFECT**: Apply antiseptic solution (like Betadine) or an antibiotic ointment.\n"
+          "4. **DRESS**: Cover the wound loosely with a sterile, non-stick bandage.\n"
+          "5. **MEDICAL EVALUATION**: Go to the nearest clinic immediately. A doctor must evaluate for rabies PEP (post-exposure prophylaxis) and tetanus shots!\n\n"
+          "⚠️ Never stitch or tightly bind an animal bite wound without clinical guidance.";
+    }
+
+    if (q.contains("concussion") || q.contains("head injury") || q.contains("head trauma")) {
+      return "🧠 CONCUSSION & HEAD INJURY GUIDELINES\n\n"
+          "Head injuries can cause internal bleeding. Monitor the victim closely:\n\n"
+          "1. **SPINE IMMOBILIZATION**: Keep their neck and head completely still. Avoid moving them unless there is an immediate threat of fire/explosion.\n"
+          "2. **CHECK SYMPTOMS**: Watch for red flags: confusion, vomiting, dilated pupils, slurred speech, memory loss, or blood/fluid draining from ears/nose.\n"
+          "3. **SCALP BLEEDING**: Scalp cuts bleed heavily. Apply light pressure with a clean cloth. Do not apply heavy pressure if you suspect a skull fracture.\n"
+          "4. **KEEP CALM & AWAKE**: Encourage them to stay still and quiet. Keep checking their breathing and pulse.\n"
+          "5. **NO FLUIDS/MEDS**: Do not give them anything to eat or drink. Do not administer aspirin or ibuprofen as they can thin blood and worsen internal bleeding.\n\n"
+          "⚠️ **CRITICAL WARNING**: Seek emergency medical evaluation immediately for any loss of consciousness, even if brief.";
     }
 
     if (q.contains("bleed") || q.contains("bleeding") || q.contains("blood") || q.contains("hemorrhage")) {
@@ -539,73 +616,96 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
             border: Border(top: BorderSide(color: AppColors.borderSubtle, width: 1)),
           ),
           child: SafeArea(
-            child: Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Speech-to-text mic overlay
-                AnimatedBuilder(
-                  animation: _micPulseAnim,
-                  builder: (context, child) {
-                    final scale = _isListening ? _micPulseAnim.value : 1.0;
-                    return Transform.scale(
-                      scale: scale,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _isListening ? AppColors.emergencyRed : AppColors.surfaceAlt,
-                        ),
-                        child: IconButton(
-                          icon: Icon(
-                            _isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
-                            color: _isListening ? Colors.white : AppColors.textSecondary,
-                            size: 20,
-                          ),
-                          onPressed: _toggleListening,
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.info_outline_rounded, color: AppColors.textMuted, size: 12),
+                      const SizedBox(width: 6),
+                      Text(
+                        "AI is not a substitute for professional emergency medical care.",
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textMuted,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                    );
-                  },
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 8),
+                Row(
+                  children: [
+                    // Speech-to-text mic overlay
+                    AnimatedBuilder(
+                      animation: _micPulseAnim,
+                      builder: (context, child) {
+                        final scale = _isListening ? _micPulseAnim.value : 1.0;
+                        return Transform.scale(
+                          scale: scale,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _isListening ? AppColors.emergencyRed : AppColors.surfaceAlt,
+                            ),
+                            child: IconButton(
+                              icon: Icon(
+                                _isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
+                                color: _isListening ? Colors.white : AppColors.textSecondary,
+                                size: 20,
+                              ),
+                              onPressed: _toggleListening,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 8),
 
-                // Chat text input field
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: _isListening ? "Listening..." : "Ask AI First Aid...",
-                      hintStyle: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
-                      filled: true,
-                      fillColor: AppColors.surfaceAlt,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        borderSide: const BorderSide(color: AppColors.borderSubtle),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        borderSide: const BorderSide(color: AppColors.borderSubtle),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        borderSide: const BorderSide(color: AppColors.emergencyRed),
+                    // Chat text input field
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: _isListening ? "Listening..." : "Ask AI First Aid...",
+                          hintStyle: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
+                          filled: true,
+                          fillColor: AppColors.surfaceAlt,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: const BorderSide(color: AppColors.borderSubtle),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: const BorderSide(color: AppColors.borderSubtle),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: const BorderSide(color: AppColors.emergencyRed),
+                          ),
+                        ),
+                        onSubmitted: (_) => _handleSendMessage(),
                       ),
                     ),
-                    onSubmitted: (_) => _handleSendMessage(),
-                  ),
-                ),
-                const SizedBox(width: 8),
+                    const SizedBox(width: 8),
 
-                // Send Button
-                Container(
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.emergencyRed,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
-                    onPressed: () => _handleSendMessage(),
-                  ),
+                    // Send Button
+                    Container(
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.emergencyRed,
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                        onPressed: () => _handleSendMessage(),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

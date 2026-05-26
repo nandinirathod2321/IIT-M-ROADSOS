@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import '../../../core/utils/geocoder.dart';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -11,7 +10,7 @@ import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../data/repositories/sos_repository.dart';
-import '../../../data/repositories/nearby_services_repository.dart';
+import '../../../core/responders/responder_cubit.dart';
 import '../../../data/repositories/emergency_contact_repository.dart';
 import '../../../data/repositories/medical_repository.dart';
 import '../../../data/models/hospital.dart';
@@ -35,7 +34,6 @@ class CountdownScreen extends StatefulWidget {
 
 class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProviderStateMixin {
   final SosRepository _sosRepo = SosRepository();
-  final NearbyServicesRepository _servicesRepo = NearbyServicesRepository();
   final EmergencyContactRepository _contactsRepo = EmergencyContactRepository();
   final MedicalRepository _medicalRepo = MedicalRepository();
 
@@ -90,11 +88,19 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
 
   /// Triggers real GPS detection, queries nearby responders, fires alert hotlines, and logs event
   Future<void> _handleSosDispatched() async {
+    final locCubit = context.read<LocationCubit>();
+    final double lat = locCubit.state.latitude ?? 23.0225;
+    final double lng = locCubit.state.longitude ?? 72.5714;
+    final String addr = locCubit.state.city != null ? "${locCubit.state.city}, India" : 'Locating...';
+
     setState(() {
       _isDispatched = true;
       _isLoadingDetails = true;
       _eventId = 'EVT-${const Uuid().v4().substring(0, 6).toUpperCase()}';
       _currentStepIndex = 0;
+      _latitude = lat;
+      _longitude = lng;
+      _address = addr;
     });
 
     // Advance progress items
@@ -108,46 +114,8 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
       }
     });
 
-    double lat = 23.0225; // fallback
-    double lng = 72.5714;
-    String address = 'Ahmedabad, India';
-
-    final locCubit = context.read<LocationCubit>();
-    if (locCubit.state.hasLocation) {
-      lat = locCubit.state.latitude!;
-      lng = locCubit.state.longitude!;
-      address = locCubit.state.city != null ? "${locCubit.state.city}, India" : 'Locating...';
-      try {
-        address = await performReverseGeocode(lat, lng);
-      } catch (_) {
-        address = locCubit.state.city != null ? "${locCubit.state.city}, India" : 'Locating...';
-      }
-      print("[CountdownScreen] GPS loaded from state: $lat, $lng");
-    } else {
-      try {
-        // 1. Resolve actual GPS coordinates
-        final pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-          timeLimit: const Duration(seconds: 4),
-        );
-        lat = pos.latitude;
-        lng = pos.longitude;
-
-        // 2. Perform live reverse geocoding via OSM Nominatim
-        address = await performReverseGeocode(lat, lng);
-      } catch (_) {
-        if (locCubit.state.latitude != null) {
-          lat = locCubit.state.latitude!;
-          lng = locCubit.state.longitude!;
-          address = locCubit.state.city != null ? "${locCubit.state.city}, India" : 'Ahmedabad (Offline GPS Fallback)';
-        } else {
-          address = 'Ahmedabad (Offline GPS Fallback)';
-        }
-      }
-    }
-
     try {
-      // 3. Log incident event in SQLite
+      // 1. Log incident event in SQLite
       await _sosRepo.logEvent(
         id: _eventId,
         latitude: lat,
@@ -162,33 +130,14 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
         },
       );
 
-      // 4. Query spatial responders & emergency contacts
-      try {
-        await _servicesRepo.fetchAndCacheNearbyServices(lat, lng);
-      } catch (e) {
-        print("CountdownScreen: remote fetch failed: $e");
-      }
-
-      final rawHospitals = await _servicesRepo.getNearbyHospitals(lat, lng);
-      final rawPolice = await _servicesRepo.getNearbyPolice(lat, lng);
+      // 2. Load contacts from SQLite
       final rawContacts = await _contactsRepo.getContacts();
-
-      // Retrieve User Name & notes
-      final currentUserId = AuthService.instance.currentUserId ?? 'me';
-      final profile = await _medicalRepo.getMedicalProfile(currentUserId);
-      final userName = profile?.fullName ?? AuthService.instance.currentUserFullName ?? 'Nandini Rathod';
-      final notes = profile?.emergencyNotes ?? 'None';
 
       // Buffer seeder delays for clean rendering transitions
       await Future.delayed(const Duration(milliseconds: 1500));
 
       if (mounted) {
         setState(() {
-          _latitude = lat;
-          _longitude = lng;
-          _address = address;
-          _hospitals = rawHospitals;
-          _policeStations = rawPolice;
           _contacts = rawContacts;
           _isLoadingDetails = false;
         });
@@ -301,6 +250,16 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
+    final locState = context.watch<LocationCubit>().state;
+    final responderState = context.watch<ResponderCubit>().state;
+
+    final double lat = locState.latitude ?? 23.0225;
+    final double lng = locState.longitude ?? 72.5714;
+    final String address = locState.city != null ? "${locState.city}, India" : 'Locating...';
+
+    final hospitals = responderState.hospitals;
+    final policeStations = responderState.police;
+
     if (!_isDispatched) {
       return CountdownOverlay(
         onComplete: _handleSosDispatched,
@@ -434,8 +393,8 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
     }
 
     // Dynamic extraction details matching user resolved position
-    final nearestHospital = _hospitals.isNotEmpty
-        ? _hospitals.first
+    final nearestHospital = hospitals.isNotEmpty
+        ? hospitals.first
         : Hospital(
             id: 'h-mock',
             name: 'Apollo Hospitals Ahmedabad',
@@ -448,8 +407,8 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
             lastUpdated: DateTime.now(),
           );
 
-    final nearestPolice = _policeStations.isNotEmpty
-        ? _policeStations.first
+    final nearestPolice = policeStations.isNotEmpty
+        ? policeStations.first
         : const PoliceStation(
             id: 'p-mock',
             name: 'Navrangpura Police Station',
@@ -692,11 +651,11 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildTelemetryRow("COORDINATES", "${_latitude.toStringAsFixed(4)}° N, ${_longitude.toStringAsFixed(4)}° E"),
+                          _buildTelemetryRow("COORDINATES", "${lat.toStringAsFixed(4)}° N, ${lng.toStringAsFixed(4)}° E"),
                           const SizedBox(height: 6),
                           _buildTelemetryRow("TRIGGER TYPE", "CRITICAL MANUAL SOS OVERRIDE"),
                           const SizedBox(height: 6),
-                          _buildTelemetryRow("ADDRESS RESOLVED", _address),
+                          _buildTelemetryRow("ADDRESS RESOLVED", address),
                           const SizedBox(height: 6),
                           _buildTelemetryRow("ACCELEROMETER", "1.05 G (STATIC MONITOR)"),
                           const SizedBox(height: 6),

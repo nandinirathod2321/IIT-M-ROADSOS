@@ -1,26 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'dart:async';
-import '../../../core/location/location_cubit.dart';
-import '../../../core/location/location_state.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
-import '../../../data/repositories/nearby_services_repository.dart';
+import '../../../core/location/location_cubit.dart';
+import '../../../core/location/location_state.dart';
+import '../../../core/responders/responder_cubit.dart';
+import '../../../core/responders/responder_state.dart';
 import '../../../data/repositories/emergency_contact_repository.dart';
 import '../../../data/models/hospital.dart';
 import '../../../data/models/police_station.dart';
 import '../../../data/models/towing_service.dart';
 import '../../../data/models/emergency_contact.dart';
 import '../../../data/models/emergency_shelter.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
+import '../../../shared/widgets/responder_error_widget.dart';
 
 /// Full-production interactive Emergency Services and Contact management screen.
-/// Switch dynamically between category chips: Hospitals, Police, Towing, Shelters, and Contacts.
-/// Automatically queries live GPS coordinates to match and sort local Ahmedabad & India services.
+/// Consumes data from the shared [ResponderCubit] and [LocationCubit] — no
+/// duplicate GPS fetches or API calls vs. the Home screen.
 class EmergencyScreen extends StatefulWidget {
   final int initialSection;
   const EmergencyScreen({super.key, this.initialSection = 0});
@@ -30,123 +29,39 @@ class EmergencyScreen extends StatefulWidget {
 }
 
 class _EmergencyScreenState extends State<EmergencyScreen> {
-  final NearbyServicesRepository _servicesRepo = NearbyServicesRepository();
   final EmergencyContactRepository _contactsRepo = EmergencyContactRepository();
   late int _selectedTab;
-  
-  bool _isLoading = true;
-  bool _isOffline = false;
-  double? _latitude;
-  double? _longitude;
-  String _gpsError = '';
-
-  List<Hospital> _hospitals = [];
-  List<PoliceStation> _police = [];
-  List<TowingService> _towing = [];
-  List<EmergencyShelter> _shelters = [];
   List<EmergencyContact> _contacts = [];
-
-  StreamSubscription<LocationState>? _locationSub;
+  bool _contactsLoading = true;
 
   @override
   void initState() {
     super.initState();
     _selectedTab = widget.initialSection;
-
-    final locationCubit = context.read<LocationCubit>();
-    _locationSub = locationCubit.stream.listen((locState) {
-      if (locState.hasLocation) {
-        _resolveLocationAndData(lat: locState.latitude!, lng: locState.longitude!);
-      } else if (locState.status == LocationStatus.denied ||
-                 locState.status == LocationStatus.deniedForever ||
-                 locState.status == LocationStatus.failure) {
-        if (mounted) {
-          setState(() {
-            _gpsError = locState.errorMessage;
-            _isLoading = false;
-          });
-        }
+    _loadContacts();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<LocationCubit>().initLocation();
       }
     });
-
-    final locState = locationCubit.state;
-    if (locState.hasLocation) {
-      print("[EmergencyScreen] GPS loaded from state: ${locState.latitude}, ${locState.longitude}");
-      _resolveLocationAndData(lat: locState.latitude!, lng: locState.longitude!);
-    } else {
-      setState(() {
-        _isLoading = true;
-      });
-      locationCubit.initLocation();
-    }
   }
 
-  @override
-  void dispose() {
-    _locationSub?.cancel();
-    super.dispose();
-  }
-
-  /// Fetches services matching coordinates
-  Future<void> _resolveLocationAndData({double? lat, double? lng, bool forceRefresh = false}) async {
-    final double targetLat = lat ?? _latitude ?? 23.0225;
-    final double targetLng = lng ?? _longitude ?? 72.5714;
-
-    if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-      _gpsError = '';
-      _latitude = targetLat;
-      _longitude = targetLng;
-    });
-
+  Future<void> _loadContacts() async {
     try {
-      final connectivityResult = await Connectivity().checkConnectivity();
-      _isOffline = connectivityResult.contains(ConnectivityResult.none);
-    } catch (_) {
-      _isOffline = false;
-    }
-
-    try {
-      print("[EmergencyScreen] Responder API fetch started...");
-      await _servicesRepo.fetchAndCacheNearbyServices(targetLat, targetLng, forceRefresh: forceRefresh);
-    } catch (e) {
-      print("EmergencyScreen: remote fetch failed: $e");
-    }
-
-    await _loadOfflineFallbackData(targetLat, targetLng);
-  }
-
-  /// Loads details matching coordinate locations
-  Future<void> _loadOfflineFallbackData(double lat, double lng) async {
-    try {
-      final hospitalsList = await _servicesRepo.getNearbyHospitals(lat, lng);
-      final policeList = await _servicesRepo.getNearbyPolice(lat, lng);
-      final towingList = await _servicesRepo.getNearbyTowing(lat, lng);
-      final sheltersList = await _servicesRepo.getNearbyShelters(lat, lng);
-      final contactsList = await _contactsRepo.getContacts();
-
-      print("[EmergencyScreen] Responder API success: ${hospitalsList.length} hospitals found.");
-
+      final contacts = await _contactsRepo.getContacts();
       if (mounted) {
         setState(() {
-          _hospitals = hospitalsList;
-          _police = policeList;
-          _towing = towingList;
-          _shelters = sheltersList;
-          _contacts = contactsList;
-          _isLoading = false;
+          _contacts = contacts;
+          _contactsLoading = false;
         });
       }
     } catch (_) {
-      print("[EmergencyScreen] Responder API fallback activated.");
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _contactsLoading = false);
     }
   }
 
-  /// Triggers standard hotline dialer via tel scheme
+  // ── Diallers ────────────────────────────────────────────────────────────
+
   Future<void> _makeCall(String phone) async {
     if (phone.isEmpty) return;
     final Uri url = Uri.parse('tel:${phone.replaceAll(' ', '')}');
@@ -157,46 +72,35 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
         throw 'Could not dial';
       }
     } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Dialing emergency number: $phone", style: const TextStyle(color: Colors.white)),
-          backgroundColor: AppColors.infoBlue,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Dialing: $phone", style: const TextStyle(color: Colors.white)),
+            backgroundColor: AppColors.infoBlue,
+          ),
+        );
+      }
     }
   }
 
-  /// Launches exact coordinates directions map query on Google Maps
   Future<void> _launchMap(double lat, double lng) async {
     final Uri url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
     try {
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
-      } else {
-        throw 'Could not launch maps';
       }
-    } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Failed to open default system map navigation"),
-          backgroundColor: AppColors.emergencyRed,
-        ),
-      );
-    }
+    } catch (_) {}
   }
 
-  // ── Contact CRUD Dialogue Handlers ─────────────────────────────────────
+  // ── Contact CRUD ─────────────────────────────────────────────────────────
 
-  /// Opens the Add/Edit emergency contact modal sheet
   void _showContactFormDialog([EmergencyContact? contact]) {
     final isEditing = contact != null;
     final formKey = GlobalKey<FormState>();
-
     final nameCtrl = TextEditingController(text: isEditing ? contact.name : '');
     final phoneCtrl = TextEditingController(text: isEditing ? contact.phone : '');
     final emailCtrl = TextEditingController(text: isEditing ? contact.email : '');
     final relationCtrl = TextEditingController(text: isEditing ? contact.relationship : 'Family');
-    
     bool isPrimaryVal = isEditing ? contact.isPrimary : _contacts.isEmpty;
 
     showDialog(
@@ -225,7 +129,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                       TextFormField(
                         controller: nameCtrl,
                         style: const TextStyle(color: Colors.white),
-                        decoration: _dialogInputDecoration("Full Name", Icons.person_outline_rounded),
+                        decoration: _inputDeco("Full Name", Icons.person_outline_rounded),
                         validator: (v) => v == null || v.trim().isEmpty ? "Name is required" : null,
                       ),
                       const SizedBox(height: 12),
@@ -233,11 +137,11 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                         controller: phoneCtrl,
                         style: const TextStyle(color: Colors.white),
                         keyboardType: TextInputType.phone,
-                        decoration: _dialogInputDecoration("Phone Number", Icons.phone_android_rounded),
+                        decoration: _inputDeco("Phone Number", Icons.phone_android_rounded),
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) return "Phone number is required";
-                          final phoneReg = RegExp(r'^\+?[0-9\s\-]{10,15}$');
-                          if (!phoneReg.hasMatch(v.trim())) return "Enter a valid phone number (min 10 digits)";
+                          final reg = RegExp(r'^\+?[0-9\s\-]{10,15}$');
+                          if (!reg.hasMatch(v.trim())) return "Enter a valid phone number (min 10 digits)";
                           return null;
                         },
                       ),
@@ -246,11 +150,11 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                         controller: emailCtrl,
                         style: const TextStyle(color: Colors.white),
                         keyboardType: TextInputType.emailAddress,
-                        decoration: _dialogInputDecoration("Email Address", Icons.email_outlined),
+                        decoration: _inputDeco("Email Address", Icons.email_outlined),
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) return "Email is required";
-                          final emailReg = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
-                          if (!emailReg.hasMatch(v.trim())) return "Enter a valid email address";
+                          final reg = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+                          if (!reg.hasMatch(v.trim())) return "Enter a valid email address";
                           return null;
                         },
                       ),
@@ -259,36 +163,24 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                         value: relationCtrl.text,
                         dropdownColor: AppColors.surface,
                         style: const TextStyle(color: Colors.white),
-                        decoration: _dialogInputDecoration("Relationship", Icons.people_outline_rounded),
+                        decoration: _inputDeco("Relationship", Icons.people_outline_rounded),
                         items: ["Family", "Friend", "Spouse", "Doctor", "Work", "Other"]
-                            .map((rel) => DropdownMenuItem(value: rel, child: Text(rel)))
+                            .map((r) => DropdownMenuItem(value: r, child: Text(r)))
                             .toList(),
                         onChanged: (val) {
-                          if (val != null) {
-                            setDialogState(() {
-                              relationCtrl.text = val;
-                            });
-                          }
+                          if (val != null) setDialogState(() => relationCtrl.text = val);
                         },
                       ),
                       const SizedBox(height: 16),
                       SwitchListTile(
-                        title: Text(
-                          "Mark as Primary Contact",
-                          style: AppTypography.bodyMedium.copyWith(color: Colors.white),
-                        ),
-                        subtitle: Text(
-                          "This contact will be prioritized for SOS alerts",
-                          style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-                        ),
+                        title: Text("Mark as Primary Contact",
+                            style: AppTypography.bodyMedium.copyWith(color: Colors.white)),
+                        subtitle: Text("Prioritized for SOS alerts",
+                            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
                         value: isPrimaryVal,
                         activeColor: AppColors.safeGreen,
                         contentPadding: EdgeInsets.zero,
-                        onChanged: (val) {
-                          setDialogState(() {
-                            isPrimaryVal = val;
-                          });
-                        },
+                        onChanged: (val) => setDialogState(() => isPrimaryVal = val),
                       ),
                     ],
                   ),
@@ -302,44 +194,33 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                       _confirmDeleteContact(contact);
                     },
                     style: TextButton.styleFrom(foregroundColor: AppColors.emergencyRed),
-                    child: Text(
-                      "DELETE",
-                      style: AppTypography.labelCaps.copyWith(color: AppColors.emergencyRed),
-                    ),
+                    child: Text("DELETE",
+                        style: AppTypography.labelCaps.copyWith(color: AppColors.emergencyRed)),
                   ),
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text(
-                    "CANCEL",
-                    style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary),
-                  ),
+                  child: Text("CANCEL",
+                      style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary)),
                 ),
                 ElevatedButton(
                   onPressed: () async {
                     if (!formKey.currentState!.validate()) return;
-
                     final newContact = EmergencyContact(
                       id: isEditing ? contact.id : const Uuid().v4(),
                       name: nameCtrl.text.trim(),
                       phone: phoneCtrl.text.trim(),
                       email: emailCtrl.text.trim(),
                       relationship: relationCtrl.text,
-                      avatarEmoji: _avatarForRelationship(relationCtrl.text),
+                      avatarEmoji: _avatarFor(relationCtrl.text),
                       isPrimary: isPrimaryVal,
                     );
-
                     await _contactsRepo.saveContact(newContact);
-                    Navigator.pop(context);
-
-                    _resolveLocationAndData(); // Refresh list
+                    if (context.mounted) Navigator.pop(context);
+                    _loadContacts();
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.emergencyRed,
-                  ),
-                  child: Text(
-                    isEditing ? "SAVE" : "ADD",
-                    style: AppTypography.labelCaps.copyWith(color: Colors.white),
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.emergencyRed),
+                  child: Text(isEditing ? "SAVE" : "ADD",
+                      style: AppTypography.labelCaps.copyWith(color: Colors.white)),
                 ),
               ],
             );
@@ -349,358 +230,382 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
     );
   }
 
-  /// Triggers standard contact deletion
   void _confirmDeleteContact(EmergencyContact contact) {
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: AppColors.surface,
-          shape: RoundedRectangleBorder(
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: AppColors.borderSubtle),
-          ),
-          title: Text(
-            "DELETE CONTACT",
-            style: AppTypography.headlineMedium.copyWith(color: Colors.white),
-          ),
-          content: Text(
-            "Are you sure you want to delete ${contact.name} from your emergency contacts list?",
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-          ),
-          actions: [
-            TextButton(
+            side: const BorderSide(color: AppColors.borderSubtle)),
+        title: Text("DELETE CONTACT",
+            style: AppTypography.headlineMedium.copyWith(color: Colors.white)),
+        content: Text(
+            "Are you sure you want to delete ${contact.name} from your emergency contacts?",
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)),
+        actions: [
+          TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text("CANCEL", style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary)),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                await _contactsRepo.deleteContact(contact.id);
-                Navigator.pop(context);
-                _resolveLocationAndData(); // Refresh list
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.emergencyRed),
-              child: Text("DELETE", style: AppTypography.labelCaps.copyWith(color: Colors.white)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  InputDecoration _dialogInputDecoration(String label, IconData icon) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-      prefixIcon: Icon(icon, color: AppColors.textMuted, size: 18),
-      filled: true,
-      fillColor: AppColors.surfaceAlt,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(6),
-        borderSide: const BorderSide(color: AppColors.borderSubtle),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(6),
-        borderSide: const BorderSide(color: AppColors.borderSubtle),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(6),
-        borderSide: const BorderSide(color: AppColors.emergencyRed),
+              child: Text("CANCEL",
+                  style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary))),
+          ElevatedButton(
+            onPressed: () async {
+              await _contactsRepo.deleteContact(contact.id);
+              if (context.mounted) Navigator.pop(context);
+              _loadContacts();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.emergencyRed),
+            child:
+                Text("DELETE", style: AppTypography.labelCaps.copyWith(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }
 
-  String _avatarForRelationship(String relationship) {
-    switch (relationship) {
-      case 'Spouse':
-        return '❤️';
-      case 'Family':
-        return '👨‍👩‍👦';
-      case 'Friend':
-        return '🤝';
-      case 'Doctor':
-        return '🩺';
-      case 'Work':
-        return '💼';
-      default:
-        return '👤';
+  InputDecoration _inputDeco(String label, IconData icon) => InputDecoration(
+        labelText: label,
+        labelStyle: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+        prefixIcon: Icon(icon, color: AppColors.textMuted, size: 18),
+        filled: true,
+        fillColor: AppColors.surfaceAlt,
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
+            borderSide: const BorderSide(color: AppColors.borderSubtle)),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
+            borderSide: const BorderSide(color: AppColors.borderSubtle)),
+        focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
+            borderSide: const BorderSide(color: AppColors.emergencyRed)),
+      );
+
+  String _avatarFor(String rel) {
+    switch (rel) {
+      case 'Spouse': return '❤️';
+      case 'Family': return '👨‍👩‍👦';
+      case 'Friend': return '🤝';
+      case 'Doctor': return '🩺';
+      case 'Work':   return '💼';
+      default:       return '👤';
     }
   }
 
-  // ── Layout Builders ────────────────────────────────────────────────────
+  // ── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.primary,
-      appBar: AppBar(
-        title: Text(
-          "EMERGENCY RESPONDERS",
-          style: AppTypography.headlineLarge.copyWith(letterSpacing: 0.5),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-            tooltip: "Force GPS Refresh",
-            onPressed: () {
-              if (_latitude != null && _longitude != null) {
-                _resolveLocationAndData(lat: _latitude!, lng: _longitude!, forceRefresh: true);
-              } else {
-                context.read<LocationCubit>().forceRefreshLocation();
-              }
-            },
+    return BlocBuilder<ResponderCubit, ResponderState>(
+      builder: (context, responderState) {
+        final locState = context.watch<LocationCubit>().state;
+        final bool gpsAvailable = locState.hasLocation;
+        final bool gpsLoading = locState.status == LocationStatus.loading ||
+            locState.status == LocationStatus.initial;
+
+        return Scaffold(
+          backgroundColor: AppColors.primary,
+          appBar: AppBar(
+            title: Text("EMERGENCY RESPONDERS",
+                style: AppTypography.headlineLarge.copyWith(letterSpacing: 0.5)),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                tooltip: "Force Refresh",
+                onPressed: () {
+                  print('[EmergencyScreen] Manual refresh triggered.');
+                  context.read<ResponderCubit>().forceRefresh();
+                },
+              ),
+            ],
+            backgroundColor: AppColors.surface,
+            elevation: 0,
           ),
-        ],
-        backgroundColor: AppColors.surface,
-        elevation: 0,
-      ),
-      body: Column(
-        children: [
-          // Offline Mode visual indicator banner
-          if (_isOffline)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: AppColors.infoBlue.withOpacity(0.12),
-              child: Row(
-                children: [
-                  const Icon(Icons.wifi_off_rounded, color: AppColors.infoBlue, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      "Offline Mode active — serving response from local spatial cache database.",
-                      style: AppTypography.bodySmall.copyWith(color: AppColors.infoBlue, fontWeight: FontWeight.bold),
-                    ),
+          body: Column(
+            children: [
+              // ── Offline banner ──────────────────────────────────────
+              if (responderState.isOffline)
+                _infoBanner(
+                  Icons.wifi_off_rounded,
+                  "Offline Mode — showing cached emergency data.",
+                  AppColors.infoBlue,
+                ),
+
+              // ── Cache banner ────────────────────────────────────────
+              if (responderState.isFromCache && !responderState.isOffline && responderState.hasData)
+                _infoBanner(
+                  Icons.cached_rounded,
+                  "Showing locally cached data. Pull refresh for live results.",
+                  AppColors.emergencyAmber,
+                ),
+
+              // ── Tab chips ───────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border(bottom: BorderSide(color: AppColors.borderSubtle, width: 1)),
+                ),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _tabChip(0, "Hospitals", Icons.emergency_rounded,
+                          responderState.hospitals.length),
+                      _tabChip(1, "Police", Icons.local_police_rounded,
+                          responderState.police.length),
+                      _tabChip(2, "Towing", Icons.local_shipping_rounded,
+                          responderState.towing.length),
+                      _tabChip(3, "Shelters", Icons.home_work_rounded,
+                          responderState.shelters.length),
+                      _tabChip(4, "Contacts", Icons.people_outline_rounded,
+                          _contacts.length),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
 
-          // 1. Horizontal tab navigation chips
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            decoration: const BoxDecoration(
-              color: AppColors.surface,
-              border: Border(bottom: BorderSide(color: AppColors.borderSubtle, width: 1)),
-            ),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildTabChip(0, "Hospitals", Icons.emergency_rounded),
-                  _buildTabChip(1, "Police", Icons.local_police_rounded),
-                  _buildTabChip(2, "Towing", Icons.local_shipping_rounded),
-                  _buildTabChip(3, "Shelters", Icons.home_work_rounded),
-                  _buildTabChip(4, "Contacts", Icons.people_outline_rounded),
-                ],
+              // ── Main content ────────────────────────────────────────
+              Expanded(
+                child: _buildBody(
+                  responderState: responderState,
+                  gpsAvailable: gpsAvailable,
+                  gpsLoading: gpsLoading,
+                  locState: locState,
+                ),
               ),
-            ),
+            ],
           ),
-
-          // GPS warning banner if offline or location permissions missing
-          if (_gpsError.isNotEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: AppColors.emergencyAmber.withOpacity(0.12),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded, color: AppColors.emergencyAmber, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      "$_gpsError Displaying default offline emergency database.",
-                      style: AppTypography.bodySmall.copyWith(color: AppColors.emergencyAmber),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          // 2. Main Tab View Area
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: AppColors.emergencyRed))
-                : _buildSelectedTabContent(),
-          ),
-        ],
-      ),
-      floatingActionButton: _selectedTab == 4
-          ? FloatingActionButton(
-              onPressed: () => _showContactFormDialog(),
-              backgroundColor: AppColors.emergencyRed,
-              child: const Icon(Icons.add_rounded, color: Colors.white),
-            )
-          : null,
-    );
-  }
-
-  Widget _buildTabChip(int index, String label, IconData icon) {
-    final isSelected = _selectedTab == index;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedTab = index;
-        });
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.emergencyRed : AppColors.surfaceAlt,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? AppColors.emergencyRed : AppColors.borderSubtle,
-            width: 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 16, color: isSelected ? Colors.white : AppColors.textSecondary),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: AppTypography.bodyMedium.copyWith(
-                color: isSelected ? Colors.white : AppColors.textSecondary,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSelectedTabContent() {
-    switch (_selectedTab) {
-      case 0:
-        return _buildHospitalsTab();
-      case 1:
-        return _buildPoliceTab();
-      case 2:
-        return _buildTowingTab();
-      case 3:
-        return _buildSheltersTab();
-      case 4:
-        return _buildContactsTab();
-      default:
-        return const SizedBox.shrink();
-    }
-  }
-
-  Widget _buildSheltersTab() {
-    if (_shelters.isEmpty) {
-      return _buildEmptyState("NO EMERGENCY SHELTERS SAVED", "No community shelter facilities mapped nearby.");
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _shelters.length,
-      itemBuilder: (context, index) {
-        final item = _shelters[index];
-        return _buildServiceCard(
-          name: item.name,
-          address: item.address,
-          badgeText: "Capacity: ${item.capacity} people",
-          distance: "${item.distanceKm.toStringAsFixed(1)} km away",
-          eta: "${(item.distanceKm * 2.0).toStringAsFixed(1)} MINS ETA",
-          phone: item.phone,
-          lat: item.lat,
-          lng: item.lng,
-          accentColor: AppColors.safeGreen,
+          floatingActionButton: _selectedTab == 4
+              ? FloatingActionButton(
+                  onPressed: () => _showContactFormDialog(),
+                  backgroundColor: AppColors.emergencyRed,
+                  child: const Icon(Icons.add_rounded, color: Colors.white),
+                )
+              : null,
         );
       },
     );
   }
 
-  Widget _buildHospitalsTab() {
-    if (_hospitals.isEmpty) {
-      return _buildEmptyState("NO HOSPITALS FOUND", "No emergency medical facilities nearby.");
+  Widget _buildBody({
+    required ResponderState responderState,
+    required bool gpsAvailable,
+    required bool gpsLoading,
+    required LocationState locState,
+  }) {
+    // GPS not yet available
+    if (!gpsAvailable) {
+      if (gpsLoading) {
+        return const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: AppColors.emergencyRed),
+              SizedBox(height: 16),
+              Text("RESOLVING GPS...",
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.5,
+                    fontSize: 12,
+                  )),
+            ],
+          ),
+        );
+      }
+      // GPS denied/failed
+      return ResponderErrorWidget(
+        type: ResponderErrorType.gpsDenied,
+        customMessage: locState.errorMessage.isNotEmpty ? locState.errorMessage : null,
+        onRetry: () => context.read<LocationCubit>().initLocation(),
+        retryLabel: 'RETRY GPS',
+      );
+    }
+
+    // GPS available but responders loading
+    if (responderState.isLoading && !responderState.hasData) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: AppColors.emergencyRed),
+            SizedBox(height: 16),
+            Text("LOADING NEARBY SERVICES...",
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontFamily: 'Inter',
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                  fontSize: 12,
+                )),
+          ],
+        ),
+      );
+    }
+
+    // Error state and no cache
+    if (responderState.hasFailed && !responderState.hasData) {
+      final type = responderState.isOffline
+          ? ResponderErrorType.noInternet
+          : ResponderErrorType.apiUnavailable;
+      return ResponderErrorWidget(
+        type: type,
+        customMessage: responderState.errorMessage.isNotEmpty ? responderState.errorMessage : null,
+        onRetry: () => context.read<ResponderCubit>().retry(),
+        retryLabel: 'RETRY',
+      );
+    }
+
+    // Data available — show tabs
+    return _buildSelectedTab(responderState);
+  }
+
+  Widget _buildSelectedTab(ResponderState rs) {
+    switch (_selectedTab) {
+      case 0: return _buildHospitalsTab(rs.hospitals);
+      case 1: return _buildPoliceTab(rs.police);
+      case 2: return _buildTowingTab(rs.towing);
+      case 3: return _buildSheltersTab(rs.shelters);
+      case 4: return _buildContactsTab();
+      default: return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildHospitalsTab(List<Hospital> hospitals) {
+    if (hospitals.isEmpty) {
+      return ResponderErrorWidget(
+        type: ResponderErrorType.empty,
+        customMessage: "No hospitals found within the search radius.",
+        onRetry: () => context.read<ResponderCubit>().retry(),
+      );
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _hospitals.length,
-      itemBuilder: (context, index) {
-        final item = _hospitals[index];
-        return _buildServiceCard(
-          name: item.name,
-          address: item.address,
-          badgeText: item.type == HospitalType.trauma ? "Level 1 Trauma" : "General Hospital",
-          distance: "${item.distanceKm.toStringAsFixed(1)} km away",
-          eta: "${item.estimatedMinutes.toStringAsFixed(1)} MINS ETA",
-          phone: item.phone,
-          lat: item.lat,
-          lng: item.lng,
+      itemCount: hospitals.length,
+      itemBuilder: (context, i) {
+        final h = hospitals[i];
+        return _serviceCard(
+          name: h.name,
+          address: h.address,
+          badgeText: h.type == HospitalType.trauma ? "Level 1 Trauma" : "General Hospital",
+          distance: "${h.distanceKm.toStringAsFixed(1)} km away",
+          eta: "${h.estimatedMinutes.toStringAsFixed(1)} MINS ETA",
+          phone: h.phone,
+          lat: h.lat,
+          lng: h.lng,
           accentColor: AppColors.emergencyRed,
         );
       },
     );
   }
 
-  Widget _buildPoliceTab() {
-    if (_police.isEmpty) {
-      return _buildEmptyState("NO POLICE STATIONS FOUND", "No local jurisdictions mapped nearby.");
+  Widget _buildPoliceTab(List<PoliceStation> police) {
+    if (police.isEmpty) {
+      return ResponderErrorWidget(
+        type: ResponderErrorType.empty,
+        customMessage: "No police stations found within the search radius.",
+        onRetry: () => context.read<ResponderCubit>().retry(),
+      );
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _police.length,
-      itemBuilder: (context, index) {
-        final item = _police[index];
-        return _buildServiceCard(
-          name: item.name,
-          address: item.address,
-          badgeText: item.is24Hours ? "24 Hours Active" : "Patrol Station",
-          distance: "${item.distanceKm.toStringAsFixed(1)} km away",
-          eta: "${(item.distanceKm * 2.2).toStringAsFixed(1)} MINS ETA",
-          phone: item.phone,
-          lat: item.lat,
-          lng: item.lng,
+      itemCount: police.length,
+      itemBuilder: (context, i) {
+        final p = police[i];
+        return _serviceCard(
+          name: p.name,
+          address: p.address,
+          badgeText: p.is24Hours ? "24 Hours Active" : "Patrol Station",
+          distance: "${p.distanceKm.toStringAsFixed(1)} km away",
+          eta: "${(p.distanceKm * 2.2).toStringAsFixed(1)} MINS ETA",
+          phone: p.phone,
+          lat: p.lat,
+          lng: p.lng,
           accentColor: AppColors.policeBlue,
         );
       },
     );
   }
 
-  Widget _buildTowingTab() {
-    if (_towing.isEmpty) {
-      return _buildEmptyState("NO TOWING SERVICES FOUND", "No crane providers found in this radius.");
+  Widget _buildTowingTab(List<TowingService> towing) {
+    if (towing.isEmpty) {
+      return ResponderErrorWidget(
+        type: ResponderErrorType.empty,
+        customMessage: "No towing services found in this area.",
+        onRetry: () => context.read<ResponderCubit>().retry(),
+      );
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _towing.length,
-      itemBuilder: (context, index) {
-        final item = _towing[index];
-        return _buildServiceCard(
-          name: item.name,
-          address: "Radius: ${item.serviceRadius.toStringAsFixed(0)} km · Hours: ${item.operatingHours}",
-          badgeText: "Vehicle: ${item.vehicleTypes}",
-          distance: "${item.distanceKm.toStringAsFixed(1)} km away",
-          eta: "${(item.distanceKm * 2.5).toStringAsFixed(1)} MINS ETA",
-          phone: item.phone,
-          lat: item.lat,
-          lng: item.lng,
+      itemCount: towing.length,
+      itemBuilder: (context, i) {
+        final t = towing[i];
+        return _serviceCard(
+          name: t.name,
+          address: "Radius: ${t.serviceRadius.toStringAsFixed(0)} km · Hours: ${t.operatingHours}",
+          badgeText: "Vehicle: ${t.vehicleTypes}",
+          distance: "${t.distanceKm.toStringAsFixed(1)} km away",
+          eta: "${(t.distanceKm * 2.5).toStringAsFixed(1)} MINS ETA",
+          phone: t.phone,
+          lat: t.lat,
+          lng: t.lng,
           accentColor: AppColors.towingOrange,
         );
       },
     );
   }
 
-  Widget _buildContactsTab() {
-    if (_contacts.isEmpty) {
-      return _buildEmptyState(
-        "NO EMERGENCY CONTACTS SAVED",
-        "Add emergency contacts who should be automatically notified during a critical SOS event.",
+  Widget _buildSheltersTab(List<EmergencyShelter> shelters) {
+    if (shelters.isEmpty) {
+      return ResponderErrorWidget(
+        type: ResponderErrorType.empty,
+        customMessage: "No community shelters mapped nearby.",
+        onRetry: () => context.read<ResponderCubit>().retry(),
       );
     }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: shelters.length,
+      itemBuilder: (context, i) {
+        final s = shelters[i];
+        return _serviceCard(
+          name: s.name,
+          address: s.address,
+          badgeText: "Capacity: ${s.capacity} people",
+          distance: "${s.distanceKm.toStringAsFixed(1)} km away",
+          eta: "${(s.distanceKm * 2.0).toStringAsFixed(1)} MINS ETA",
+          phone: s.phone,
+          lat: s.lat,
+          lng: s.lng,
+          accentColor: AppColors.safeGreen,
+        );
+      },
+    );
+  }
 
+  Widget _buildContactsTab() {
+    if (_contactsLoading) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.emergencyRed));
+    }
+    if (_contacts.isEmpty) {
+      return ResponderErrorWidget(
+        type: ResponderErrorType.empty,
+        customMessage:
+            "Add emergency contacts who will be notified automatically during a critical SOS event.",
+        onRetry: () => _showContactFormDialog(),
+        retryLabel: 'ADD CONTACT',
+      );
+    }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: _contacts.length,
-      itemBuilder: (context, index) {
-        final item = _contacts[index];
+      itemBuilder: (context, i) {
+        final c = _contacts[i];
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
@@ -714,10 +619,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
               CircleAvatar(
                 radius: 24,
                 backgroundColor: AppColors.surfaceAlt,
-                child: Text(
-                  item.avatarEmoji,
-                  style: const TextStyle(fontSize: 22),
-                ),
+                child: Text(c.avatarEmoji, style: const TextStyle(fontSize: 22)),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -726,11 +628,9 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          item.name,
-                          style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        if (item.isPrimary) ...[
+                        Text(c.name,
+                            style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.bold)),
+                        if (c.isPrimary) ...[
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -738,28 +638,22 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                               color: AppColors.emergencyRed.withOpacity(0.12),
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: Text(
-                              "PRIMARY",
-                              style: AppTypography.bodySmall.copyWith(
-                                fontSize: 8,
-                                color: AppColors.emergencyRed,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                            child: Text("PRIMARY",
+                                style: AppTypography.bodySmall.copyWith(
+                                  fontSize: 8,
+                                  color: AppColors.emergencyRed,
+                                  fontWeight: FontWeight.bold,
+                                )),
                           ),
                         ],
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      "Relation: ${item.relationship} · Phone: ${item.phone}",
-                      style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-                    ),
+                    Text("${c.relationship} · ${c.phone}",
+                        style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
                     const SizedBox(height: 2),
-                    Text(
-                      "Email: ${item.email}",
-                      style: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
-                    ),
+                    Text(c.email,
+                        style: AppTypography.bodySmall.copyWith(color: AppColors.textMuted)),
                   ],
                 ),
               ),
@@ -767,7 +661,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.phone_rounded, color: AppColors.safeGreen, size: 20),
-                    onPressed: () => _makeCall(item.phone),
+                    onPressed: () => _makeCall(c.phone),
                   ),
                   Row(
                     mainAxisSize: MainAxisSize.min,
@@ -776,14 +670,15 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                         icon: const Icon(Icons.edit_rounded, color: AppColors.textSecondary, size: 16),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
-                        onPressed: () => _showContactFormDialog(item),
+                        onPressed: () => _showContactFormDialog(c),
                       ),
                       const SizedBox(width: 8),
                       IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded, color: AppColors.emergencyRed, size: 16),
+                        icon: const Icon(Icons.delete_outline_rounded,
+                            color: AppColors.emergencyRed, size: 16),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
-                        onPressed: () => _confirmDeleteContact(item),
+                        onPressed: () => _confirmDeleteContact(c),
                       ),
                     ],
                   ),
@@ -796,47 +691,77 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
     );
   }
 
-  Widget _buildEmptyState(String title, String desc) {
-    return Padding(
-      padding: const EdgeInsets.all(32.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  // ── Helpers ─────────────────────────────────────────────────────────────
+
+  Widget _tabChip(int index, String label, IconData icon, int count) {
+    final isSelected = _selectedTab == index;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedTab = index),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.emergencyRed : AppColors.surfaceAlt,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? AppColors.emergencyRed : AppColors.borderSubtle,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: isSelected ? Colors.white : AppColors.textSecondary),
+            const SizedBox(width: 6),
+            Text(label,
+                style: AppTypography.bodyMedium.copyWith(
+                  color: isSelected ? Colors.white : AppColors.textSecondary,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                )),
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: isSelected ? Colors.white.withOpacity(0.2) : AppColors.borderSubtle,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? Colors.white : AppColors.textMuted,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoBanner(IconData icon, String text, Color color) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: color.withOpacity(0.10),
+      child: Row(
         children: [
-          Icon(Icons.warning_amber_rounded, size: 48, color: AppColors.textMuted.withOpacity(0.5)),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary, letterSpacing: 1.5),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            desc,
-            textAlign: TextAlign.center,
-            style: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () {
-              if (_latitude != null && _longitude != null) {
-                _resolveLocationAndData(lat: _latitude!, lng: _longitude!, forceRefresh: true);
-              } else {
-                context.read<LocationCubit>().forceRefreshLocation();
-              }
-            },
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 16),
-            label: Text("RETRY GPS SYNC", style: AppTypography.labelCaps.copyWith(color: Colors.white)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.emergencyRed,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
+          Icon(icon, color: color, size: 15),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text,
+                style: AppTypography.bodySmall.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                )),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildServiceCard({
+  Widget _serviceCard({
     required String name,
     required String address,
     required String badgeText,
@@ -873,52 +798,52 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                       child: Text(
                         badgeText.toUpperCase(),
                         style: AppTypography.labelCaps.copyWith(color: accentColor, fontSize: 8),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      name,
-                      style: AppTypography.headlineMedium.copyWith(fontSize: 18, color: Colors.white),
-                    ),
+                    Text(name,
+                        style: AppTypography.headlineMedium.copyWith(
+                            fontSize: 18, color: Colors.white)),
                   ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 6),
-          Text(
-            address,
-            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-          ),
+          Text(address,
+              style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2),
           const Divider(color: AppColors.borderSubtle, height: 24, thickness: 1),
           Row(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    eta,
-                    style: AppTypography.monoMedium.copyWith(
-                      color: AppColors.safeGreen,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    distance,
-                    style: AppTypography.bodySmall.copyWith(fontSize: 10, color: AppColors.textMuted),
-                  ),
-                ],
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(eta,
+                        style: AppTypography.monoMedium.copyWith(
+                          color: AppColors.safeGreen,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                        overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 2),
+                    Text(distance,
+                        style: AppTypography.bodySmall
+                            .copyWith(fontSize: 10, color: AppColors.textMuted),
+                        overflow: TextOverflow.ellipsis),
+                  ],
+                ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               ElevatedButton.icon(
                 onPressed: () => _launchMap(lat, lng),
                 icon: const Icon(Icons.map_rounded, size: 12, color: Colors.white),
-                label: Text(
-                  "MAP",
-                  style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 9),
-                ),
+                label: Text("MAP",
+                    style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 9)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.surfaceAlt,
                   elevation: 0,
@@ -933,10 +858,8 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
               ElevatedButton.icon(
                 onPressed: () => _makeCall(phone),
                 icon: const Icon(Icons.phone_rounded, size: 12, color: Colors.white),
-                label: Text(
-                  "CALL",
-                  style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 9),
-                ),
+                label: Text("CALL",
+                    style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 9)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: accentColor,
                   elevation: 2,

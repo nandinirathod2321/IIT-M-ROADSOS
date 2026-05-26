@@ -12,7 +12,7 @@ class EmergencyServicesApiService {
 
   /// Queries the OpenStreetMap Overpass interpreter for nearby emergency services.
   /// Categorizes and parses results into appropriate models.
-  Future<Map<String, List<dynamic>>> fetchNearbyServices(double lat, double lng) async {
+  Future<Map<String, List<dynamic>>> fetchNearbyServices(double lat, double lng, {int radiusMeters = 10000}) async {
     final hospitals = <Hospital>[];
     final police = <PoliceStation>[];
     final towing = <TowingService>[];
@@ -21,16 +21,16 @@ class EmergencyServicesApiService {
     final query = '''
     [out:json][timeout:15];
     (
-      node["amenity"="hospital"](around:25000,$lat,$lng);
-      way["amenity"="hospital"](around:25000,$lat,$lng);
-      node["amenity"="police"](around:25000,$lat,$lng);
-      way["amenity"="police"](around:25000,$lat,$lng);
-      node["amenity"="car_repair"](around:25000,$lat,$lng);
-      way["amenity"="car_repair"](around:25000,$lat,$lng);
-      node["amenity"="shelter"](around:25000,$lat,$lng);
-      way["amenity"="shelter"](around:25000,$lat,$lng);
-      node["social_facility"="shelter"](around:25000,$lat,$lng);
-      way["social_facility"="shelter"](around:25000,$lat,$lng);
+      node["amenity"="hospital"](around:$radiusMeters,$lat,$lng);
+      way["amenity"="hospital"](around:$radiusMeters,$lat,$lng);
+      node["amenity"="police"](around:$radiusMeters,$lat,$lng);
+      way["amenity"="police"](around:$radiusMeters,$lat,$lng);
+      node["amenity"="car_repair"](around:$radiusMeters,$lat,$lng);
+      way["amenity"="car_repair"](around:$radiusMeters,$lat,$lng);
+      node["amenity"="shelter"](around:$radiusMeters,$lat,$lng);
+      way["amenity"="shelter"](around:$radiusMeters,$lat,$lng);
+      node["social_facility"="shelter"](around:$radiusMeters,$lat,$lng);
+      way["social_facility"="shelter"](around:$radiusMeters,$lat,$lng);
     );
     out center;
     ''';
