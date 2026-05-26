@@ -17,18 +17,26 @@ import '../../shared/widgets/navigation_shell.dart';
 import '../../features/emergency/screens/emergency_history_screen.dart';
 
 /// Centralized application router using go_router.
-/// Outfitted with a global navigatorKey to allow sensor events to redirect navigation.
+/// Outfitted with navigatorKeys and neglect options to ensure web back works properly.
 abstract final class AppRouter {
-  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  static final GlobalKey<NavigatorState> rootNavigatorKey =
+      GlobalKey<NavigatorState>(debugLabel: 'root');
+  static final GlobalKey<NavigatorState> shellNavigatorKey =
+      GlobalKey<NavigatorState>(debugLabel: 'shell');
 
   static GoRouter router(String initialLocation) => GoRouter(
-    navigatorKey: navigatorKey,
+    navigatorKey: rootNavigatorKey,
     initialLocation: initialLocation,
+    routerNeglect: false,
+    debugLogDiagnostics: true,
     redirect: (context, state) {
       final bool loggedIn = AuthService.instance.isLoggedIn;
       final matchLoc = state.matchedLocation;
 
-      final isAuthRoute = matchLoc == '/login' || matchLoc == '/signup' || matchLoc == '/forgot-password';
+      final isAuthRoute =
+          matchLoc == '/login' ||
+          matchLoc == '/signup' ||
+          matchLoc == '/forgot-password';
       final isOnboarding = matchLoc == '/onboarding';
 
       if (!loggedIn && !isAuthRoute && !isOnboarding) {
@@ -43,62 +51,48 @@ abstract final class AppRouter {
     },
     routes: [
       // ── Shell with bottom nav ────────────────────────────────────────
-      StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) {
-          return NavigationShell(navigationShell: navigationShell);
+      ShellRoute(
+        navigatorKey: shellNavigatorKey,
+        builder: (context, state, child) {
+          return NavigationShell(
+            child: child,
+            matchedLocation: state.matchedLocation,
+          );
         },
-        branches: [
+        routes: [
           // Tab 0 — Home
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/',
-                pageBuilder: (context, state) => const NoTransitionPage(
-                  child: HomeScreen(),
-                ),
-              ),
-            ],
-          ),
-          // Tab 1 — Medical ID
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/medical-id',
-                pageBuilder: (context, state) => const NoTransitionPage(
-                  child: MedicalIdScreen(),
-                ),
-              ),
-            ],
+          GoRoute(
+            path: '/',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: HomeScreen(),
+            ),
           ),
           // Tab 2 — First Aid
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/first-aid',
-                pageBuilder: (context, state) => const NoTransitionPage(
-                  child: FirstAidScreen(),
-                ),
-              ),
-            ],
+          GoRoute(
+            path: '/first-aid',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: FirstAidScreen(),
+            ),
           ),
           // Tab 3 — Settings
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/settings',
-                pageBuilder: (context, state) => const NoTransitionPage(
-                  child: SettingsScreen(),
-                ),
-              ),
-            ],
+          GoRoute(
+            path: '/settings',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: SettingsScreen(),
+            ),
           ),
         ],
       ),
 
-      // ── Full-screen routes (no bottom nav) ───────────────────────────
+      // ── Standalone routes (outside ShellRoute) ──────────────────────
+      GoRoute(
+        path: '/medical-id',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => const MedicalIdScreen(),
+      ),
       GoRoute(
         path: '/emergency',
-        parentNavigatorKey: navigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) {
           final section =
               int.tryParse(state.uri.queryParameters['section'] ?? '0') ?? 0;
@@ -107,7 +101,7 @@ abstract final class AppRouter {
       ),
       GoRoute(
         path: '/first-aid/ai-chat',
-        parentNavigatorKey: navigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) {
           final q = state.uri.queryParameters['question'];
           return AIChatScreen(initialQuestion: q);
@@ -115,7 +109,7 @@ abstract final class AppRouter {
       ),
       GoRoute(
         path: '/countdown',
-        parentNavigatorKey: navigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) {
           final trigger = state.uri.queryParameters['trigger'] ?? 'manual';
           return CountdownScreen(triggerType: trigger);
@@ -123,27 +117,27 @@ abstract final class AppRouter {
       ),
       GoRoute(
         path: '/onboarding',
-        parentNavigatorKey: navigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const OnboardingScreen(),
       ),
       GoRoute(
         path: '/login',
-        parentNavigatorKey: navigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
         path: '/signup',
-        parentNavigatorKey: navigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const SignupScreen(),
       ),
       GoRoute(
         path: '/forgot-password',
-        parentNavigatorKey: navigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const ForgotPasswordScreen(),
       ),
       GoRoute(
         path: '/history',
-        parentNavigatorKey: navigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const EmergencyHistoryScreen(),
       ),
     ],

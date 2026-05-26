@@ -48,4 +48,19 @@ class NearbyServicesRepository {
     final cached = await _cacheService.getCachedServices(lat, lng);
     return List<EmergencyShelter>.from(cached['shelters'] ?? []);
   }
+
+  /// Atomically purges and inserts new parsed services to cache.
+  Future<void> saveToCache({
+    required List<Hospital> hospitals,
+    required List<PoliceStation> police,
+    required List<TowingService> towing,
+    required List<EmergencyShelter> shelters,
+  }) async {
+    await _cacheService.saveToCache(
+      hospitals: hospitals,
+      police: police,
+      towing: towing,
+      shelters: shelters,
+    );
+  }
 }

@@ -38,6 +38,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
+  bool _isStreaming = false;
   String? _userLocation;
 
   final List<String> _quickActions = [
@@ -104,6 +105,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
   Future<void> _sendMessage(String text) async {
     if (text.trim().isEmpty || _isLoading) return;
 
+    debugPrint("[AntiGravity] User message sent: $text");
+
     setState(() {
       _messages.add(ChatMessage(
         text: text,
@@ -112,26 +115,77 @@ class _AIChatScreenState extends State<AIChatScreen> {
         isError: false,
       ));
       _isLoading = true;
+      _isStreaming = false;
       _controller.clear();
     });
 
     _scrollToBottom();
 
-    // Call service to get response
-    final reply = await _service.sendMessage(text, userLocation: _userLocation);
+    String streamedText = '';
+    int? botMessageIndex;
+    StreamSubscription<String>? subscription;
 
-    if (mounted) {
-      setState(() {
-        _messages.add(ChatMessage(
-          text: reply,
-          isUser: false,
-          timestamp: DateTime.now(),
-          isError: false,
-        ));
-        _isLoading = false;
-      });
-      _scrollToBottom();
-    }
+    subscription = _service.sendMessageStream(text, userLocation: _userLocation).listen(
+      (chunk) {
+        if (!mounted) return;
+        setState(() {
+          _isStreaming = true;
+          streamedText += chunk;
+          if (botMessageIndex == null) {
+            botMessageIndex = _messages.length;
+            _messages.add(ChatMessage(
+              text: streamedText,
+              isUser: false,
+              timestamp: DateTime.now(),
+              isError: false,
+            ));
+          } else {
+            _messages[botMessageIndex!] = ChatMessage(
+              text: streamedText,
+              isUser: false,
+              timestamp: DateTime.now(),
+              isError: false,
+            );
+          }
+        });
+        _scrollToBottom();
+      },
+      onError: (err) {
+        if (!mounted) return;
+        debugPrint("[AntiGravity] Error caught during streaming: $err");
+        setState(() {
+          _isLoading = false;
+          _isStreaming = false;
+          if (botMessageIndex == null) {
+            _messages.add(ChatMessage(
+              text: "Failed to generate response. Tap to retry.",
+              isUser: false,
+              timestamp: DateTime.now(),
+              isError: true,
+            ));
+          } else {
+            _messages[botMessageIndex!] = ChatMessage(
+              text: "Failed to generate response. Tap to retry.",
+              isUser: false,
+              timestamp: DateTime.now(),
+              isError: true,
+            );
+          }
+        });
+        _scrollToBottom();
+        subscription?.cancel();
+      },
+      onDone: () {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          _isStreaming = false;
+        });
+        _scrollToBottom();
+        subscription?.cancel();
+      },
+      cancelOnError: true,
+    );
   }
 
   void _scrollToBottom() {
@@ -239,14 +293,28 @@ class _AIChatScreenState extends State<AIChatScreen> {
               child: ListView.builder(
                 controller: _scrollController,
                 padding: const EdgeInsets.all(16),
-                itemCount: _messages.length + (_isLoading ? 1 : 0),
+                itemCount: _messages.length + (_isLoading && !_isStreaming ? 1 : 0),
                 itemBuilder: (context, index) {
-                  if (index == _messages.length && _isLoading) {
+                  if (index == _messages.length && _isLoading && !_isStreaming) {
                     return const _TypingIndicator();
                   }
 
                   final msg = _messages[index];
-                  return _MessageCard(msg: msg);
+                  return _MessageCard(
+                    msg: msg,
+                    onRetry: msg.isError
+                        ? () {
+                            final userMsgIndex = _messages.sublist(0, index).lastIndexWhere((m) => m.isUser);
+                            if (userMsgIndex != -1) {
+                              final userText = _messages[userMsgIndex].text;
+                              setState(() {
+                                _messages.removeRange(userMsgIndex + 1, _messages.length);
+                              });
+                              _sendMessage(userText);
+                            }
+                          }
+                        : null,
+                  );
                 },
               ),
             ),
@@ -327,8 +395,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
 class _MessageCard extends StatelessWidget {
   final ChatMessage msg;
+  final VoidCallback? onRetry;
 
-  const _MessageCard({required this.msg});
+  const _MessageCard({required this.msg, this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -372,6 +441,19 @@ class _MessageCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           _buildMessageContent(msg.text),
+          if (msg.isError && onRetry != null) ...[
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 14, color: Colors.white),
+              label: Text("RETRY", style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 10)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.emergencyRed,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+              ),
+            ),
+          ]
         ],
       ),
     );

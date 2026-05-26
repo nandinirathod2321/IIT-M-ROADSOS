@@ -10,7 +10,9 @@ import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../data/repositories/sos_repository.dart';
-import '../../../core/responders/responder_cubit.dart';
+import '../../../presentation/blocs/nearby/nearby_cubit.dart';
+import '../../../presentation/blocs/nearby/nearby_state.dart';
+import '../../../data/models/nearby_place.dart';
 import '../../../data/repositories/emergency_contact_repository.dart';
 import '../../../data/repositories/medical_repository.dart';
 import '../../../data/models/hospital.dart';
@@ -18,8 +20,8 @@ import '../../../data/models/police_station.dart';
 import '../../../data/models/emergency_contact.dart';
 import '../../../shared/widgets/countdown_overlay.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../core/location/location_cubit.dart';
-import '../../../core/location/location_state.dart';
+import '../../../presentation/blocs/location/location_cubit.dart';
+import '../../../presentation/blocs/location/location_state.dart';
 
 /// Full-screen countdown overlay and premium interactive emergency success screen.
 /// Resolves real coordinates, queries spatial SQLite lists, dials emergency numbers,
@@ -251,7 +253,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
   @override
   Widget build(BuildContext context) {
     final locState = context.watch<LocationCubit>().state;
-    final responderState = context.watch<ResponderCubit>().state;
+    final responderState = context.watch<NearbyCubit>().state;
 
     final double lat = locState.latitude ?? 23.0225;
     final double lng = locState.longitude ?? 72.5714;
@@ -395,28 +397,28 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
     // Dynamic extraction details matching user resolved position
     final nearestHospital = hospitals.isNotEmpty
         ? hospitals.first
-        : Hospital(
+        : const NearbyPlace(
             id: 'h-mock',
             name: 'Apollo Hospitals Ahmedabad',
             address: 'Plot No. 1A, GIDC Gandhinagar, Ahmedabad',
-            lat: 23.1028,
-            lng: 72.6025,
+            latitude: 23.1028,
+            longitude: 72.6025,
             phone: '+91 79 6670 1800',
             distanceKm: 3.2,
-            estimatedMinutes: 6.0,
-            lastUpdated: DateTime.now(),
+            type: NearbyPlaceType.hospital,
           );
 
     final nearestPolice = policeStations.isNotEmpty
         ? policeStations.first
-        : const PoliceStation(
+        : const NearbyPlace(
             id: 'p-mock',
             name: 'Navrangpura Police Station',
             address: 'Navrangpura, Ahmedabad',
-            lat: 23.0360,
-            lng: 72.5615,
+            latitude: 23.0360,
+            longitude: 72.5615,
             phone: '+91 79 2644 3803',
             distanceKm: 1.8,
+            type: NearbyPlaceType.police,
           );
 
     return Scaffold(
@@ -505,11 +507,11 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                       title: "AMBULANCE DISPATCHED",
                       name: nearestHospital.name,
                       subtitle: "Trauma Level 1 Facility",
-                      eta: "${nearestHospital.estimatedMinutes.toStringAsFixed(1)} MINS",
+                      eta: "${(nearestHospital.distanceKm * 1.5).toStringAsFixed(1)} MINS",
                       distance: "${nearestHospital.distanceKm.toStringAsFixed(1)} km away",
                       icon: Icons.emergency_rounded,
                       iconBg: AppColors.emergencyRed,
-                      phone: nearestHospital.phone,
+                      phone: nearestHospital.phone ?? '',
                     ),
                     const SizedBox(height: 12),
 
@@ -522,7 +524,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                       distance: "${nearestPolice.distanceKm.toStringAsFixed(1)} km away",
                       icon: Icons.local_police_rounded,
                       iconBg: AppColors.policeBlue,
-                      phone: nearestPolice.phone,
+                      phone: nearestPolice.phone ?? '',
                     ),
                     const SizedBox(height: 28),
 

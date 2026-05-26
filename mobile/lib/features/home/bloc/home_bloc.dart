@@ -6,10 +6,11 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../../core/utils/geocoder.dart';
 import '../../../data/database/database_helper.dart';
 import '../../../data/repositories/emergency_contact_repository.dart';
-import '../../../core/location/location_cubit.dart';
-import '../../../core/location/location_state.dart';
-import '../../../core/responders/responder_cubit.dart';
-import '../../../core/responders/responder_state.dart';
+import '../../../data/models/hospital.dart';
+import '../../../presentation/blocs/location/location_cubit.dart';
+import '../../../presentation/blocs/location/location_state.dart';
+import '../../../presentation/blocs/nearby/nearby_cubit.dart';
+import '../../../presentation/blocs/nearby/nearby_state.dart';
 import 'home_event.dart';
 import 'home_state.dart';
 
@@ -22,10 +23,10 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   final DatabaseHelper _db;
   final EmergencyContactRepository _contactsRepo;
   final LocationCubit _locationCubit;
-  final ResponderCubit _responderCubit;
+  final NearbyCubit _responderCubit;
 
   StreamSubscription<LocationState>? _locationSub;
-  StreamSubscription<ResponderState>? _responderSub;
+  StreamSubscription<NearbyState>? _responderSub;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
   Timer? _meshTimer;
   Timer? _safetyTimer;
@@ -34,7 +35,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     DatabaseHelper? db,
     EmergencyContactRepository? contactsRepo,
     required LocationCubit locationCubit,
-    required ResponderCubit responderCubit,
+    required NearbyCubit responderCubit,
   })  : _db = db ?? DatabaseHelper(),
         _contactsRepo = contactsRepo ?? EmergencyContactRepository(),
         _locationCubit = locationCubit,
@@ -192,7 +193,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   ) {
     final rs = event.responderState;
 
-    if (rs.status == ResponderLoadStatus.loaded || rs.hasData) {
+    if (rs.status == NearbyStatus.success || rs.hasData) {
       final nearest = rs.hospitals.isNotEmpty ? rs.hospitals.first : null;
       emit(state.copyWith(
         isLoading: false,
@@ -200,19 +201,29 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
         nearbyHospitalCount: rs.hospitals.length,
         nearbyPoliceCount: rs.police.length,
         nearbyTowingCount: rs.towing.length,
-        nearestHospital: nearest,
+        nearestHospital: nearest != null
+            ? Hospital(
+                id: nearest.id,
+                name: nearest.name,
+                address: nearest.address,
+                lat: nearest.latitude,
+                lng: nearest.longitude,
+                phone: nearest.phone ?? '',
+                lastUpdated: DateTime.now(),
+              )
+            : null,
         clearHospital: nearest == null,
         lastDbSync: rs.lastFetchedAt ?? DateTime.now(),
       ));
       print('[HomeBloc] Responders updated: ${rs.hospitals.length} hospitals, '
           '${rs.police.length} police, ${rs.towing.length} towing.');
-    } else if (rs.status == ResponderLoadStatus.loading || rs.status == ResponderLoadStatus.retrying) {
+    } else if (rs.status == NearbyStatus.loading) {
       if (state.latitude == null) {
         emit(state.copyWith(isLoading: true, isRespondersLoading: true));
       } else {
         emit(state.copyWith(isRespondersLoading: true));
       }
-    } else if (rs.status == ResponderLoadStatus.error) {
+    } else if (rs.status == NearbyStatus.failure) {
       emit(state.copyWith(isRespondersLoading: false));
     }
   }

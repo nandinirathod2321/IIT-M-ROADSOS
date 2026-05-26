@@ -1,55 +1,36 @@
-import 'dart:convert';
 import 'package:equatable/equatable.dart';
 
-/// Represents a persistent AI chat history log matching the `ai_chat_history` SQLite table.
 class ChatMessageModel extends Equatable {
   final String id;
+  
+  // Single message fields (ChatCubit / CacheService)
+  final String text;
+  final bool isUser;
+  final bool isError;
+  
+  // Paired message fields (first_aid_screen / AiChatRepository / DB)
   final String userId;
   final String userMessage;
   final String aiResponse;
+  
   final DateTime timestamp;
 
   const ChatMessageModel({
     required this.id,
-    this.userId = 'me',
-    required this.userMessage,
-    required this.aiResponse,
+    this.text = '',
+    this.isUser = false,
+    this.isError = false,
+    this.userId = '',
+    this.userMessage = '',
+    this.aiResponse = '',
     required this.timestamp,
   });
 
-  // ── Serialisation ────────────────────────────────────────────────────
-
-  factory ChatMessageModel.fromMap(Map<String, dynamic> map) {
-    return ChatMessageModel(
-      id: map['id'] as String,
-      userId: map['user_id'] as String? ?? 'me',
-      userMessage: map['user_message'] as String? ?? '',
-      aiResponse: map['ai_response'] as String? ?? '',
-      timestamp: map['timestamp'] != null 
-          ? DateTime.parse(map['timestamp'] as String) 
-          : DateTime.now(),
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'user_id': userId,
-      'user_message': userMessage,
-      'ai_response': aiResponse,
-      'timestamp': timestamp.toIso8601String(),
-    };
-  }
-
-  String toJson() => json.encode(toMap());
-
-  factory ChatMessageModel.fromJson(String source) => 
-      ChatMessageModel.fromMap(json.decode(source) as Map<String, dynamic>);
-
-  // ── Copy With ────────────────────────────────────────────────────────
-
   ChatMessageModel copyWith({
     String? id,
+    String? text,
+    bool? isUser,
+    bool? isError,
     String? userId,
     String? userMessage,
     String? aiResponse,
@@ -57,6 +38,9 @@ class ChatMessageModel extends Equatable {
   }) {
     return ChatMessageModel(
       id: id ?? this.id,
+      text: text ?? this.text,
+      isUser: isUser ?? this.isUser,
+      isError: isError ?? this.isError,
       userId: userId ?? this.userId,
       userMessage: userMessage ?? this.userMessage,
       aiResponse: aiResponse ?? this.aiResponse,
@@ -64,6 +48,42 @@ class ChatMessageModel extends Equatable {
     );
   }
 
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'user_id': userId.isNotEmpty ? userId : (isUser ? 'me' : 'ai'),
+      'user_message': userMessage.isNotEmpty ? userMessage : (isUser ? text : ''),
+      'ai_response': aiResponse.isNotEmpty ? aiResponse : (!isUser ? text : ''),
+      'timestamp': timestamp.toIso8601String(),
+    };
+  }
+
+  factory ChatMessageModel.fromMap(Map<String, dynamic> map) {
+    final String uMsg = map['user_message'] ?? '';
+    final String aResp = map['ai_response'] ?? '';
+    final bool isUserVal = uMsg.isNotEmpty;
+    return ChatMessageModel(
+      id: map['id'] ?? '',
+      userId: map['user_id'] ?? '',
+      userMessage: uMsg,
+      aiResponse: aResp,
+      text: uMsg.isNotEmpty ? uMsg : aResp,
+      isUser: isUserVal,
+      timestamp: map['timestamp'] != null
+          ? DateTime.parse(map['timestamp'])
+          : DateTime.now(),
+    );
+  }
+
   @override
-  List<Object?> get props => [id, userId, userMessage, aiResponse, timestamp];
+  List<Object?> get props => [
+        id,
+        text,
+        isUser,
+        isError,
+        userId,
+        userMessage,
+        aiResponse,
+        timestamp,
+      ];
 }

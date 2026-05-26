@@ -13,7 +13,7 @@ import '../../../shared/widgets/crash_detection_bar.dart';
 import '../bloc/home_bloc.dart';
 import '../bloc/home_event.dart';
 import '../bloc/home_state.dart';
-import '../../../core/location/location_cubit.dart';
+import '../../../presentation/blocs/location/location_cubit.dart';
 import '../widgets/home_status_bar.dart';
 import '../widgets/location_header.dart';
 import '../widgets/home_sos_button.dart';
@@ -21,7 +21,7 @@ import '../widgets/quick_services_row.dart';
 import '../widgets/nearest_hospital_card.dart';
 import '../widgets/protection_status_card.dart';
 
-import '../../../core/responders/responder_cubit.dart';
+import '../../../presentation/blocs/nearby/nearby_cubit.dart';
 
 /// The central Home Screen for RoadSOS, featuring manual SOS controls,
 /// active mesh telemetry dots, and hands-free voice trigger capabilities.
@@ -33,7 +33,7 @@ class HomeScreen extends StatelessWidget {
     return BlocProvider(
       create: (ctx) => HomeBloc(
         locationCubit: ctx.read<LocationCubit>(),
-        responderCubit: ctx.read<ResponderCubit>(),
+        responderCubit: ctx.read<NearbyCubit>(),
       )..add(const HomeStarted()),
       child: const _HomeView(),
     );

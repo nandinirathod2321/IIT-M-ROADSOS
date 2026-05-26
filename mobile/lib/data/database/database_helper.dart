@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart' hide Settings;
 import '../../core/services/auth_service.dart';
@@ -511,15 +511,15 @@ class DatabaseHelper {
   Future<void> seedDemoData(Database db) async {
     final batch = db.batch();
 
-    for (var h in _getHospitalsSeedData()) {
+    for (var h in _getHospitalsSeedData(23.0225, 72.5714)) {
       batch.insert('hospitals', h, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
-    for (var p in _getPoliceSeedData()) {
+    for (var p in _getPoliceSeedData(23.0225, 72.5714)) {
       batch.insert('police_stations', p, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
-    for (var t in _getTowingSeedData()) {
+    for (var t in _getTowingSeedData(23.0225, 72.5714)) {
       batch.insert('towing_services', t, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
@@ -529,8 +529,9 @@ class DatabaseHelper {
   // ── Backward Compatible Spatial Queries ──────────────────────────────
 
   Future<List<Hospital>> getNearbyHospitals(double lat, double lng, {double radiusKm = 50}) async {
+    debugPrint("[AntiGravity] Fetching hospitals at ($lat, $lng) with radius: $radiusKm");
     if (kIsWeb) {
-      await _initWebMockData();
+      await _initWebMockData(centerLat: lat, centerLng: lng);
       final results = <Hospital>[];
       for (final hospital in _webHospitals) {
         final dist = haversineDistance(lat, lng, hospital.lat, hospital.lng);
@@ -542,6 +543,15 @@ class DatabaseHelper {
         }
       }
       results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+
+      // Print raw JSON before returning
+      final rawJson = json.encode(results.map((h) => h.toMap()).toList());
+      debugPrint("[AntiGravity] Raw JSON for parsed hospitals: $rawJson");
+      debugPrint("[AntiGravity] Fetched hospital count: ${results.length}");
+
+      if (results.isEmpty) {
+        debugPrint("[AntiGravity] Empty hospital list detected at ($lat, $lng)");
+      }
       return results;
     }
 
@@ -565,7 +575,7 @@ class DatabaseHelper {
       lng - lngDelta, lng + lngDelta,
     ]);
 
-    return results.map((r) {
+    final parsed = results.map((r) {
       Hospital h = Hospital.fromMap(Map<String, dynamic>.from(r));
       double dist = haversineDistance(lat, lng, h.lat, h.lng);
       return h.copyWithDistance(
@@ -575,11 +585,21 @@ class DatabaseHelper {
     }).where((h) => h.distanceKm <= radiusKm)
       .toList()
       ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+
+    final rawJson = json.encode(parsed.map((h) => h.toMap()).toList());
+    debugPrint("[AntiGravity] Raw JSON for parsed hospitals (SQLite): $rawJson");
+    debugPrint("[AntiGravity] Fetched hospital count: ${parsed.length}");
+    
+    if (parsed.isEmpty) {
+      debugPrint("[AntiGravity] Empty hospital list detected at ($lat, $lng)");
+    }
+    return parsed;
   }
 
   Future<List<PoliceStation>> getNearbyPolice(double lat, double lng, {double radiusKm = 20}) async {
+    debugPrint("[AntiGravity] Fetching police stations at ($lat, $lng) with radius: $radiusKm");
     if (kIsWeb) {
-      await _initWebMockData();
+      await _initWebMockData(centerLat: lat, centerLng: lng);
       final results = <PoliceStation>[];
       for (final station in _webPolice) {
         final dist = haversineDistance(lat, lng, station.lat, station.lng);
@@ -590,6 +610,14 @@ class DatabaseHelper {
         }
       }
       results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+
+      final rawJson = json.encode(results.map((p) => p.toMap()).toList());
+      debugPrint("[AntiGravity] Raw JSON for parsed police: $rawJson");
+      debugPrint("[AntiGravity] Fetched police count: ${results.length}");
+
+      if (results.isEmpty) {
+        debugPrint("[AntiGravity] Empty police list detected at ($lat, $lng)");
+      }
       return results;
     }
 
@@ -613,7 +641,7 @@ class DatabaseHelper {
       lng - lngDelta, lng + lngDelta,
     ]);
 
-    return results.map((r) {
+    final parsed = results.map((r) {
       PoliceStation p = PoliceStation.fromMap(Map<String, dynamic>.from(r));
       double dist = haversineDistance(lat, lng, p.lat, p.lng);
       return p.copyWithDistance(
@@ -622,11 +650,21 @@ class DatabaseHelper {
     }).where((p) => p.distanceKm <= radiusKm)
       .toList()
       ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+
+    final rawJson = json.encode(parsed.map((p) => p.toMap()).toList());
+    debugPrint("[AntiGravity] Raw JSON for parsed police (SQLite): $rawJson");
+    debugPrint("[AntiGravity] Fetched police count: ${parsed.length}");
+
+    if (parsed.isEmpty) {
+      debugPrint("[AntiGravity] Empty police list detected at ($lat, $lng)");
+    }
+    return parsed;
   }
 
   Future<List<TowingService>> getNearbyTowing(double lat, double lng, {double radiusKm = 30}) async {
+    debugPrint("[AntiGravity] Fetching towing services at ($lat, $lng) with radius: $radiusKm");
     if (kIsWeb) {
-      await _initWebMockData();
+      await _initWebMockData(centerLat: lat, centerLng: lng);
       final results = <TowingService>[];
       for (final towing in _webTowing) {
         final dist = haversineDistance(lat, lng, towing.lat, towing.lng);
@@ -637,6 +675,14 @@ class DatabaseHelper {
         }
       }
       results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+
+      final rawJson = json.encode(results.map((t) => t.toMap()).toList());
+      debugPrint("[AntiGravity] Raw JSON for parsed towing: $rawJson");
+      debugPrint("[AntiGravity] Fetched towing count: ${results.length}");
+
+      if (results.isEmpty) {
+        debugPrint("[AntiGravity] Empty towing list detected at ($lat, $lng)");
+      }
       return results;
     }
 
@@ -660,7 +706,7 @@ class DatabaseHelper {
       lng - lngDelta, lng + lngDelta,
     ]);
 
-    return results.map((r) {
+    final parsed = results.map((r) {
       TowingService t = TowingService.fromMap(Map<String, dynamic>.from(r));
       double dist = haversineDistance(lat, lng, t.lat, t.lng);
       return t.copyWithDistance(
@@ -669,11 +715,21 @@ class DatabaseHelper {
     }).where((t) => t.distanceKm <= radiusKm)
       .toList()
       ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+
+    final rawJson = json.encode(parsed.map((t) => t.toMap()).toList());
+    debugPrint("[AntiGravity] Raw JSON for parsed towing (SQLite): $rawJson");
+    debugPrint("[AntiGravity] Fetched towing count: ${parsed.length}");
+
+    if (parsed.isEmpty) {
+      debugPrint("[AntiGravity] Empty towing list detected at ($lat, $lng)");
+    }
+    return parsed;
   }
 
   Future<List<EmergencyShelter>> getNearbyShelters(double lat, double lng, {int limitKm = 40}) async {
+    debugPrint("[AntiGravity] Fetching shelters at ($lat, $lng) with radius: $limitKm");
     if (kIsWeb) {
-      await _initWebMockData();
+      await _initWebMockData(centerLat: lat, centerLng: lng);
       final results = <EmergencyShelter>[];
       for (final shelter in _webShelters) {
         final dist = DistanceUtils.haversine(lat, lng, shelter.lat, shelter.lng);
@@ -684,6 +740,14 @@ class DatabaseHelper {
         }
       }
       results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+
+      final rawJson = json.encode(results.map((s) => s.toMap()).toList());
+      debugPrint("[AntiGravity] Raw JSON for parsed shelters: $rawJson");
+      debugPrint("[AntiGravity] Fetched shelters count: ${results.length}");
+
+      if (results.isEmpty) {
+        debugPrint("[AntiGravity] Empty shelters list detected at ($lat, $lng)");
+      }
       return results;
     }
 
@@ -1306,56 +1370,54 @@ class DatabaseHelper {
     await prefs.setInt('last_fetch_time', now);
   }
 
-  Future<void> _initWebMockData() async {
-    if (_webHospitals.isNotEmpty) return;
-    final prefs = await SharedPreferences.getInstance();
-    
-    final rawHospitals = prefs.getString('cached_hospitals');
-    final rawPolice = prefs.getString('cached_police');
-    final rawTowing = prefs.getString('cached_towing');
-    final rawShelters = prefs.getString('cached_shelters');
+  Future<void> _initWebMockData({double? centerLat, double? centerLng}) async {
+    final double baseLat = centerLat ?? 23.0225;
+    final double baseLng = centerLng ?? 72.5714;
 
-    if (rawHospitals != null && rawPolice != null && rawTowing != null && rawShelters != null) {
-      try {
-        final List listH = json.decode(rawHospitals) as List;
-        _webHospitals.clear();
-        _webHospitals.addAll(listH.map((item) => Hospital.fromMap(item as Map<String, dynamic>)));
-
-        final List listP = json.decode(rawPolice) as List;
-        _webPolice.clear();
-        _webPolice.addAll(listP.map((item) => PoliceStation.fromMap(item as Map<String, dynamic>)));
-
-        final List listT = json.decode(rawTowing) as List;
-        _webTowing.clear();
-        _webTowing.addAll(listT.map((item) => TowingService.fromMap(item as Map<String, dynamic>)));
-
-        final List listS = json.decode(rawShelters) as List;
-        _webShelters.clear();
-        _webShelters.addAll(listS.map((item) => EmergencyShelter.fromMap(item as Map<String, dynamic>)));
-        return;
-      } catch (_) {}
+    bool shouldReinit = _webHospitals.isEmpty;
+    if (!shouldReinit) {
+      final double dist = haversineDistance(baseLat, baseLng, _webHospitals.first.lat, _webHospitals.first.lng);
+      if (dist > 50.0) {
+        shouldReinit = true;
+      }
     }
 
+    if (!shouldReinit) return;
+
+    final prefs = await SharedPreferences.getInstance();
+
+    debugPrint("[AntiGravity] Initializing dynamic web mock data centered around ($baseLat, $baseLng)...");
+
     _webHospitals.clear();
-    _webHospitals.addAll(_getHospitalsSeedData().map((h) => Hospital.fromMap(h)).toList());
+    _webHospitals.addAll(_getHospitalsSeedData(baseLat, baseLng).map((h) => Hospital.fromMap(h)).toList());
     _webPolice.clear();
-    _webPolice.addAll(_getPoliceSeedData().map((p) => PoliceStation.fromMap(p)).toList());
+    _webPolice.addAll(_getPoliceSeedData(baseLat, baseLng).map((p) => PoliceStation.fromMap(p)).toList());
     _webTowing.clear();
-    _webTowing.addAll(_getTowingSeedData().map((t) => TowingService.fromMap(t)).toList());
+    _webTowing.addAll(_getTowingSeedData(baseLat, baseLng).map((t) => TowingService.fromMap(t)).toList());
     _webShelters.clear();
-    _webShelters.addAll(_getSheltersSeedData().map((s) => EmergencyShelter.fromMap(s)).toList());
+    _webShelters.addAll(_getSheltersSeedData(baseLat, baseLng).map((s) => EmergencyShelter.fromMap(s)).toList());
+
+    try {
+      await prefs.setString('cached_hospitals', json.encode(_webHospitals.map((h) => h.toMap()).toList()));
+      await prefs.setString('cached_police', json.encode(_webPolice.map((p) => p.toMap()).toList()));
+      await prefs.setString('cached_towing', json.encode(_webTowing.map((t) => t.toMap()).toList()));
+      await prefs.setString('cached_shelters', json.encode(_webShelters.map((s) => s.toMap()).toList()));
+      debugPrint("[AntiGravity] Web mock data stored successfully in SharedPreferences.");
+    } catch (e) {
+      debugPrint("[AntiGravity] Error caching mock data to SharedPreferences: $e");
+    }
   }
 
   // ── Seed Templates ───────────────────────────────────────────────────
 
-  static List<Map<String, dynamic>> _getHospitalsSeedData() {
+  static List<Map<String, dynamic>> _getHospitalsSeedData(double lat, double lng) {
     return [
       {
         'id': 'h1',
         'name': 'Apollo Hospitals Ahmedabad',
         'address': 'Plot No. 1A, GIDC Gandhinagar, Ahmedabad',
-        'latitude': 23.1028,
-        'longitude': 72.6025,
+        'latitude': lat + 0.0088,
+        'longitude': lng + 0.0075,
         'phone': '+91 79 6670 1800',
         'type': 'trauma',
         'hasEmergency': 1,
@@ -1370,8 +1432,8 @@ class DatabaseHelper {
         'id': 'h2',
         'name': 'Civil Hospital Ahmedabad',
         'address': 'Asarwa, Ahmedabad, Gujarat 380016',
-        'latitude': 23.0512,
-        'longitude': 72.6033,
+        'latitude': lat - 0.0055,
+        'longitude': lng + 0.0125,
         'phone': '+91 79 2268 3721',
         'type': 'trauma',
         'hasEmergency': 1,
@@ -1386,8 +1448,8 @@ class DatabaseHelper {
         'id': 'h3',
         'name': 'Zydus Hospital Ahmedabad',
         'address': 'Zydus Hospital Road, Sola, Ahmedabad',
-        'latitude': 23.0610,
-        'longitude': 72.5255,
+        'latitude': lat + 0.0120,
+        'longitude': lng - 0.0080,
         'phone': '+91 79 6619 0201',
         'type': 'general',
         'hasEmergency': 1,
@@ -1401,14 +1463,14 @@ class DatabaseHelper {
     ];
   }
 
-  static List<Map<String, dynamic>> _getPoliceSeedData() {
+  static List<Map<String, dynamic>> _getPoliceSeedData(double lat, double lng) {
     return [
       {
         'id': 'p1',
         'name': 'Navrangpura Police Station',
         'address': 'Navrangpura, Ahmedabad',
-        'latitude': 23.0360,
-        'longitude': 72.5615,
+        'latitude': lat + 0.0035,
+        'longitude': lng - 0.0055,
         'phone': '+91 79 2644 3803',
         'districtCode': 'AHD-W',
         'is24Hours': 1
@@ -1417,8 +1479,8 @@ class DatabaseHelper {
         'id': 'p2',
         'name': 'Satellite Police Station',
         'address': 'Satellite, Ahmedabad',
-        'latitude': 23.0275,
-        'longitude': 72.5285,
+        'latitude': lat - 0.0095,
+        'longitude': lng + 0.0040,
         'phone': '+91 79 2676 3485',
         'districtCode': 'AHD-W',
         'is24Hours': 1
@@ -1426,14 +1488,14 @@ class DatabaseHelper {
     ];
   }
 
-  static List<Map<String, dynamic>> _getTowingSeedData() {
+  static List<Map<String, dynamic>> _getTowingSeedData(double lat, double lng) {
     return [
       {
         'id': 't1',
         'name': 'Ahmedabad Auto Towing',
         'phone': '+91 99988 77665',
-        'latitude': 23.0185,
-        'longitude': 72.5595,
+        'latitude': lat + 0.0155,
+        'longitude': lng + 0.0090,
         'serviceRadius': 15.0,
         'operatingHours': '24/7',
         'vehicleTypes': 'car,bike'
@@ -1442,8 +1504,8 @@ class DatabaseHelper {
         'id': 't2',
         'name': 'Gujarat Towing Service',
         'phone': '+91 98989 12345',
-        'latitude': 23.0425,
-        'longitude': 72.5855,
+        'latitude': lat - 0.0125,
+        'longitude': lng - 0.0150,
         'serviceRadius': 20.0,
         'operatingHours': '24/7',
         'vehicleTypes': 'car,bike,truck'
@@ -1451,14 +1513,14 @@ class DatabaseHelper {
     ];
   }
 
-  static List<Map<String, dynamic>> _getSheltersSeedData() {
+  static List<Map<String, dynamic>> _getSheltersSeedData(double lat, double lng) {
     return [
       {
         'id': 's1',
         'name': 'Ahmedabad Stadium Safety Shelter',
         'address': 'Sports Stadium Complex, Navrangpura, Ahmedabad',
-        'latitude': 23.0375,
-        'longitude': 72.5620,
+        'latitude': lat + 0.0040,
+        'longitude': lng + 0.0110,
         'phone': '+91 79 2644 4444',
         'capacity': 500,
       },
@@ -1466,8 +1528,8 @@ class DatabaseHelper {
         'id': 's2',
         'name': 'Satellite Community Shelter',
         'address': 'Community Hall Road, Satellite, Ahmedabad',
-        'latitude': 23.0290,
-        'longitude': 72.5290,
+        'latitude': lat - 0.0070,
+        'longitude': lng - 0.0090,
         'phone': '+91 79 2676 7777',
         'capacity': 300,
       }

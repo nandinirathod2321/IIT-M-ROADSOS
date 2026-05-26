@@ -17,9 +17,10 @@ void main() async {
   // Load environment variables
   try {
     await dotenv.load(fileName: ".env");
-    print("Environment variables loaded successfully.");
+    final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+    debugPrint("[AntiGravity] API Key loaded: ${apiKey.isNotEmpty}");
   } catch (e) {
-    print("Failed to load .env file: $e");
+    debugPrint("[AntiGravity] Failed to load .env file: $e");
   }
 
   // Lock device orientation to portrait
@@ -59,7 +60,7 @@ void main() async {
     CrashDetector.instance.startListening();
     CrashDetector.instance.onCrashDetected = (event) {
       // Direct global routing context breakout outside the widget lifecycle
-      AppRouter.navigatorKey.currentContext?.go(
+      AppRouter.rootNavigatorKey.currentContext?.go(
         '/countdown',
         extra: event,
       );

@@ -6,8 +6,8 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
-import '../../../core/location/location_cubit.dart';
-import '../../../core/location/location_state.dart';
+import '../../../presentation/blocs/location/location_cubit.dart';
+import '../../../presentation/blocs/location/location_state.dart';
 import '../../../core/responders/responder_cubit.dart';
 import '../../../core/responders/responder_state.dart';
 import '../../../data/repositories/emergency_contact_repository.dart';
@@ -51,12 +51,15 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
     try {
       final contacts = await _contactsRepo.getContacts();
       if (mounted) {
+        debugPrint("[AntiGravity] Contacts fetched successfully: ${contacts.length} entries");
         setState(() {
           _contacts = contacts;
           _contactsLoading = false;
         });
+        debugPrint("[AntiGravity] State updated via setState for contacts.");
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint("[AntiGravity] Error caught in _loadContacts: $e");
       if (mounted) setState(() => _contactsLoading = false);
     }
   }
@@ -298,6 +301,12 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
   Widget build(BuildContext context) {
     return BlocBuilder<ResponderCubit, ResponderState>(
       builder: (context, responderState) {
+        final totalEntries = responderState.hospitals.length +
+            responderState.police.length +
+            responderState.towing.length +
+            responderState.shelters.length;
+        debugPrint("[AntiGravity] Widget rebuilding with data: $totalEntries entries");
+
         final locState = context.watch<LocationCubit>().state;
         final bool gpsAvailable = locState.hasLocation;
         final bool gpsLoading = locState.status == LocationStatus.loading ||
