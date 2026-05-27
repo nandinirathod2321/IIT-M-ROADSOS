@@ -24,6 +24,8 @@ class HomeState extends Equatable {
   final Hospital? nearestHospital;
   final bool hasLocationError;
   final String locationErrorMessage;
+  final bool isOffline;
+  final bool isFromCache;
 
   const HomeState({
     this.isLoading = true,
@@ -45,12 +47,16 @@ class HomeState extends Equatable {
     this.nearestHospital,
     this.hasLocationError = false,
     this.locationErrorMessage = '',
+    this.isOffline = false,
+    this.isFromCache = false,
   });
 
   factory HomeState.initial() => HomeState(
         lastDbSync: DateTime.now(),
         signalQuality: 'None',
         syncStatus: 'Not Synced',
+        isOffline: false,
+        isFromCache: false,
       );
 
   String get formattedCoordinates {
@@ -92,6 +98,8 @@ class HomeState extends Equatable {
     bool clearHospital = false,
     bool? hasLocationError,
     String? locationErrorMessage,
+    bool? isOffline,
+    bool? isFromCache,
   }) {
     return HomeState(
       isLoading: isLoading ?? this.isLoading,
@@ -113,6 +121,8 @@ class HomeState extends Equatable {
       nearestHospital: clearHospital ? null : (nearestHospital ?? this.nearestHospital),
       hasLocationError: hasLocationError ?? this.hasLocationError,
       locationErrorMessage: locationErrorMessage ?? this.locationErrorMessage,
+      isOffline: isOffline ?? this.isOffline,
+      isFromCache: isFromCache ?? this.isFromCache,
     );
   }
 
@@ -123,5 +133,6 @@ class HomeState extends Equatable {
         signalQuality, syncStatus, lastDbSync,
         nearbyHospitalCount, nearbyPoliceCount, nearbyTowingCount,
         contactsCount, nearestHospital, hasLocationError, locationErrorMessage,
+        isOffline, isFromCache,
       ];
 }

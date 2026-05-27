@@ -364,6 +364,34 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
                           coordinates: state.formattedCoordinates,
                         ),
 
+                        if (state.isOffline && state.isFromCache)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.emergencyAmber.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.emergencyAmber.withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.wifi_off_rounded, color: AppColors.emergencyAmber, size: 14),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    "Offline Cached Results",
+                                    style: AppTypography.bodySmall.copyWith(
+                                      color: AppColors.emergencyAmber,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
                         const SizedBox(height: 32),
 
                         // Large SOS button
@@ -561,11 +589,35 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
                           const SizedBox(height: 20),
                         ],
 
-                        // Nearest Hospital details
-                        NearestHospitalCard(
-                          hospital: state.nearestHospital,
-                          isLoading: state.isRespondersLoading,
-                        ),
+                        // Nearest Hospital details / Graceful Offline Fallback UI
+                        if (state.isOffline &&
+                            !state.isRespondersLoading &&
+                            state.nearbyHospitalCount == 0 &&
+                            state.nearbyPoliceCount == 0 &&
+                            state.nearbyTowingCount == 0) ...[
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: AppColors.borderSubtle, width: 1.5),
+                              ),
+                              child: ResponderErrorWidget(
+                                type: ResponderErrorType.noInternet,
+                                customMessage: "No internet connection and no cached emergency services available offline.",
+                                onRetry: () {
+                                  context.read<ResponderCubit>().retry();
+                                },
+                              ),
+                            ),
+                          ),
+                        ] else ...[
+                          NearestHospitalCard(
+                            hospital: state.nearestHospital,
+                            isLoading: state.isRespondersLoading,
+                          ),
+                        ],
 
                         const SizedBox(height: 20),
 

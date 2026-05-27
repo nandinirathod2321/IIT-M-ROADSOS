@@ -98,6 +98,7 @@ class NearbyServicesRepository {
       await prefs.setDouble('last_fetch_lng', lng);
       await prefs.setInt('last_fetch_time', DateTime.now().millisecondsSinceEpoch);
 
+      debugPrint('[NearbyServices] ONLINE_FETCH_SUCCESS');
       debugPrint('[NearbyServices] Cached ${hospitals.length + police.length + towing.length + shelters.length} services locally');
     } catch (e) {
       debugPrint('[NearbyServices] Overpass API failure: $e');
@@ -199,5 +200,14 @@ class NearbyServicesRepository {
       towing: towing,
       shelters: shelters,
     );
+  }
+
+  /// Checks if the cached services have expired (older than 24 hours).
+  Future<bool> isCacheExpired() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastTime = prefs.getInt('last_fetch_time');
+    if (lastTime == null) return true;
+    final elapsedMs = DateTime.now().millisecondsSinceEpoch - lastTime;
+    return elapsedMs >= 24 * 60 * 60 * 1000;
   }
 }

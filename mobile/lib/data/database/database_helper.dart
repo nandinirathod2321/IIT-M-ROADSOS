@@ -531,7 +531,7 @@ class DatabaseHelper {
     debugPrint("[AntiGravity] Fetching hospitals at ($lat, $lng) with radius: $radiusKm");
     if (kIsWeb) {
       await _ensureWebCacheLoaded();
-      final results = <Hospital>[];
+      var results = <Hospital>[];
       for (final hospital in _webHospitals) {
         final dist = haversineDistance(lat, lng, hospital.lat, hospital.lng);
         if (dist <= radiusKm) {
@@ -543,14 +543,22 @@ class DatabaseHelper {
       }
       results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
 
+      if (results.isEmpty) {
+        debugPrint("[AntiGravity] Empty web spatial search. Fallback to all cached web hospitals.");
+        results = _webHospitals.map((hospital) {
+          final dist = haversineDistance(lat, lng, hospital.lat, hospital.lng);
+          return hospital.copyWithDistance(
+            distanceKm: double.parse(dist.toStringAsFixed(2)),
+            estimatedMinutes: (dist / 0.5).round().toDouble(),
+          );
+        }).toList()
+          ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+      }
+
       // Print raw JSON before returning
       final rawJson = json.encode(results.map((h) => h.toMap()).toList());
       debugPrint("[AntiGravity] Raw JSON for parsed hospitals: $rawJson");
       debugPrint("[AntiGravity] Fetched hospital count: ${results.length}");
-
-      if (results.isEmpty) {
-        debugPrint("[AntiGravity] Empty hospital list detected at ($lat, $lng)");
-      }
       return results;
     }
 
@@ -574,7 +582,7 @@ class DatabaseHelper {
       lng - lngDelta, lng + lngDelta,
     ]);
 
-    final parsed = results.map((r) {
+    var parsed = results.map((r) {
       Hospital h = Hospital.fromMap(Map<String, dynamic>.from(r));
       double dist = haversineDistance(lat, lng, h.lat, h.lng);
       return h.copyWithDistance(
@@ -584,6 +592,20 @@ class DatabaseHelper {
     }).where((h) => h.distanceKm <= radiusKm)
       .toList()
       ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+
+    if (parsed.isEmpty) {
+      debugPrint("[AntiGravity] Bounding box empty. Fetching all cached hospitals as fallback.");
+      final allRows = await db.query('hospitals', limit: 100);
+      parsed = allRows.map((r) {
+        Hospital h = Hospital.fromMap(Map<String, dynamic>.from(r));
+        double dist = haversineDistance(lat, lng, h.lat, h.lng);
+        return h.copyWithDistance(
+          distanceKm: double.parse(dist.toStringAsFixed(2)),
+          estimatedMinutes: (dist / 0.5).round().toDouble(),
+        );
+      }).toList()
+        ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+    }
 
     final rawJson = json.encode(parsed.map((h) => h.toMap()).toList());
     debugPrint("[AntiGravity] Raw JSON for parsed hospitals (SQLite): $rawJson");
@@ -599,7 +621,7 @@ class DatabaseHelper {
     debugPrint("[AntiGravity] Fetching police stations at ($lat, $lng) with radius: $radiusKm");
     if (kIsWeb) {
       await _ensureWebCacheLoaded();
-      final results = <PoliceStation>[];
+      var results = <PoliceStation>[];
       for (final station in _webPolice) {
         final dist = haversineDistance(lat, lng, station.lat, station.lng);
         if (dist <= radiusKm) {
@@ -610,13 +632,20 @@ class DatabaseHelper {
       }
       results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
 
+      if (results.isEmpty) {
+        debugPrint("[AntiGravity] Empty web spatial search. Fallback to all cached web police.");
+        results = _webPolice.map((station) {
+          final dist = haversineDistance(lat, lng, station.lat, station.lng);
+          return station.copyWithDistance(
+            distanceKm: double.parse(dist.toStringAsFixed(2)),
+          );
+        }).toList()
+          ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+      }
+
       final rawJson = json.encode(results.map((p) => p.toMap()).toList());
       debugPrint("[AntiGravity] Raw JSON for parsed police: $rawJson");
       debugPrint("[AntiGravity] Fetched police count: ${results.length}");
-
-      if (results.isEmpty) {
-        debugPrint("[AntiGravity] Empty police list detected at ($lat, $lng)");
-      }
       return results;
     }
 
@@ -640,7 +669,7 @@ class DatabaseHelper {
       lng - lngDelta, lng + lngDelta,
     ]);
 
-    final parsed = results.map((r) {
+    var parsed = results.map((r) {
       PoliceStation p = PoliceStation.fromMap(Map<String, dynamic>.from(r));
       double dist = haversineDistance(lat, lng, p.lat, p.lng);
       return p.copyWithDistance(
@@ -649,6 +678,19 @@ class DatabaseHelper {
     }).where((p) => p.distanceKm <= radiusKm)
       .toList()
       ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+
+    if (parsed.isEmpty) {
+      debugPrint("[AntiGravity] Bounding box empty. Fetching all cached police as fallback.");
+      final allRows = await db.query('police_stations', limit: 100);
+      parsed = allRows.map((r) {
+        PoliceStation p = PoliceStation.fromMap(Map<String, dynamic>.from(r));
+        double dist = haversineDistance(lat, lng, p.lat, p.lng);
+        return p.copyWithDistance(
+          distanceKm: double.parse(dist.toStringAsFixed(2)),
+        );
+      }).toList()
+        ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+    }
 
     final rawJson = json.encode(parsed.map((p) => p.toMap()).toList());
     debugPrint("[AntiGravity] Raw JSON for parsed police (SQLite): $rawJson");
@@ -664,7 +706,7 @@ class DatabaseHelper {
     debugPrint("[AntiGravity] Fetching towing services at ($lat, $lng) with radius: $radiusKm");
     if (kIsWeb) {
       await _ensureWebCacheLoaded();
-      final results = <TowingService>[];
+      var results = <TowingService>[];
       for (final towing in _webTowing) {
         final dist = haversineDistance(lat, lng, towing.lat, towing.lng);
         if (dist <= radiusKm) {
@@ -675,13 +717,20 @@ class DatabaseHelper {
       }
       results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
 
+      if (results.isEmpty) {
+        debugPrint("[AntiGravity] Empty web spatial search. Fallback to all cached web towing.");
+        results = _webTowing.map((towing) {
+          final dist = haversineDistance(lat, lng, towing.lat, towing.lng);
+          return towing.copyWithDistance(
+            distanceKm: double.parse(dist.toStringAsFixed(2)),
+          );
+        }).toList()
+          ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+      }
+
       final rawJson = json.encode(results.map((t) => t.toMap()).toList());
       debugPrint("[AntiGravity] Raw JSON for parsed towing: $rawJson");
       debugPrint("[AntiGravity] Fetched towing count: ${results.length}");
-
-      if (results.isEmpty) {
-        debugPrint("[AntiGravity] Empty towing list detected at ($lat, $lng)");
-      }
       return results;
     }
 
@@ -705,7 +754,7 @@ class DatabaseHelper {
       lng - lngDelta, lng + lngDelta,
     ]);
 
-    final parsed = results.map((r) {
+    var parsed = results.map((r) {
       TowingService t = TowingService.fromMap(Map<String, dynamic>.from(r));
       double dist = haversineDistance(lat, lng, t.lat, t.lng);
       return t.copyWithDistance(
@@ -714,6 +763,19 @@ class DatabaseHelper {
     }).where((t) => t.distanceKm <= radiusKm)
       .toList()
       ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+
+    if (parsed.isEmpty) {
+      debugPrint("[AntiGravity] Bounding box empty. Fetching all cached towing as fallback.");
+      final allRows = await db.query('towing_services', limit: 100);
+      parsed = allRows.map((r) {
+        TowingService t = TowingService.fromMap(Map<String, dynamic>.from(r));
+        double dist = haversineDistance(lat, lng, t.lat, t.lng);
+        return t.copyWithDistance(
+          distanceKm: double.parse(dist.toStringAsFixed(2)),
+        );
+      }).toList()
+        ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+    }
 
     final rawJson = json.encode(parsed.map((t) => t.toMap()).toList());
     debugPrint("[AntiGravity] Raw JSON for parsed towing (SQLite): $rawJson");
@@ -729,7 +791,7 @@ class DatabaseHelper {
     debugPrint("[AntiGravity] Fetching shelters at ($lat, $lng) with radius: $limitKm");
     if (kIsWeb) {
       await _ensureWebCacheLoaded();
-      final results = <EmergencyShelter>[];
+      var results = <EmergencyShelter>[];
       for (final shelter in _webShelters) {
         final dist = DistanceUtils.haversine(lat, lng, shelter.lat, shelter.lng);
         if (dist <= limitKm) {
@@ -740,13 +802,20 @@ class DatabaseHelper {
       }
       results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
 
+      if (results.isEmpty) {
+        debugPrint("[AntiGravity] Empty web spatial search. Fallback to all cached web shelters.");
+        results = _webShelters.map((shelter) {
+          final dist = DistanceUtils.haversine(lat, lng, shelter.lat, shelter.lng);
+          return shelter.copyWithDistance(
+            distanceKm: double.parse(dist.toStringAsFixed(2)),
+          );
+        }).toList()
+          ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+      }
+
       final rawJson = json.encode(results.map((s) => s.toMap()).toList());
       debugPrint("[AntiGravity] Raw JSON for parsed shelters: $rawJson");
       debugPrint("[AntiGravity] Fetched shelters count: ${results.length}");
-
-      if (results.isEmpty) {
-        debugPrint("[AntiGravity] Empty shelters list detected at ($lat, $lng)");
-      }
       return results;
     }
 
@@ -759,7 +828,7 @@ class DatabaseHelper {
       whereArgs: [bounds.minLat, bounds.maxLat, bounds.minLng, bounds.maxLng],
     );
 
-    final results = <EmergencyShelter>[];
+    var results = <EmergencyShelter>[];
     for (final row in rows) {
       final shelter = EmergencyShelter.fromMap(row);
       final dist = DistanceUtils.haversine(lat, lng, shelter.lat, shelter.lng);
@@ -768,6 +837,18 @@ class DatabaseHelper {
           distanceKm: double.parse(dist.toStringAsFixed(2)),
         ));
       }
+    }
+
+    if (results.isEmpty) {
+      debugPrint("[AntiGravity] Bounding box empty. Fetching all cached shelters as fallback.");
+      final allRows = await db.query('emergency_shelters', limit: 100);
+      results = allRows.map((r) {
+        final shelter = EmergencyShelter.fromMap(r);
+        final dist = DistanceUtils.haversine(lat, lng, shelter.lat, shelter.lng);
+        return shelter.copyWithDistance(
+          distanceKm: double.parse(dist.toStringAsFixed(2)),
+        );
+      }).toList();
     }
 
     results.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));

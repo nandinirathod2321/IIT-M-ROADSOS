@@ -13,6 +13,7 @@ class ResponderCubit extends Cubit<ResponderState> {
   final NearbyServicesRepository _repo;
   final LocationCubit _locationCubit;
   StreamSubscription<LocationState>? _locationSub;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
   bool _inFlight = false;
 
   static const double _refetchRadiusKm = 1.5;
@@ -25,6 +26,7 @@ class ResponderCubit extends Cubit<ResponderState> {
         _repo = repo ?? NearbyServicesRepository(),
         super(const ResponderState()) {
     _subscribeToLocation();
+    _subscribeToConnectivity();
   }
 
   Future<void> retry() async {
@@ -52,6 +54,24 @@ class ResponderCubit extends Cubit<ResponderState> {
     _locationSub = _locationCubit.stream.listen((locState) {
       if (locState.hasLocation) {
         _onLocationAvailable(locState.latitude!, locState.longitude!);
+      }
+    });
+  }
+
+  void _subscribeToConnectivity() {
+    _connectivitySub?.cancel();
+    _connectivitySub = Connectivity().onConnectivityChanged.listen((results) async {
+      final offline = results.contains(ConnectivityResult.none);
+      if (!offline) {
+        debugPrint('[Responders] Internet connection recovered. Checking cache validity.');
+        final expired = await _repo.isCacheExpired();
+        if (expired) {
+          debugPrint('[Responders] Cache expired (24+ hours). Automatically triggering refresh.');
+          final loc = _locationCubit.state;
+          if (loc.hasLocation) {
+            _fetch(loc.latitude!, loc.longitude!, forceRefresh: true);
+          }
+        }
       }
     });
   }
@@ -99,7 +119,13 @@ class ResponderCubit extends Cubit<ResponderState> {
 
     // Show cached data immediately while refreshing.
     final cached = await _readCached(lat, lng);
-    if (cached.hasData && !forceRefresh) {
+    final expired = await _repo.isCacheExpired();
+    final shouldForceRefresh = forceRefresh || expired;
+
+    if (cached.hasData && !shouldForceRefresh) {
+      if (offline) {
+        debugPrint('[Responders] OFFLINE_CACHE_USED');
+      }
       emit(cached.copyWith(
         status: ResponderLoadStatus.loaded,
         isFromCache: true,
@@ -116,7 +142,7 @@ class ResponderCubit extends Cubit<ResponderState> {
     if (!offline) {
       try {
         await _repo
-            .fetchAndCacheNearbyServices(lat, lng, forceRefresh: forceRefresh)
+            .fetchAndCacheNearbyServices(lat, lng, forceRefresh: shouldForceRefresh)
             .timeout(const Duration(seconds: 18));
       } catch (e) {
         debugPrint('[Responders] Live Overpass fetch failed: $e');
@@ -133,9 +159,12 @@ class ResponderCubit extends Cubit<ResponderState> {
     if (fresh.hasData) {
       debugPrint('[Responders] Loaded ${fresh.hospitals.length} hospitals, '
           '${fresh.police.length} police, ${fresh.towing.length} towing');
+      if (offline) {
+        debugPrint('[Responders] OFFLINE_CACHE_USED');
+      }
       emit(fresh.copyWith(
         status: ResponderLoadStatus.loaded,
-        isFromCache: offline,
+        isFromCache: true,
         isOffline: offline,
         errorMessage: '',
         lastFetchedLat: lat,
@@ -147,9 +176,10 @@ class ResponderCubit extends Cubit<ResponderState> {
     }
 
     if (offline) {
+      debugPrint('[Responders] CACHE_EMPTY');
       emit(state.copyWith(
         status: ResponderLoadStatus.error,
-        errorMessage: 'No internet connection. Connect to load nearby emergency services.',
+        errorMessage: 'No cached emergency services available offline.',
         isOffline: true,
       ));
       _inFlight = false;
@@ -196,15 +226,21 @@ class ResponderCubit extends Cubit<ResponderState> {
       if (isClosed) return;
 
       if (fresh.hasData) {
+        if (offline) {
+          debugPrint('[Responders] OFFLINE_CACHE_USED');
+        }
         emit(fresh.copyWith(
           status: ResponderLoadStatus.loaded,
-          isFromCache: offline,
+          isFromCache: true,
           isOffline: offline,
           lastFetchedLat: lat,
           lastFetchedLng: lng,
           lastFetchedAt: DateTime.now(),
         ));
       } else {
+        if (offline) {
+          debugPrint('[Responders] CACHE_EMPTY');
+        }
         emit(state.copyWith(
           status: ResponderLoadStatus.error,
           errorMessage: offline
@@ -230,6 +266,7 @@ class ResponderCubit extends Cubit<ResponderState> {
   @override
   Future<void> close() {
     _locationSub?.cancel();
+    _connectivitySub?.cancel();
     return super.close();
   }
 }

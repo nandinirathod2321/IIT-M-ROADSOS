@@ -173,17 +173,32 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
         nearestHospital: nearest,
         clearHospital: nearest == null,
         lastDbSync: rs.lastFetchedAt ?? DateTime.now(),
+        isOffline: rs.isOffline,
+        isFromCache: rs.isFromCache,
       ));
       print('[HomeBloc] Responders updated: ${rs.hospitals.length} hospitals, '
           '${rs.police.length} police, ${rs.towing.length} towing.');
     } else if (rs.isLoading) {
       if (state.latitude == null) {
-        emit(state.copyWith(isLoading: true, isRespondersLoading: true));
+        emit(state.copyWith(
+          isLoading: true, 
+          isRespondersLoading: true,
+          isOffline: rs.isOffline,
+          isFromCache: rs.isFromCache,
+        ));
       } else {
-        emit(state.copyWith(isRespondersLoading: true));
+        emit(state.copyWith(
+          isRespondersLoading: true,
+          isOffline: rs.isOffline,
+          isFromCache: rs.isFromCache,
+        ));
       }
     } else if (rs.hasFailed) {
-      emit(state.copyWith(isRespondersLoading: false));
+      emit(state.copyWith(
+        isRespondersLoading: false,
+        isOffline: rs.isOffline,
+        isFromCache: rs.isFromCache,
+      ));
     }
   }
 
