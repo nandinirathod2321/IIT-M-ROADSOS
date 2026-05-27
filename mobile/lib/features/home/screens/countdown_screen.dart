@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
@@ -135,12 +136,39 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
           _isLoadingDetails = false;
         });
 
-        // Trigger Call Confirmation dialog immediately if there are contacts
-        if (rawContacts.isNotEmpty) {
-          final primary = rawContacts.firstWhere((c) => c.isPrimary, orElse: () => rawContacts.first);
-          _showCallConfirmationDialog(primary);
+        final conn = await Connectivity().checkConnectivity();
+        final isOffline = conn.contains(ConnectivityResult.none);
+        
+        final primary = rawContacts.isNotEmpty
+            ? rawContacts.firstWhere((c) => c.isPrimary, orElse: () => rawContacts.first)
+            : null;
+
+        if (widget.triggerType == 'crash') {
+          // Log AUTO_SOS_TRIGGERED
+          debugPrint('[OfflineMode] AUTO_SOS_TRIGGERED');
+          
+          // Automatically trigger SMS Fallback with last known coordinates!
+          await _triggerSmsFallback(primary?.phone ?? "");
+          
+          if (isOffline) {
+            _showOfflineEmergencyDialog(primary);
+          } else {
+            if (primary != null) {
+              _showCallConfirmationDialog(primary);
+            } else {
+              _showEmergencySentDialog();
+            }
+          }
         } else {
-          _showEmergencySentDialog();
+          if (isOffline) {
+            _showOfflineEmergencyDialog(primary);
+          } else {
+            if (primary != null) {
+              _showCallConfirmationDialog(primary);
+            } else {
+              _showEmergencySentDialog();
+            }
+          }
         }
       }
     } catch (_) {
@@ -256,7 +284,12 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
     if (!_isDispatched) {
       return CountdownOverlay(
         onComplete: _handleSosDispatched,
-        onCancel: () => context.go('/'),
+        onCancel: () {
+          if (widget.triggerType == 'crash') {
+            debugPrint('[OfflineMode] CRASH_CANCELLED');
+          }
+          context.go('/');
+        },
         onSendNow: _handleSosDispatched,
         triggerType: widget.triggerType,
       );
@@ -907,6 +940,127 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
               style: AppTypography.labelCaps.copyWith(color: Colors.white),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _triggerSmsFallback(String phone) async {
+    debugPrint('[OfflineMode] SMS_FALLBACK_TRIGGERED');
+    final msg = "Emergency detected. Last known location: $_latitude,$_longitude";
+    final cleanPhone = phone.replaceAll(' ', '');
+    final smsUri = Uri.parse("sms:$cleanPhone?body=${Uri.encodeComponent(msg)}");
+    try {
+      if (await canLaunchUrl(smsUri)) {
+        await launchUrl(smsUri);
+      } else {
+        throw 'Cannot launch SMS client';
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("SMS Fallback: $msg", style: const TextStyle(color: Colors.white)),
+            backgroundColor: AppColors.emergencyRed,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showOfflineEmergencyDialog(EmergencyContact? primary) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.emergencyAmber, width: 2.0),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.wifi_off_rounded, color: AppColors.emergencyAmber, size: 24),
+            const SizedBox(width: 12),
+            Text(
+               "OFFLINE EMERGENCY MODE",
+               style: AppTypography.headlineMedium.copyWith(color: AppColors.textPrimary, fontSize: 16),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "You are currently offline. Cellular and data backhaul services are unavailable.",
+              style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              "We have routed this emergency through SMS Fallback and direct phone calling.",
+              style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              "DISMISS",
+              style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary),
+            ),
+          ),
+          if (primary != null) ...[
+            ElevatedButton.icon(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _triggerSmsFallback(primary.phone);
+              },
+              icon: const Icon(Icons.sms_rounded, size: 14, color: Colors.white),
+              label: Text(
+                "SEND SMS",
+                style: AppTypography.labelCaps.copyWith(color: Colors.white),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.emergencyAmber,
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                Navigator.pop(context);
+                final telUri = Uri(scheme: 'tel', path: primary.phone.replaceAll(' ', ''));
+                try {
+                  if (await canLaunchUrl(telUri)) {
+                    await launchUrl(telUri);
+                  }
+                } catch (_) {}
+              },
+               icon: const Icon(Icons.phone_rounded, size: 14, color: Colors.white),
+               label: Text(
+                 "CALL NOW",
+                 style: AppTypography.labelCaps.copyWith(color: Colors.white),
+               ),
+               style: ElevatedButton.styleFrom(
+                 backgroundColor: AppColors.emergencyRed,
+               ),
+            ),
+          ] else ...[
+            ElevatedButton.icon(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _triggerSmsFallback("");
+              },
+              icon: const Icon(Icons.sms_rounded, size: 14, color: Colors.white),
+              label: Text(
+                "SEND SMS",
+                style: AppTypography.labelCaps.copyWith(color: Colors.white),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.emergencyAmber,
+              ),
+            ),
+          ],
         ],
       ),
     );

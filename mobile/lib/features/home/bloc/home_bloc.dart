@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
@@ -54,7 +55,11 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     });
 
     final connResults = await Connectivity().checkConnectivity();
-    emit(state.copyWith(connectivity: _mapConnectivity(connResults)));
+    final mappedConn = _mapConnectivity(connResults);
+    if (mappedConn == ConnectivityType.offline) {
+      debugPrint('[OfflineMode] OFFLINE_MODE_ENABLED');
+    }
+    emit(state.copyWith(connectivity: mappedConn));
 
     // 3. Subscribe to global LocationCubit
     _locationSub?.cancel();
@@ -100,6 +105,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
           final currentLoc = _locationCubit.state;
           if (currentLoc.hasLocation) {
             print('[HomeBloc] Safety timeout triggered — utilizing cached location: ${currentLoc.latitude}, ${currentLoc.longitude}');
+            debugPrint('[OfflineMode] LAST_LOCATION_USED');
             add(HomeLocationUpdated(latitude: currentLoc.latitude!, longitude: currentLoc.longitude!));
           } else {
             print('[HomeBloc] Safety timeout triggered and no cached location. Showing error.');
@@ -220,6 +226,9 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     Emitter<HomeState> emit,
   ) {
     emit(state.copyWith(connectivity: event.type));
+    if (event.type == ConnectivityType.offline) {
+      debugPrint('[OfflineMode] OFFLINE_MODE_ENABLED');
+    }
     _triggerMeshTransition(event.type, state.crashDetectionEnabled);
   }
 

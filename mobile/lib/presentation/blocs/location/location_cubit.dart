@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:battery_plus/battery_plus.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/errors/app_exceptions.dart';
 import '../../../core/services/cache_service.dart';
@@ -36,6 +38,9 @@ class LocationCubit extends Cubit<LocationState> {
       if (cachedLat != null && cachedLng != null) {
         final city = cachedCity ?? 'Local';
         AppLogger.info('LocationCubit: GPS loaded from persistent storage: $cachedLat, $cachedLng ($city)');
+        
+        // Log last location used
+        debugPrint('[OfflineMode] LAST_LOCATION_USED');
         
         // Populate in-memory cache service
         _cacheService.setCoordinates(cachedLat, cachedLng, city);
@@ -141,6 +146,16 @@ class LocationCubit extends Cubit<LocationState> {
       await prefs.setDouble('cached_lat', lat);
       await prefs.setDouble('cached_lng', lng);
       await prefs.setString('cached_city', city);
+      
+      // Cache last known coordinates, timestamp, and battery percentage
+      await prefs.setDouble('last_known_lat', lat);
+      await prefs.setDouble('last_known_lng', lng);
+      await prefs.setString('last_known_timestamp', DateTime.now().toIso8601String());
+      int batteryLevel = 100;
+      try {
+        batteryLevel = await Battery().batteryLevel;
+      } catch (_) {}
+      await prefs.setInt('last_known_battery', batteryLevel);
     } catch (_) {}
 
     emit(state.copyWith(

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../core/errors/app_exceptions.dart';
 import '../../core/theme/colors.dart';
@@ -35,6 +36,107 @@ class AIChatScreen extends StatefulWidget {
 }
 
 class _AIChatScreenState extends State<AIChatScreen> {
+  bool _isOffline = false;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+
+  // Medically safe static emergency first aid database
+  static const String _cprGuidance = 
+      "🚨 **CPR & Choking Emergency Guidance**\n\n"
+      "**For CPR (Adult not breathing):**\n"
+      "1. Call 112 / Emergency services immediately.\n"
+      "2. Place the person on their back on a firm, flat surface.\n"
+      "3. Position your hands in the center of their chest (heel of one hand, other hand on top with interlocking fingers).\n"
+      "4. Perform hard and fast chest compressions: push down 2 inches at a rate of 100 to 120 compressions per minute (e.g., to the beat of 'Stayin' Alive').\n"
+      "5. If trained, give 2 rescue breaths after every 30 compressions.\n"
+      "6. Continue compressions and breaths until professional responders arrive or an AED is ready.\n\n"
+      "**For Choking (Conscious person):**\n"
+      "1. Stand behind the person and lean them forward.\n"
+      "2. Give 5 sharp back blows between the shoulder blades with the heel of your hand.\n"
+      "3. If object is not cleared, perform 5 abdominal thrusts (Heimlich maneuver): make a fist, place it just above the navel, grasp your fist with the other hand, and press hard into the abdomen with a quick upward thrust.\n"
+      "4. Alternate 5 back blows and 5 abdominal thrusts until the blockage is cleared or professional rescuers arrive.";
+
+  static const String _bleedingGuidance = 
+      "🚨 **Severe Bleeding Emergency Guidance**\n\n"
+      "1. Ensure your own safety first (use gloves if available).\n"
+      "2. Apply direct pressure to the wound using a clean cloth, sterile dressing, or your hand.\n"
+      "3. Maintain firm, continuous pressure for at least 5 to 10 minutes without releasing to check the wound.\n"
+      "4. If the bleeding does not stop, apply additional dressings over the first one (do not remove the soaked dressings) and apply firmer pressure.\n"
+      "5. If the wound is on a limb and bleeding is life-threatening/uncontrolled, apply a tourniquet 2-3 inches above the wound (never over a joint) and write down the application time.\n"
+      "6. Elevate the injured area above the heart if possible and lay the person flat to prevent shock.";
+
+  static const String _fractureGuidance = 
+      "🚨 **Fractures & Bone Injuries Emergency Guidance**\n\n"
+      "1. Do not attempt to realign the bone or push a protruding bone back in.\n"
+      "2. Keep the injured limb completely still. Immobilize the area above and below the injured joint.\n"
+      "3. If possible, create a temporary splint using rolled-up magazines, cardboard, or wood, secured with bandages or cloth (do not tie too tightly to restrict circulation).\n"
+      "4. Apply a cold compress or ice pack wrapped in a cloth to reduce swelling (do not apply ice directly to skin).\n"
+      "5. If a spinal injury is suspected (neck/back pain, numbness, or severe collision impact): DO NOT move the person under any circumstances unless they are in immediate danger of fire/explosion. Keep their head, neck, and spine completely aligned.";
+
+  static const String _burnGuidance = 
+      "🚨 **Burns & Thermal Injuries Emergency Guidance**\n\n"
+      "1. Stop the burning process immediately (cool water, smother flames).\n"
+      "2. Cool the burn using cool, running water for 10 to 20 minutes. Do not use ice, ice water, butter, oils, or ointments as they trap heat and worsen tissue damage.\n"
+      "3. Remove jewelry, tight clothing, or belts gently from the burned area before it starts to swell.\n"
+      "4. Do not pop any blisters, as intact skin acts as a natural barrier against infection.\n"
+      "5. Cover the burn loosely with a sterile, non-adherent dressing, clean cloth, or plastic cling wrap.\n"
+      "6. Keep the person warm and seek medical attention for large, deep, or chemical/electrical burns.";
+
+  static const String _unconsciousGuidance = 
+      "🚨 **Unconscious & Unresponsive Person Guidance**\n\n"
+      "1. Tap their shoulders and shout 'Are you okay?' to check for responsiveness.\n"
+      "2. If unresponsive, check their breathing (look for chest rise and feel for breath for 5 to 10 seconds).\n"
+      "3. If they are NOT breathing, initiate CPR immediately.\n"
+      "4. If they ARE breathing normally, place them in the **Recovery Position**:\n"
+      "   - Roll them onto their side.\n"
+      "   - Tilt their head slightly backward to keep the airway open and clear.\n"
+      "   - Bend their top knee at a 90-degree angle to stabilize their body.\n"
+      "5. Keep them warm, do not leave them unattended, and do not try to feed them or give them fluids.";
+
+  static const String _heartAttackGuidance = 
+      "🚨 **Heart Attack Emergency Guidance**\n\n"
+      "1. Call emergency services (112) immediately.\n"
+      "2. Have the person sit down, rest, and remain calm. Sit them in a comfortable position (e.g., leaning against a wall on the floor).\n"
+      "3. Loosen any tight clothing around their neck and chest.\n"
+      "4. Ask if they carry emergency medication (e.g., Nitroglycerin or Aspirin). If prescribed, assist them in taking it.\n"
+      "5. If they are fully conscious, have them chew and swallow a standard adult Aspirin (325mg) or low-dose Aspirins (81mg x 4) if they have no allergy or contraindications.\n"
+      "6. Monitor their breathing closely. Prepare to perform CPR instantly if they lose consciousness and stop breathing normally.";
+
+  static const String _strokeGuidance = 
+      "🚨 **Stroke Emergency Guidance (FAST Protocol)**\n\n"
+      "Identify stroke instantly using the **F.A.S.T.** method:\n"
+      "1. **F - Face Drooping:** Ask the person to smile. Does one side of the face droop or feel numb?\n"
+      "2. **A - Arm Weakness:** Ask the person to raise both arms. Does one arm drift downward or feel weak/numb?\n"
+      "3. **S - Speech Difficulty:** Ask the person to repeat a simple sentence. Is their speech slurred, hard to understand, or are they unable to speak?\n"
+      "4. **T - Time to Call 112:** If the person shows any of these symptoms, even if they go away, call emergency services immediately.\n\n"
+      "**Rescuer steps while waiting:**\n"
+      "- Note the exact time when symptoms first appeared.\n"
+      "- Keep the person resting comfortably and do not give them any food, drinks, or medications (especially aspirin/blood thinners, as a stroke could be hemorrhagic).";
+
+  static const String _accidentGuidance = 
+      "🚨 **Road Accident Scene Handling Guidance**\n\n"
+      "1. **Ensure Safety First:** Park your vehicle safely away from the crash site, turn on hazard lights, and wear high-visibility gear if available.\n"
+      "2. **Assess the Scene:** Look for hazards like gas leaks, fires, downed power lines, or oncoming traffic before approaching.\n"
+      "3. **Do Not Move Victims:** Never move an injured victim from a vehicle unless there is an immediate, life-threatening danger (e.g., vehicle fire or explosion risk) to prevent spinal paralysis.\n"
+      "4. **Call Emergency Responders:** Call 112 immediately with precise details: exact location, number of vehicles, and approximate number/condition of casualties.\n"
+      "5. **Triage and Basic Care:** Check for responsiveness and breathing. Control severe bleeding with direct pressure, keep unconscious breathing victims in the recovery position, and keep everyone calm and warm.";
+
+  static const String _menuGuidance = 
+      "🚨 **Offline Emergency First Aid Assistant**\n\n"
+      "You are currently offline. Here is the structured medical emergency guidance available:\n\n"
+      "- **CPR & Choking** (type: `cpr` or `choke`)\n"
+      "- **Severe Bleeding** (type: `bleeding` or `blood`)\n"
+      "- **Fractures & Spinal Injury** (type: `fracture` or `spinal`)\n"
+      "- **Burns & Fire Injuries** (type: `burn`)\n"
+      "- **Unconscious Persons** (type: `unconscious` or `recovery`)\n"
+      "- **Heart Attack** (type: `heart attack` or `chest pain`)\n"
+      "- **Stroke Detection** (type: `stroke` or `fast`)\n"
+      "- **Road Accidents Scene Handling** (type: `accident` or `crash`)\n\n"
+      "*Type any of the bolded keywords above to retrieve medically safe, structured step-by-step instructions.*";
+
+  static const String _defaultGuidance = 
+      "I am currently offline. I can only provide safe instructions for key emergency categories. Type **help** to see all available categories.\n\n"
+      "Or type keywords like: **CPR, bleeding, burns, fracture, unconscious, stroke, heart attack, or accident**.";
+
   final GeminiService _geminiService = GeminiService();
   final List<Map<String, String>> _aiHistory = [];
   final List<ChatMessage> _messages = [];
@@ -58,6 +160,15 @@ class _AIChatScreenState extends State<AIChatScreen> {
   @override
   void initState() {
     super.initState();
+    _checkConnectivity();
+    _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
+      final offline = results.contains(ConnectivityResult.none);
+      if (mounted) {
+        setState(() {
+          _isOffline = offline;
+        });
+      }
+    });
     _loadLocation();
 
     // Add welcome message
@@ -80,9 +191,21 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
   @override
   void dispose() {
+    _connectivitySub?.cancel();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkConnectivity() async {
+    try {
+      final results = await Connectivity().checkConnectivity();
+      if (mounted) {
+        setState(() {
+          _isOffline = results.contains(ConnectivityResult.none);
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadLocation() async {
@@ -167,6 +290,24 @@ class _AIChatScreenState extends State<AIChatScreen> {
     });
 
     _scrollToBottom();
+
+    if (_isOffline) {
+      Future.delayed(const Duration(milliseconds: 700), () {
+        if (!mounted) return;
+        final response = _getOfflineGuidance(text);
+        setState(() {
+          _messages.add(ChatMessage(
+            text: response,
+            isUser: false,
+            timestamp: DateTime.now(),
+            isError: false,
+          ));
+          _isLoading = false;
+        });
+        _scrollToBottom();
+      });
+      return;
+    }
 
     final historyForApi = List<Map<String, String>>.from(_aiHistory);
     var messageToSend = text;
@@ -285,6 +426,40 @@ class _AIChatScreenState extends State<AIChatScreen> {
     );
   }
 
+  String _getOfflineGuidance(String query) {
+    final q = query.toLowerCase();
+    
+    if (q.contains('cpr') || q.contains('breath') || q.contains('chok') || q.contains('suffoc')) {
+      return _cprGuidance;
+    }
+    if (q.contains('bleed') || q.contains('cut') || q.contains('blood') || q.contains('wound') || q.contains('hemorrhage')) {
+      return _bleedingGuidance;
+    }
+    if (q.contains('fracture') || q.contains('bone') || q.contains('break') || q.contains('broken') || q.contains('spinal') || q.contains('neck') || q.contains('back')) {
+      return _fractureGuidance;
+    }
+    if (q.contains('burn') || q.contains('fire') || q.contains('scald')) {
+      return _burnGuidance;
+    }
+    if (q.contains('unconscious') || q.contains('faint') || q.contains('unresponsive') || q.contains('knocked') || q.contains('recovery')) {
+      return _unconsciousGuidance;
+    }
+    if (q.contains('heart attack') || q.contains('chest pain') || q.contains('heart') || q.contains('cardiac')) {
+      return _heartAttackGuidance;
+    }
+    if (q.contains('stroke') || q.contains('face') || q.contains('arm') || q.contains('speech') || q.contains('fast')) {
+      return _strokeGuidance;
+    }
+    if (q.contains('accident') || q.contains('crash') || q.contains('collision') || q.contains('car') || q.contains('road') || q.contains('vehicle')) {
+      return _accidentGuidance;
+    }
+    if (q.contains('help') || q.contains('assist') || q.contains('first aid') || q.contains('menu')) {
+      return _menuGuidance;
+    }
+    
+    return _defaultGuidance;
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -322,7 +497,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    "🚨 RoadSOS AI — Emergency Assistant",
+                    _isOffline 
+                        ? "🚨 Offline Emergency Guidance"
+                        : "🚨 RoadSOS AI — Emergency Assistant",
                     style: AppTypography.labelCaps.copyWith(
                       color: Colors.white,
                       fontSize: 11,
@@ -350,6 +527,24 @@ class _AIChatScreenState extends State<AIChatScreen> {
                 ],
               ),
             ),
+
+            if (_isOffline)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+                color: AppColors.emergencyAmber,
+                child: Center(
+                  child: Text(
+                    "OFFLINE EMERGENCY ASSISTANT ACTIVE",
+                    style: AppTypography.labelCaps.copyWith(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ),
+              ),
 
             // ── QUICK ACTION CHIPS (only shown before conversation starts) ──
             if (_messages.length <= 1)
