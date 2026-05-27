@@ -9,6 +9,7 @@ import 'features/crash_detection/crash_detector.dart';
 import 'core/router/app_router.dart';
 import 'data/database/db_initializer.dart';
 import 'core/services/auth_service.dart';
+import 'core/services/map_cache_service.dart';
 import 'app.dart';
 
 void main() async {
@@ -42,6 +43,15 @@ void main() async {
 
   // Initialize unified Authentication and session manager
   await AuthService.initialize();
+
+  // Pre-initialize map tile cache store (fire-and-forget)
+  () async {
+    try {
+      await MapCacheService.instance.getCacheStore();
+    } catch (e) {
+      debugPrint('[MapCache] Pre-init failed (non-blocking): $e');
+    }
+  }();
 
   // Inspect onboarding status
   final SharedPreferences prefs = await SharedPreferences.getInstance();

@@ -18,6 +18,7 @@ import '../../../data/models/towing_service.dart';
 import '../../../data/models/emergency_contact.dart';
 import '../../../data/models/emergency_shelter.dart';
 import '../../../shared/widgets/responder_error_widget.dart';
+import 'nearby_map_screen.dart';
 
 /// Full-production interactive Emergency Services and Contact management screen.
 /// Consumes data from the shared [ResponderCubit] and [LocationCubit] — no
@@ -380,6 +381,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                           responderState.shelters.length),
                       _tabChip(4, "Contacts", Icons.people_outline_rounded,
                           _contacts.length),
+                      _tabChip(5, "Map", Icons.map_rounded, 0),
                     ],
                   ),
                 ),
@@ -473,6 +475,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
       case 2: return _buildTowingTab(rs.towing);
       case 3: return _buildSheltersTab(rs.shelters);
       case 4: return _buildContactsTab();
+      case 5: return const NearbyMapView();
       default: return const SizedBox.shrink();
     }
   }

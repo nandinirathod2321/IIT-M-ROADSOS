@@ -28,6 +28,8 @@ dependencies:
   geolocator: ^11.0.0
   flutter_map: ^6.1.0
   flutter_map_cache: ^1.0.0
+  dio_cache_interceptor: ^3.5.0
+  dio_cache_interceptor_file_store: ^1.2.3
   latlong2: ^0.9.0
 
   # Sensors

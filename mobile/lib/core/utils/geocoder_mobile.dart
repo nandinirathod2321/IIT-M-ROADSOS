@@ -7,7 +7,7 @@ Future<String> performReverseGeocode(double lat, double lng) async {
     client.connectionTimeout = const Duration(seconds: 4);
     final uri = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lng');
     final request = await client.getUrl(uri);
-    request.headers.setUserAgent('RoadSOS/1.0');
+    request.headers.set(HttpHeaders.userAgentHeader, 'RoadSOS/1.0');
     final response = await request.close();
     if (response.statusCode == 200) {
       final body = await response.transform(utf8.decoder).join();
