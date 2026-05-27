@@ -78,13 +78,17 @@ class _StatusBarState extends State<StatusBar>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
+    final border = isDark ? DarkColors.borderSubtle : LightColors.borderSubtle;
+    final muted = isDark ? DarkColors.textMuted : LightColors.textMuted;
+    final secondary = isDark ? DarkColors.textSecondary : LightColors.textSecondary;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(
-          bottom: BorderSide(color: AppColors.borderSubtle, width: 1),
-        ),
+      decoration: BoxDecoration(
+        color: surface,
+        border: Border(bottom: BorderSide(color: border, width: 1)),
       ),
       child: Row(
         children: [
@@ -94,7 +98,7 @@ class _StatusBarState extends State<StatusBar>
             builder: (context, _) {
               final color = widget.isProtectionActive
                   ? AppColors.statusActive
-                  : AppColors.textMuted;
+                  : muted;
               return Container(
                 width: 8,
                 height: 8,
@@ -117,7 +121,7 @@ class _StatusBarState extends State<StatusBar>
             style: AppTypography.labelCaps.copyWith(
               color: widget.isProtectionActive
                   ? AppColors.statusActive
-                  : AppColors.textMuted,
+                : muted,
             ),
           ),
 
@@ -127,7 +131,7 @@ class _StatusBarState extends State<StatusBar>
           Icon(
             _connectivityIcon,
             size: 14,
-            color: AppColors.textSecondary,
+            color: secondary,
           ),
           const SizedBox(width: 4),
           Text(
@@ -141,7 +145,7 @@ class _StatusBarState extends State<StatusBar>
           Icon(
             Icons.my_location_rounded,
             size: 14,
-            color: AppColors.textSecondary,
+            color: secondary,
           ),
           const SizedBox(width: 4),
           Text(

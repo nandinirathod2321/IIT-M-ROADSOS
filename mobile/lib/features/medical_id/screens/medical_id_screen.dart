@@ -212,9 +212,13 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bg = Theme.of(context).scaffoldBackgroundColor;
+    final surface = Theme.of(context).colorScheme.surface;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: AppColors.primary,
+      return Scaffold(
+        backgroundColor: bg,
         body: Center(
           child: CircularProgressIndicator(color: AppColors.emergencyRed),
         ),
@@ -223,7 +227,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
 
     if (_errorMsg.isNotEmpty) {
       return Scaffold(
-        backgroundColor: AppColors.primary,
+        backgroundColor: bg,
         body: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Center(
@@ -250,22 +254,22 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: bg,
       appBar: AppBar(
         title: Text(
           _isEditing ? 'EDIT MEDICAL ID' : 'MEDICAL ID',
           style: AppTypography.headlineLarge.copyWith(letterSpacing: 0.5),
         ),
-        backgroundColor: AppColors.surface,
+        backgroundColor: surface,
         elevation: 0,
         actions: [
           if (!_isEditing)
             IconButton(
-              icon: const Icon(Icons.share_rounded, color: Colors.white),
+              icon: Icon(Icons.share_rounded, color: onSurface),
               onPressed: _shareMedicalId,
             ),
           IconButton(
-            icon: Icon(_isEditing ? Icons.close_rounded : Icons.edit_rounded, color: Colors.white),
+            icon: Icon(_isEditing ? Icons.close_rounded : Icons.edit_rounded, color: onSurface),
             onPressed: () {
               setState(() {
                 if (_isEditing) {

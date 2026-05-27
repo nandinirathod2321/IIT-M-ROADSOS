@@ -483,8 +483,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bg = Theme.of(context).scaffoldBackgroundColor;
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: bg,
       body: SafeArea(
         child: Column(
           children: [
@@ -511,7 +512,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: const Text(

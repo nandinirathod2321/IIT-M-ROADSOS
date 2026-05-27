@@ -67,8 +67,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = Theme.of(context).scaffoldBackgroundColor;
+    final secondary = isDark ? DarkColors.textSecondary : LightColors.textSecondary;
+    final muted = isDark ? DarkColors.textMuted : LightColors.textMuted;
+
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: bg,
       body: SafeArea(
         child: Column(
           children: [
@@ -103,7 +108,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         height: 8.0,
                         margin: const EdgeInsets.symmetric(horizontal: 4.0),
                         decoration: BoxDecoration(
-                          color: isSelected ? AppColors.emergencyRed : AppColors.textMuted,
+                          color: isSelected ? AppColors.emergencyRed : muted,
                           borderRadius: BorderRadius.circular(4.0),
                         ),
                       );
@@ -130,7 +135,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           child: Text(
                             "Skip",
                             style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.textSecondary,
+                              color: secondary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -191,18 +196,22 @@ class _OnboardingPage1 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final secondary = isDark ? DarkColors.textSecondary : LightColors.textSecondary;
+
     return _OnboardingPageContainer(
       illustration: Container(
         width: 200,
         height: 200,
         decoration: BoxDecoration(
-          color: AppColors.emergencyRed.withOpacity(0.06),
+          color: AppColors.emergencyRed.withValues(alpha: 0.06),
           shape: BoxShape.circle,
         ),
         child: Center(
           child: CustomPaint(
             size: const Size(120, 140),
-            painter: ShieldPainter(),
+            painter: ShieldPainter(strokeColor: onSurface),
           ),
         ),
       ),
@@ -211,7 +220,7 @@ class _OnboardingPage1 extends StatelessWidget {
         children: [
           Text(
             "Crash Detection",
-            style: AppTypography.displayMedium.copyWith(color: Colors.white),
+            style: AppTypography.displayMedium.copyWith(color: onSurface),
             textAlign: TextAlign.center,
           ),
           Text(
@@ -222,7 +231,7 @@ class _OnboardingPage1 extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             "RoadSOS monitors your phone in the background. If a crash is detected, it alerts emergency services automatically.",
-            style: AppTypography.bodyLarge.copyWith(color: AppColors.textSecondary, height: 1.6),
+            style: AppTypography.bodyLarge.copyWith(color: secondary, height: 1.6),
             textAlign: TextAlign.center,
           ),
         ],
@@ -241,13 +250,17 @@ class _OnboardingPage2 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final secondary = isDark ? DarkColors.textSecondary : LightColors.textSecondary;
+
     return _OnboardingPageContainer(
       illustration: SizedBox(
         width: 140,
         height: 140,
         child: CustomPaint(
           size: const Size(140, 140),
-          painter: QrPainter(),
+          painter: QrPainter(strokeColor: onSurface),
         ),
       ),
       content: Column(
@@ -255,7 +268,7 @@ class _OnboardingPage2 extends StatelessWidget {
         children: [
           Text(
             "Your Medical ID",
-            style: AppTypography.displayMedium.copyWith(color: Colors.white),
+            style: AppTypography.displayMedium.copyWith(color: onSurface),
             textAlign: TextAlign.center,
           ),
           Text(
@@ -266,7 +279,7 @@ class _OnboardingPage2 extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             "Store blood group, allergies, and emergency contacts. Paramedics scan your QR even if your screen is broken.",
-            style: AppTypography.bodyLarge.copyWith(color: AppColors.textSecondary, height: 1.6),
+            style: AppTypography.bodyLarge.copyWith(color: secondary, height: 1.6),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -275,7 +288,7 @@ class _OnboardingPage2 extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: AppColors.emergencyRed, width: 1.5),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(12),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
@@ -300,13 +313,17 @@ class _OnboardingPage3 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final secondary = isDark ? DarkColors.textSecondary : LightColors.textSecondary;
+
     return _OnboardingPageContainer(
       illustration: SizedBox(
         width: 140,
         height: 200,
         child: CustomPaint(
           size: const Size(140, 200),
-          painter: PhoneSosPainter(),
+          painter: PhoneSosPainter(strokeColor: onSurface),
         ),
       ),
       content: Column(
@@ -314,7 +331,7 @@ class _OnboardingPage3 extends StatelessWidget {
         children: [
           Text(
             "One Button.",
-            style: AppTypography.displayMedium.copyWith(color: Colors.white),
+            style: AppTypography.displayMedium.copyWith(color: onSurface),
             textAlign: TextAlign.center,
           ),
           Text(
@@ -325,7 +342,7 @@ class _OnboardingPage3 extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             "Hold the SOS button for 2 seconds to alert emergency services. Or let crash detection do it automatically.",
-            style: AppTypography.bodyLarge.copyWith(color: AppColors.textSecondary, height: 1.6),
+            style: AppTypography.bodyLarge.copyWith(color: secondary, height: 1.6),
             textAlign: TextAlign.center,
           ),
         ],
@@ -336,6 +353,10 @@ class _OnboardingPage3 extends StatelessWidget {
 
 /// Custom shield outline and pulse waves.
 class ShieldPainter extends CustomPainter {
+  final Color strokeColor;
+
+  const ShieldPainter({required this.strokeColor});
+
   @override
   void paint(Canvas canvas, Size size) {
     final width = size.width;
@@ -351,7 +372,7 @@ class ShieldPainter extends CustomPainter {
     shieldPath.close();
 
     final shieldPaint = Paint()
-      ..color = Colors.white
+      ..color = strokeColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.0;
 
@@ -382,18 +403,22 @@ class ShieldPainter extends CustomPainter {
 
 /// Simplified QR code corner markers.
 class QrPainter extends CustomPainter {
+  final Color strokeColor;
+
+  const QrPainter({required this.strokeColor});
+
   @override
   void paint(Canvas canvas, Size size) {
     final width = size.width;
     final height = size.height;
 
     final strokePaint = Paint()
-      ..color = Colors.white
+      ..color = strokeColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.0;
 
     final fillPaint = Paint()
-      ..color = Colors.white
+      ..color = strokeColor
       ..style = PaintingStyle.fill;
 
     final redPaint = Paint()
@@ -419,7 +444,7 @@ class QrPainter extends CustomPainter {
 
     // Scattered modules in the middle region
     final dotPaint = Paint()
-      ..color = Colors.white.withOpacity(0.4)
+      ..color = strokeColor.withValues(alpha: 0.4)
       ..style = PaintingStyle.fill;
 
     const double dotSize = 8.0;
@@ -459,13 +484,17 @@ class QrPainter extends CustomPainter {
 
 /// Custom hand holding device outline.
 class PhoneSosPainter extends CustomPainter {
+  final Color strokeColor;
+
+  const PhoneSosPainter({required this.strokeColor});
+
   @override
   void paint(Canvas canvas, Size size) {
     final width = size.width;
     final height = size.height;
 
     final whiteStroke = Paint()
-      ..color = Colors.white
+      ..color = strokeColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 
@@ -505,7 +534,7 @@ class PhoneSosPainter extends CustomPainter {
 
     // 4. Multi-layered touch waves (finger arcs)
     final gesturePaint = Paint()
-      ..color = AppColors.emergencyRed.withOpacity(0.3)
+      ..color = AppColors.emergencyRed.withValues(alpha: 0.3)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.0
       ..strokeCap = StrokeCap.round;
@@ -524,7 +553,7 @@ class PhoneSosPainter extends CustomPainter {
       0.3,
       0.8,
       false,
-      gesturePaint..color = AppColors.emergencyRed.withOpacity(0.15),
+      gesturePaint..color = AppColors.emergencyRed.withValues(alpha: 0.15),
     );
   }
 

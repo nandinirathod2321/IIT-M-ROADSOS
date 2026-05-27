@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'core/theme/colors.dart';
+import 'core/theme/theme_provider.dart';
 import 'features/crash_detection/crash_detector.dart';
 import 'core/router/app_router.dart';
 import 'data/database/db_initializer.dart';
@@ -33,9 +34,9 @@ void main() async {
   // Set system navigation overlay styling for premium immersive visuals
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: AppColors.surface,
-    systemNavigationBarIconBrightness: Brightness.light,
+    statusBarIconBrightness: Brightness.dark,
+    systemNavigationBarColor: LightColors.bgPrimary,
+    systemNavigationBarIconBrightness: Brightness.dark,
   ));
 
   // Initialize SQLite local spatial nodes database
@@ -57,6 +58,10 @@ void main() async {
   final SharedPreferences prefs = await SharedPreferences.getInstance();
   final bool onboardingDone = prefs.getBool('onboarding_complete') ?? false;
 
+  // Load persisted theme (defaults to Light)
+  final themeProvider = ThemeProvider();
+  await themeProvider.load();
+
   // Initialize and run background telemetry daemon if enabled
   final double accelThreshold = prefs.getDouble('accel_threshold') ?? 25.0;
   final double gyroThreshold = prefs.getDouble('gyro_threshold') ?? 4.0;
@@ -77,5 +82,10 @@ void main() async {
     };
   }
 
-  runApp(RoadSOSApp(initialLocation: onboardingDone ? '/' : '/onboarding'));
+  runApp(
+    RoadSOSApp(
+      initialLocation: onboardingDone ? '/' : '/onboarding',
+      themeProvider: themeProvider,
+    ),
+  );
 }

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'colors.dart';
-
 /// RoadSOS premium typographic scale.
 ///
 /// - Headings: Space Grotesk (modern, premium, high clarity)
@@ -16,7 +14,6 @@ abstract final class AppTypography {
     fontWeight: FontWeight.w700,
     letterSpacing: -0.6,
     height: 1.05,
-    color: AppColors.textPrimary,
   );
 
   static TextStyle displayMedium = GoogleFonts.spaceGrotesk(
@@ -24,7 +21,6 @@ abstract final class AppTypography {
     fontWeight: FontWeight.w700,
     letterSpacing: -0.4,
     height: 1.10,
-    color: AppColors.textPrimary,
   );
 
   // ── Headlines ────────────────────────────────────────────────────────
@@ -34,14 +30,12 @@ abstract final class AppTypography {
     fontWeight: FontWeight.w700,
     letterSpacing: -0.2,
     height: 1.15,
-    color: AppColors.textPrimary,
   );
 
   static TextStyle headlineMedium = GoogleFonts.spaceGrotesk(
     fontSize: 18,
     fontWeight: FontWeight.w700,
     height: 1.2,
-    color: AppColors.textPrimary,
   );
 
   // ── Labels ───────────────────────────────────────────────────────────
@@ -51,7 +45,6 @@ abstract final class AppTypography {
     fontWeight: FontWeight.w700,
     letterSpacing: 1.8,
     height: 1.1,
-    color: AppColors.textMuted,
   );
 
   // ── Body ─────────────────────────────────────────────────────────────
@@ -60,21 +53,18 @@ abstract final class AppTypography {
     fontSize: 16,
     fontWeight: FontWeight.w400,
     height: 1.55,
-    color: AppColors.textPrimary,
   );
 
   static TextStyle bodyMedium = GoogleFonts.inter(
     fontSize: 14,
     fontWeight: FontWeight.w400,
     height: 1.55,
-    color: AppColors.textPrimary,
   );
 
   static TextStyle bodySmall = GoogleFonts.inter(
     fontSize: 12,
     fontWeight: FontWeight.w400,
     height: 1.6,
-    color: AppColors.textSecondary,
   );
 
   // ── Monospace ────────────────────────────────────────────────────────
@@ -82,6 +72,5 @@ abstract final class AppTypography {
   static TextStyle monoMedium = GoogleFonts.robotoMono(
     fontSize: 14,
     fontWeight: FontWeight.w500,
-    color: AppColors.textPrimary,
   );
 }

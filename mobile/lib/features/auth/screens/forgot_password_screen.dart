@@ -51,13 +51,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = Theme.of(context).scaffoldBackgroundColor;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final secondary = isDark ? DarkColors.textSecondary : LightColors.textSecondary;
+
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: bg,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          icon: Icon(Icons.arrow_back_rounded, color: onSurface),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -76,10 +81,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppColors.emergencyRed.withOpacity(0.12),
+                        color: AppColors.emergencyRed.withValues(alpha: 0.12),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: AppColors.emergencyRed.withOpacity(0.3),
+                          color: AppColors.emergencyRed.withValues(alpha: 0.3),
                           width: 2,
                         ),
                       ),
@@ -97,7 +102,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     "RESET PASSWORD",
                     textAlign: TextAlign.center,
                     style: AppTypography.displayLarge.copyWith(
-                      color: Colors.white,
+                      color: onSurface,
                       fontSize: 28,
                       letterSpacing: 1.5,
                     ),
@@ -107,7 +112,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     "Enter your registered email address below. We'll send instructions to safely recover and update your credentials.",
                     textAlign: TextAlign.center,
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textSecondary,
+                      color: secondary,
                     ),
                   ),
                   const SizedBox(height: 40),
@@ -117,9 +122,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: AppColors.emergencyRed.withOpacity(0.1),
+                        color: AppColors.emergencyRed.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppColors.emergencyRed.withOpacity(0.3)),
+                        border: Border.all(color: AppColors.emergencyRed.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
@@ -142,9 +147,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: AppColors.safeGreen.withOpacity(0.1),
+                        color: AppColors.safeGreen.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppColors.safeGreen.withOpacity(0.3)),
+                        border: Border.all(color: AppColors.safeGreen.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
@@ -166,7 +171,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: onSurface),
                     decoration: _inputDecoration("Email Address", Icons.email_outlined),
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) return "Email is required";
@@ -210,7 +215,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     child: Text(
                       "RETURN TO LOGIN",
                       style: AppTypography.labelCaps.copyWith(
-                        color: AppColors.textSecondary,
+                        color: secondary,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
@@ -226,22 +231,28 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   InputDecoration _inputDecoration(String label, IconData icon) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
+    final secondary = isDark ? DarkColors.textSecondary : LightColors.textSecondary;
+    final muted = isDark ? DarkColors.textMuted : LightColors.textMuted;
+    final border = isDark ? DarkColors.borderSubtle : LightColors.borderSubtle;
+
     return InputDecoration(
       labelText: label,
-      labelStyle: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-      prefixIcon: Icon(icon, color: AppColors.textMuted, size: 18),
+      labelStyle: AppTypography.bodyMedium.copyWith(color: secondary),
+      prefixIcon: Icon(icon, color: muted, size: 18),
       filled: true,
-      fillColor: AppColors.surface,
+      fillColor: surface,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(6),
-        borderSide: const BorderSide(color: AppColors.borderSubtle),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: border),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(6),
-        borderSide: const BorderSide(color: AppColors.borderSubtle),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: border),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: AppColors.emergencyRed),
       ),
     );

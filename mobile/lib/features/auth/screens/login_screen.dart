@@ -55,8 +55,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = Theme.of(context).scaffoldBackgroundColor;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final secondary = isDark ? DarkColors.textSecondary : LightColors.textSecondary;
+
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: bg,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -72,10 +77,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppColors.emergencyRed.withOpacity(0.12),
+                        color: AppColors.emergencyRed.withValues(alpha: 0.12),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: AppColors.emergencyRed.withOpacity(0.3),
+                          color: AppColors.emergencyRed.withValues(alpha: 0.3),
                           width: 2,
                         ),
                       ),
@@ -93,7 +98,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     "ROADSOS",
                     textAlign: TextAlign.center,
                     style: AppTypography.displayLarge.copyWith(
-                      color: Colors.white,
+                      color: onSurface,
                       fontSize: 32,
                       letterSpacing: 2,
                     ),
@@ -103,7 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     "Emergency Response & Rescue Operating System",
                     textAlign: TextAlign.center,
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textSecondary,
+                      color: secondary,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -113,7 +118,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Text(
                     "SECURE RESPONDER LOGIN",
                     style: AppTypography.labelCaps.copyWith(
-                      color: AppColors.textSecondary,
+                      color: secondary,
                       letterSpacing: 1.0,
                     ),
                   ),
@@ -124,9 +129,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: AppColors.emergencyRed.withOpacity(0.1),
+                        color: AppColors.emergencyRed.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppColors.emergencyRed.withOpacity(0.3)),
+                        border: Border.all(color: AppColors.emergencyRed.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [

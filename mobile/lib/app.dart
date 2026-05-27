@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_provider.dart';
+import 'core/theme/theme_scope.dart';
 import 'core/router/app_router.dart';
 import 'presentation/blocs/location/location_cubit.dart';
 import 'presentation/blocs/nearby/nearby_cubit.dart';
@@ -16,7 +18,13 @@ import 'core/responders/responder_cubit.dart';
 ///   • [ChatCubit] — first-aid AI assistant chat controller
 class RoadSOSApp extends StatelessWidget {
   final String initialLocation;
-  const RoadSOSApp({super.key, required this.initialLocation});
+  final ThemeProvider themeProvider;
+
+  const RoadSOSApp({
+    super.key,
+    required this.initialLocation,
+    required this.themeProvider,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -39,22 +47,32 @@ class RoadSOSApp extends StatelessWidget {
           create: (_) => ChatCubit(),
         ),
       ],
-      child: MaterialApp.router(
-        title: 'RoadSOS',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
-        routerConfig: AppRouter.router(initialLocation),
-        builder: (context, child) {
-          // Clamp text scale — prevents system large fonts breaking emergency UI
-          return MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              textScaler: TextScaler.linear(
-                MediaQuery.of(context).textScaler.scale(1.0).clamp(0.85, 1.2),
-              ),
-            ),
-            child: child!,
-          );
-        },
+      child: ThemeScope(
+        notifier: themeProvider,
+        child: MaterialApp.router(
+          title: 'RoadSOS',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          themeMode: themeProvider.mode,
+          routerConfig: AppRouter.router(initialLocation),
+          builder: (context, child) {
+            return ListenableBuilder(
+              listenable: themeProvider,
+              builder: (context, _) {
+                // Clamp text scale — prevents system large fonts breaking emergency UI
+                return MediaQuery(
+                  data: MediaQuery.of(context).copyWith(
+                    textScaler: TextScaler.linear(
+                      MediaQuery.of(context).textScaler.scale(1.0).clamp(0.85, 1.2),
+                    ),
+                  ),
+                  child: child!,
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }

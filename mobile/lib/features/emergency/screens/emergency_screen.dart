@@ -314,13 +314,17 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
         final bool gpsLoading = locState.status == LocationStatus.loading ||
             locState.status == LocationStatus.initial;
 
+        final bg = Theme.of(context).scaffoldBackgroundColor;
+        final surface = Theme.of(context).colorScheme.surface;
+        final onSurface = Theme.of(context).colorScheme.onSurface;
+
         return Scaffold(
-          backgroundColor: AppColors.primary,
+          backgroundColor: bg,
           appBar: AppBar(
             title: Text("EMERGENCY RESPONDERS",
                 style: AppTypography.headlineLarge.copyWith(letterSpacing: 0.5)),
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
+              icon: Icon(Icons.arrow_back_rounded, color: onSurface),
               onPressed: () {
                 if (context.canPop()) {
                   context.pop();
@@ -331,15 +335,15 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
             ),
             actions: [
               IconButton(
-                icon: const Icon(Icons.refresh_rounded, color: AppColors.textPrimary),
+                icon: Icon(Icons.refresh_rounded, color: onSurface),
                 tooltip: "Force Refresh",
                 onPressed: () {
-                  print('[EmergencyScreen] Manual refresh triggered.');
+                  debugPrint('[EmergencyScreen] Manual refresh triggered.');
                   context.read<ResponderCubit>().forceRefresh();
                 },
               ),
             ],
-            backgroundColor: AppColors.surface,
+            backgroundColor: surface,
             elevation: 0,
           ),
           body: Column(

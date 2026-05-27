@@ -37,12 +37,16 @@ abstract final class AppTokens {
 
   static const List<BoxShadow> glowEmergency = [
     BoxShadow(
-      color: Color(0x44FF3B4C),
+      color: Color(0x44E8334A),
       blurRadius: 28,
       offset: Offset(0, 10),
     ),
   ];
 
-  static const BorderSide border = BorderSide(color: AppColors.borderSubtle, width: 1);
+  static const BorderSide lightBorder = BorderSide(color: LightColors.borderSubtle, width: 1);
+  static const BorderSide darkBorder = BorderSide(color: DarkColors.borderSubtle, width: 1);
+
+  // Legacy alias; prefer lightBorder/darkBorder in new code.
+  static const BorderSide border = darkBorder;
 }
 

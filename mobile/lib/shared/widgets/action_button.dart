@@ -16,6 +16,7 @@ class ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isDisabled = onTap == null;
+    final cs = Theme.of(context).colorScheme;
 
     return SizedBox(
       width: double.infinity,
@@ -23,17 +24,15 @@ class ActionButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: onTap,
         style: ElevatedButton.styleFrom(
-          backgroundColor: isDisabled ? AppColors.surfaceAlt : AppColors.emergencyRed,
-          disabledBackgroundColor: AppColors.surfaceAlt,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
-          ),
+          backgroundColor: isDisabled ? cs.surface : cs.primary,
+          disabledBackgroundColor: cs.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           elevation: 0,
         ),
         child: Text(
           text.toUpperCase(),
           style: AppTypography.labelCaps.copyWith(
-            color: isDisabled ? AppColors.textMuted : Colors.white,
+            color: isDisabled ? (Theme.of(context).brightness == Brightness.dark ? DarkColors.textMuted : LightColors.textMuted) : Colors.white,
             fontSize: 14,
             fontWeight: FontWeight.bold,
           ),

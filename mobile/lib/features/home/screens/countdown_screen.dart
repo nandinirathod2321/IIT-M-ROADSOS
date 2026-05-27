@@ -257,6 +257,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
         throw 'Could not launch dialer';
       }
     } catch (_) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -273,6 +274,14 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
   Widget build(BuildContext context) {
     final locState = context.watch<LocationCubit>().state;
     final responderState = context.watch<ResponderCubit>().state;
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = Theme.of(context).scaffoldBackgroundColor;
+    final surface = Theme.of(context).colorScheme.surface;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final secondary = isDark ? DarkColors.textSecondary : LightColors.textSecondary;
+    final muted = isDark ? DarkColors.textMuted : LightColors.textMuted;
+    final border = isDark ? DarkColors.borderSubtle : LightColors.borderSubtle;
 
     final double lat = locState.latitude ?? _latitude;
     final double lng = locState.longitude ?? _longitude;
@@ -297,7 +306,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
 
     if (_isLoadingDetails) {
       return Scaffold(
-        backgroundColor: AppColors.primary,
+        backgroundColor: bg,
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(24.0),
@@ -314,7 +323,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                         height: 90,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: AppColors.emergencyRed.withOpacity(0.1),
+                          color: AppColors.emergencyRed.withValues(alpha: 0.1),
                         ),
                       ),
                       AnimatedBuilder(
@@ -325,7 +334,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                             height: 70 * _blinkAnimation.value,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: AppColors.emergencyRed.withOpacity(0.15),
+                              color: AppColors.emergencyRed.withValues(alpha: 0.15),
                             ),
                           );
                         },
@@ -359,7 +368,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                 Text(
                   "Establishing cellular backhaul & local BLE mesh bridge...",
                   textAlign: TextAlign.center,
-                  style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                  style: AppTypography.bodySmall.copyWith(color: secondary),
                 ),
                 const SizedBox(height: 48),
 
@@ -368,9 +377,9 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppColors.surface,
+                    color: surface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.borderSubtle, width: 1),
+                    border: Border.all(color: border, width: 1),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -388,7 +397,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                               Icon(
                                 isVisible ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
                                 size: 16,
-                                color: isVisible ? AppColors.safeGreen : AppColors.textMuted,
+                                color: isVisible ? AppColors.safeGreen : muted,
                               ),
                               const SizedBox(width: 10),
                               Expanded(
@@ -397,10 +406,10 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                                   style: AppTypography.monoMedium.copyWith(
                                     fontSize: 12,
                                     color: isCurrent
-                                        ? AppColors.textPrimary
+                                        ? onSurface
                                         : isVisible
-                                            ? AppColors.textSecondary
-                                            : AppColors.textMuted,
+                                            ? secondary
+                                            : muted,
                                   ),
                                 ),
                               ),
@@ -760,7 +769,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: iconBg.withOpacity(0.12),
+                  color: iconBg.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Icon(icon, color: iconBg, size: 18),
@@ -851,7 +860,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: iconBg.withOpacity(0.12),
+              color: iconBg.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Icon(icon, color: iconBg, size: 18),
@@ -924,6 +933,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                   throw 'Could not launch dialer';
                 }
               } catch (_) {
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text("Calling ${primary.name}: ${primary.phone}", style: const TextStyle(color: Colors.white)),
@@ -1114,6 +1124,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
         throw 'Could not launch mail client';
       }
     } catch (_) {
+      if (!mounted) return;
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -1189,7 +1200,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.emergencyRed.withOpacity(0.12),
+                  color: AppColors.emergencyRed.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.emergency_share_rounded, color: AppColors.emergencyRed, size: 48),

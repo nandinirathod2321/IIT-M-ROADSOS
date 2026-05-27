@@ -68,13 +68,19 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = Theme.of(context).scaffoldBackgroundColor;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final secondary = isDark ? DarkColors.textSecondary : LightColors.textSecondary;
+    final muted = isDark ? DarkColors.textMuted : LightColors.textMuted;
+
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: bg,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          icon: Icon(Icons.arrow_back_rounded, color: onSurface),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -92,7 +98,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     "CREATE RESPONDER PROFILE",
                     textAlign: TextAlign.center,
                     style: AppTypography.displayMedium.copyWith(
-                      color: Colors.white,
+                      color: onSurface,
                       fontSize: 24,
                     ),
                   ),
@@ -101,7 +107,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     "Register your credentials to enable automated spatial queries and instant emergency broadcast syncing.",
                     textAlign: TextAlign.center,
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textSecondary,
+                      color: secondary,
                     ),
                   ),
                   const SizedBox(height: 36),
@@ -111,9 +117,9 @@ class _SignupScreenState extends State<SignupScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: AppColors.emergencyRed.withOpacity(0.1),
+                        color: AppColors.emergencyRed.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppColors.emergencyRed.withOpacity(0.3)),
+                        border: Border.all(color: AppColors.emergencyRed.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
@@ -134,7 +140,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   // Full name input
                   TextFormField(
                     controller: _nameController,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: onSurface),
                     decoration: _inputDecoration("Full Name", Icons.person_outline_rounded),
                     validator: (v) => v == null || v.trim().isEmpty ? "Full name is required" : null,
                   ),
@@ -144,7 +150,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   TextFormField(
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: onSurface),
                     decoration: _inputDecoration("Phone Number", Icons.phone_android_rounded),
                     validator: (v) => v == null || v.trim().isEmpty ? "Phone number is required" : null,
                   ),
@@ -154,7 +160,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: onSurface),
                     decoration: _inputDecoration("Email Address", Icons.email_outlined),
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) return "Email is required";
@@ -169,14 +175,14 @@ class _SignupScreenState extends State<SignupScreen> {
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: onSurface),
                     decoration: _inputDecoration(
                       "Password (min 6 characters)",
                       Icons.lock_outline_rounded,
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                          color: AppColors.textMuted,
+                          color: muted,
                           size: 20,
                         ),
                         onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
@@ -194,7 +200,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   TextFormField(
                     controller: _confirmPasswordController,
                     obscureText: _obscurePassword,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: onSurface),
                     decoration: _inputDecoration("Confirm Password", Icons.lock_outline_rounded),
                     validator: (v) => v == null || v.isEmpty ? "Please confirm your password" : null,
                   ),
@@ -233,7 +239,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     children: [
                       Text(
                         "Already registered?",
-                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                        style: AppTypography.bodyMedium.copyWith(color: secondary),
                       ),
                       TextButton(
                         onPressed: () => Navigator.pop(context),
@@ -258,23 +264,29 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   InputDecoration _inputDecoration(String label, IconData icon, {Widget? suffixIcon}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
+    final secondary = isDark ? DarkColors.textSecondary : LightColors.textSecondary;
+    final muted = isDark ? DarkColors.textMuted : LightColors.textMuted;
+    final border = isDark ? DarkColors.borderSubtle : LightColors.borderSubtle;
+
     return InputDecoration(
       labelText: label,
-      labelStyle: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-      prefixIcon: Icon(icon, color: AppColors.textMuted, size: 18),
+      labelStyle: AppTypography.bodyMedium.copyWith(color: secondary),
+      prefixIcon: Icon(icon, color: muted, size: 18),
       suffixIcon: suffixIcon,
       filled: true,
-      fillColor: AppColors.surface,
+      fillColor: surface,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(6),
-        borderSide: const BorderSide(color: AppColors.borderSubtle),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: border),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(6),
-        borderSide: const BorderSide(color: AppColors.borderSubtle),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: border),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: AppColors.emergencyRed),
       ),
     );

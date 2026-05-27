@@ -102,9 +102,10 @@ class _NearbyMapViewState extends State<NearbyMapView> {
     required Color accentColor,
     required IconData icon,
   }) {
+    final sheetBg = Theme.of(context).colorScheme.surface;
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: sheetBg,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -536,13 +537,13 @@ class _NearbyMapViewState extends State<NearbyMapView> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: AppColors.surface.withOpacity(0.92),
+                  color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.92),
                   borderRadius: BorderRadius.circular(8),
                   border:
                       Border.all(color: AppColors.borderSubtle, width: 1),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
+                      color: Colors.black.withValues(alpha: 0.15),
                       blurRadius: 6,
                     ),
                   ],
@@ -567,7 +568,7 @@ class _NearbyMapViewState extends State<NearbyMapView> {
               right: 16,
               child: FloatingActionButton.small(
                 heroTag: 'map_recenter',
-                backgroundColor: AppColors.surface,
+                backgroundColor: Theme.of(context).colorScheme.surface,
                 onPressed: () {
                   _mapController.move(
                     LatLng(userLat, userLng),

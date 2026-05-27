@@ -1,92 +1,100 @@
 import 'package:flutter/material.dart';
 
-/// RoadSOS premium emergency palette — Dark / high-contrast.
-///
-/// Design intent:
-/// - Deep charcoal foundation (trustworthy, calm under stress)
-/// - Rich emergency red accents (critical actions)
-/// - Subtle blue highlights (authority / navigation)
-/// - Premium grayscale for hierarchy
+// RoadSOS palettes:
+// - Light mode is the DEFAULT launch experience.
+// - Dark mode is optional via Settings toggle.
+
+/// Shared semantic colours (same in both themes).
 abstract final class AppColors {
-  // ── Backgrounds ──────────────────────────────────────────────────────
-  /// Deep charcoal — main scaffold / background.
-  static const Color primary = Color(0xFF05060A);
-
-  /// Primary surface — cards / sheets.
-  static const Color surface = Color(0xFF0B0D14);
-
-  /// Alternate surface — elevated cards, inputs.
-  static const Color surfaceAlt = Color(0xFF101428);
-
-  /// Soft overlay surface — used for glass / subtle panels.
-  static const Color surfaceOverlay = Color(0xCC0B0D14);
-
-  // Aliases for USWDS / gov.nl naming convention
-  static const Color bgPrimary = primary;
-  static const Color bgSurface = surface;
-  static const Color bgSurfaceAlt = surfaceAlt;
-
-  // ── Semantic / Emergency ─────────────────────────────────────────────
-  /// SOS button, danger states, critical alerts.
-  static const Color emergencyRed = Color(0xFFFF3B4C);
-
-  /// Warnings, secondary alerts, countdown state.
+  static const Color emergencyRed = Color(0xFFE8334A);
   static const Color emergencyAmber = Color(0xFFFFB020);
-
-  /// Confirmed safe / connected / resolved state.
   static const Color safeGreen = Color(0xFF22C55E);
 
-  // ── Authority / Trust (USWDS) ─────────────────────────────────────────
-  /// Navy — authority headers, trust sections.
+  static const Color infoBlue = Color(0xFF3B82F6);
+  static const Color policeBlue = Color(0xFF2563EB);
+  static const Color towingOrange = Color(0xFFF97316);
   static const Color trustNavy = Color(0xFF0B2A4A);
 
-  // ── Service type accents ─────────────────────────────────────────────
-  /// Hospitals, informational highlights.
-  static const Color infoBlue = Color(0xFF3B82F6);
-
-  /// Police stations.
-  static const Color policeBlue = Color(0xFF2563EB);
-
-  /// Towing services.
-  static const Color towingOrange = Color(0xFFF97316);
-
-  // ── Text ─────────────────────────────────────────────────────────────
-  /// Near-white — main body / headline text.
-  static const Color textPrimary = Color(0xFFF4F7FF);
-
-  /// Dark grey — subtitles, labels, secondary copy.
-  static const Color textSecondary = Color(0xFFB6C2D9);
-
-  /// Mid grey — disabled text, hints, placeholders (WCAG AA accessible).
-  static const Color textMuted = Color(0xFF7E8AA3);
-
-  // ── Borders ──────────────────────────────────────────────────────────
-  /// Neutral border — card edges, section dividers.
-  static const Color borderSubtle = Color(0x1FFFFFFF);
-
-  /// Stronger border for focused/active surfaces.
-  static const Color borderStrong = Color(0x33FFFFFF);
-
-  // ── Status ───────────────────────────────────────────────────────────
-  /// Pulsing status dot — crash detection ON.
   static const Color statusActive = safeGreen;
 
-  // ── Gradients ────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // Legacy aliases (temporary compatibility)
+  //
+  // Existing screens still reference `AppColors.primary/surface/textSecondary/...`.
+  // These map to the DARK palette to preserve existing behavior until each
+  // screen is migrated to Theme.of(context)/ColorScheme usage.
+  // ─────────────────────────────────────────────────────────────────────────
+  static const Color primary = DarkColors.bgPrimary;
+  static const Color surface = DarkColors.surface;
+  static const Color surfaceAlt = DarkColors.surfaceAlt;
+  static const Color surfaceOverlay = DarkColors.surfaceOverlay;
+
+  static const Color bgPrimary = DarkColors.bgPrimary;
+  static const Color bgSurface = DarkColors.surface;
+  static const Color bgSurfaceAlt = DarkColors.surfaceAlt;
+
+  static const Color textPrimary = DarkColors.textPrimary;
+  static const Color textSecondary = DarkColors.textSecondary;
+  static const Color textMuted = DarkColors.textMuted;
+
+  static const Color borderSubtle = DarkColors.borderSubtle;
+  static const Color borderStrong = DarkColors.borderStrong;
+
+  static const LinearGradient emergencyGlow = DarkColors.emergencyGlow;
+  static const LinearGradient surfaceSheen = DarkColors.surfaceSheen;
+}
+
+/// Premium Light palette (default).
+abstract final class LightColors {
+  // Off-white foundation (avoid harsh white)
+  static const Color bgPrimary = Color(0xFFF5F3EF);
+  static const Color surface = Color(0xFFFFFDF8);
+  static const Color surfaceAlt = Color(0xFFEDE9E3);
+  static const Color surfaceOverlay = Color(0xCCFFFDF8);
+
+  static const Color textPrimary = Color(0xFF14151A);
+  static const Color textSecondary = Color(0xFF4A5168);
+  static const Color textMuted = Color(0xFF6E7687);
+
+  static const Color borderSubtle = Color(0x1A14151A);
+  static const Color borderStrong = Color(0x2E14151A);
+
   static const LinearGradient emergencyGlow = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [
-      Color(0x33FF3B4C),
-      Color(0x00FF3B4C),
-    ],
+    colors: [Color(0x1AE8334A), Color(0x00E8334A)],
   );
 
   static const LinearGradient surfaceSheen = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [
-      Color(0x14FFFFFF),
-      Color(0x00FFFFFF),
-    ],
+    colors: [Color(0xFFFFFFFF), Color(0xFFF5F1EB)],
+  );
+}
+
+/// Premium Dark palette (optional).
+abstract final class DarkColors {
+  static const Color bgPrimary = Color(0xFF05060A);
+  static const Color surface = Color(0xFF0B0D14);
+  static const Color surfaceAlt = Color(0xFF101428);
+  static const Color surfaceOverlay = Color(0xCC0B0D14);
+
+  static const Color textPrimary = Color(0xFFF4F7FF);
+  static const Color textSecondary = Color(0xFFB6C2D9);
+  static const Color textMuted = Color(0xFF7E8AA3);
+
+  static const Color borderSubtle = Color(0x1FFFFFFF);
+  static const Color borderStrong = Color(0x33FFFFFF);
+
+  static const LinearGradient emergencyGlow = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0x33E8334A), Color(0x00E8334A)],
+  );
+
+  static const LinearGradient surfaceSheen = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0x14FFFFFF), Color(0x00FFFFFF)],
   );
 }

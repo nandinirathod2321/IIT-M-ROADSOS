@@ -8,8 +8,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
+import '../../../core/theme/theme_scope.dart';
 import '../../../data/repositories/settings_repository.dart';
-import '../../../data/models/settings.dart' as model;
 import '../../crash_detection/crash_detector.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/config/ai_config.dart';
@@ -32,7 +32,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _voiceSOSAlwaysListening = false;
   String _sensitivityLabel = "Medium";
   int _sosCountdown = 10;
-  bool _darkModeOn = true;
   bool _autoShareOn = true;
 
   // Offline Data settings
@@ -77,7 +76,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           : (geminiKey.length > 8
               ? '${geminiKey.substring(0, 4)}...${geminiKey.substring(geminiKey.length - 4)}'
               : 'Configured');
-      _darkModeOn = settings.darkMode;
       _autoShareOn = settings.emergencyAutoShare;
       _aiAssistantOn = settings.aiAssistantEnabled;
     });
@@ -163,7 +161,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     } catch (e) {
-      print("Sync failed: $e");
+      debugPrint("Sync failed: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -445,7 +443,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   /// Helper list-tile item for settings entries.
-  Widget _SettingsTile({
+  Widget _settingsTile({
     required String title,
     String? subtitle,
     Widget? trailing,
@@ -483,7 +481,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-            if (trailing != null) trailing,
+            trailing ?? const SizedBox.shrink(),
           ],
         ),
       ),
@@ -500,7 +498,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _NumberRow(String emoji, String label, String number) {
+  Widget _numberRow(String emoji, String label, String number) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -531,8 +529,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final tp = ThemeScope.of(context);
+    final isDark = tp.mode == ThemeMode.dark;
+    final bg = Theme.of(context).scaffoldBackgroundColor;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: bg,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -541,8 +544,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 20, left: 20, bottom: 10),
               child: Text(
-                "SETTINGS",
-                style: AppTypography.headlineLarge.copyWith(color: Colors.white),
+                "Settings",
+                style: AppTypography.headlineLarge.copyWith(color: onSurface),
               ),
             ),
             Expanded(
@@ -551,9 +554,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _buildSectionHeader("APPEARANCE"),
+                    _settingsTile(
+                      title: "Theme",
+                      subtitle: isDark ? "Dark Mode (optional)" : "Light Mode (default)",
+                      trailing: CupertinoSwitch(
+                        value: isDark,
+                        activeTrackColor: AppColors.emergencyRed,
+                        onChanged: (v) => tp.setMode(v ? ThemeMode.dark : ThemeMode.light),
+                      ),
+                    ),
+
                     // PROTECTION SECTION
                     _buildSectionHeader("PROTECTION"),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Crash Detection",
                       subtitle: "Auto-detects impacts via sensors",
                       trailing: CupertinoSwitch(
@@ -570,7 +584,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         },
                       ),
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Detection Sensitivity",
                       subtitle: "Current: $_sensitivityLabel",
                       trailing: const Icon(
@@ -580,11 +594,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       onTap: _showSensitivityPicker,
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "SOS Countdown",
                       trailing: _buildCountdownSelector(),
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Voice SOS",
                       subtitle: "Say 'Help RoadSOS' to trigger",
                       trailing: CupertinoSwitch(
@@ -603,7 +617,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     if (_voiceSOSOn)
-                      _SettingsTile(
+                      _settingsTile(
                         title: "Always-Listening Mode",
                         subtitle: "Keep microphone scanning continuously",
                         trailing: CupertinoSwitch(
@@ -615,19 +629,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           },
                         ),
                       ),
-                    _SettingsTile(
-                      title: "Forced Dark Mode",
-                      subtitle: "High-contrast theme for emergency situations",
-                      trailing: CupertinoSwitch(
-                        value: _darkModeOn,
-                        activeTrackColor: AppColors.safeGreen,
-                        onChanged: (v) {
-                          setState(() => _darkModeOn = v);
-                          _updateSetting(darkMode: v);
-                        },
-                      ),
-                    ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Emergency Auto-Share",
                       subtitle: "Instantly alert emergency networks on SOS triggers",
                       trailing: CupertinoSwitch(
@@ -660,15 +662,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                           ),
                           const Divider(color: AppColors.borderSubtle, height: 1),
-                          _NumberRow("🚔", "Police Control Room", "100"),
-                          _NumberRow("📞", "National Single Hotline", "112"),
+                          _numberRow("🚔", "Police Control Room", "100"),
+                          _numberRow("📞", "National Single Hotline", "112"),
                         ],
                       ),
                     ),
 
                     // AI ASSISTANT SECTION
                     _buildSectionHeader("AI ASSISTANT"),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Gemini API Key",
                       subtitle: _geminiKeyDisplay,
                       trailing: const Icon(
@@ -678,7 +680,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       onTap: _showGeminiKeyDialog,
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "AI First-Aid Assistant",
                       subtitle: "Enable Gemini REST medical emergency chatbot",
                       trailing: CupertinoSwitch(
@@ -693,7 +695,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     // OFFLINE DATA SECTION
                     _buildSectionHeader("OFFLINE DATA"),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Emergency Database",
                       subtitle: "$_dbRecordCount local records · ${_dbSizeKb.toStringAsFixed(1)} KB size",
                       trailing: GestureDetector(
@@ -713,14 +715,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                       ),
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Last Updated",
                       trailing: Text(
                         _lastSync,
                         style: AppTypography.monoMedium.copyWith(fontSize: 12, color: AppColors.textSecondary),
                       ),
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Incident History Logs",
                       subtitle: "View telemetry of previous SOS activations",
                       trailing: const Icon(
@@ -733,25 +735,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     // ABOUT SECTION
                     _buildSectionHeader("ABOUT"),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Version",
                       trailing: Text(
                         "RoadSOS v1.0.0",
                         style: AppTypography.monoMedium.copyWith(fontSize: 12, color: AppColors.textSecondary),
                       ),
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Data Sources",
                       trailing: Text(
                         "NHM · OSM · NCRB",
                         style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
                       ),
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Share App",
-                      onTap: () => Share.share("Check out RoadSOS - Road Emergency & Rescue Operating System app!"),
+                      onTap: () => SharePlus.instance.share(
+                        ShareParams(
+                          text: "Check out RoadSOS - Road Emergency & Rescue Operating System app!",
+                        ),
+                      ),
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Logout Profile",
                       trailing: const Icon(
                         Icons.logout,
@@ -760,9 +766,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       onTap: () async {
                         await AuthService.instance.signOut();
-                        if (mounted) {
-                          context.go('/login');
-                        }
+                        if (!context.mounted) return;
+                        context.go('/login');
                       },
                     ),
                   ],

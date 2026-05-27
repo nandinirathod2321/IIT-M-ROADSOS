@@ -53,6 +53,11 @@ class NavigationShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentIndex = _getCurrentIndex();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? DarkColors.borderSubtle : LightColors.borderSubtle;
+    final overlay = isDark ? DarkColors.surfaceOverlay : LightColors.surfaceOverlay;
+    final muted = isDark ? DarkColors.textMuted : LightColors.textMuted;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return Scaffold(
       body: child,
@@ -64,10 +69,9 @@ class NavigationShell extends StatelessWidget {
             height: 72,
             decoration: BoxDecoration(
               borderRadius: AppTokens.r20,
-              border: Border.all(color: AppColors.borderSubtle),
-              color: AppColors.surfaceOverlay,
+              border: Border.all(color: borderColor),
+              color: overlay,
               boxShadow: AppTokens.shadowMd,
-              gradient: AppColors.surfaceSheen,
             ),
             child: ClipRRect(
               borderRadius: AppTokens.r20,
@@ -88,9 +92,9 @@ class NavigationShell extends StatelessWidget {
                           margin: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
                             borderRadius: AppTokens.r16,
-                            color: isActive ? const Color(0x1AFF3B4C) : Colors.transparent,
+                            color: isActive ? const Color(0x1AE8334A) : Colors.transparent,
                             border: Border.all(
-                              color: isActive ? const Color(0x33FF3B4C) : Colors.transparent,
+                              color: isActive ? const Color(0x33E8334A) : Colors.transparent,
                             ),
                           ),
                           child: Column(
@@ -99,14 +103,14 @@ class NavigationShell extends StatelessWidget {
                               Icon(
                                 isActive ? tab.activeIcon : tab.icon,
                                 size: 24,
-                                color: isActive ? AppColors.emergencyRed : AppColors.textMuted,
+                                color: isActive ? AppColors.emergencyRed : muted,
                               ),
                               const SizedBox(height: 6),
                               Text(
                                 tab.tooltip.toUpperCase(),
                                 style: AppTypography.labelCaps.copyWith(
                                   fontSize: 9,
-                                  color: isActive ? AppColors.textPrimary : AppColors.textMuted,
+                                  color: isActive ? onSurface : muted,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
