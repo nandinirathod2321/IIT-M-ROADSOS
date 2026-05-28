@@ -35,7 +35,7 @@ class _HomeSosButtonState extends State<HomeSosButton>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
-    _pulseAnim = Tween<double>(begin: 1.0, end: 1.08).animate(
+    _pulseAnim = Tween<double>(begin: 0.92, end: 1.0).animate(
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
     if (!widget.crashDetectorActive) _pulseCtrl.repeat(reverse: true);
@@ -98,8 +98,6 @@ class _HomeSosButtonState extends State<HomeSosButton>
 
   @override
   Widget build(BuildContext context) {
-    const double size = 200;
-
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -112,54 +110,71 @@ class _HomeSosButtonState extends State<HomeSosButton>
             builder: (context, _) {
               final scale = _pulseCtrl.isAnimating ? _pulseAnim.value : 1.0;
               return SizedBox(
-                width: size,
-                height: size,
+                width: 180,
+                height: 180,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Outer pulsing ring
-                    Transform.scale(
-                      scale: scale,
-                      child: Container(
-                        width: size,
-                        height: size,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AppColors.emergencyRed.withValues(alpha: 0.25),
-                            width: 4,
-                          ),
-                        ),
-                      ),
-                    ),
                     // Hold progress ring
                     if (_isHolding)
-                      SizedBox(
-                        width: size * 0.78,
-                        height: size * 0.78,
+                      const SizedBox(
+                        width: 176,
+                        height: 176,
                         child: CircularProgressIndicator(
-                          value: _holdProgress,
+                          value: 1.0,
                           strokeWidth: 3,
-                          color: AppColors.textPrimary,
+                          color: Color(0xFFDC2626),
                           backgroundColor: Colors.transparent,
                         ),
                       ),
-                    // Core button
-                    Container(
-                      width: size * 0.65,
-                      height: size * 0.65,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.emergencyRed,
+                    if (_isHolding)
+                      SizedBox(
+                        width: 176,
+                        height: 176,
+                        child: CircularProgressIndicator(
+                          value: _holdProgress,
+                          strokeWidth: 3,
+                          color: Color(0xFF1A56DB),
+                          backgroundColor: Colors.transparent,
+                        ),
                       ),
-                      child: Center(
-                        child: Text(
-                          'SOS',
-                          style: AppTypography.displayLarge.copyWith(
-                            fontSize: 42,
-                            letterSpacing: 4,
-                            color: AppColors.textPrimary,
-                          ),
+                    // Core button (Step 5: circle, 160px, solid Color(0xFFDC2626), white icon + 'SOS' label w700 letterSpacing:2, red glow shadow)
+                    Transform.scale(
+                      scale: scale,
+                      child: Container(
+                        width: 160,
+                        height: 160,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFFDC2626),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0x66DC2626),
+                              blurRadius: 24,
+                              spreadRadius: 4,
+                              offset: Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.error_outline_rounded,
+                              color: Colors.white,
+                              size: 36,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'SOS',
+                              style: AppTypography.displayLarge.copyWith(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 2,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),

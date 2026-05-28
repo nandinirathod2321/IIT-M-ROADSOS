@@ -5,23 +5,7 @@ import '../../core/theme/typography.dart';
 
 /// A card representing a nearby emergency service (hospital, police,
 /// or towing). Follows the RoadSOS design spec:
-///   • Surface background with 1 px subtle border
-///   • No elevation / shadow
-///   • 4 px border radius
-///   • Colour-coded leading accent strip per service type
-///
-/// Usage:
-/// ```dart
-/// ServiceCard(
-///   icon: Icons.local_hospital_rounded,
-///   accentColor: AppColors.infoBlue,
-///   title: 'City General Hospital',
-///   subtitle: 'Trauma Centre · 24/7 Emergency',
-///   distanceLabel: '3.2 km',
-///   etaLabel: '~5 min',
-///   onTap: () => _openDetails(hospital),
-/// )
-/// ```
+///   • White fill, border, shadow, and 14px radius.
 class ServiceCard extends StatelessWidget {
   /// Leading icon (e.g. hospital, police, tow-truck).
   final IconData icon;
@@ -65,9 +49,13 @@ class ServiceCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: AppColors.borderSubtle, width: 1),
+          color: Colors.white, // Always white
+          borderRadius: BorderRadius.circular(14), // Step 4: 14px radius
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0), // Step 4: border
+          boxShadow: const [
+            BoxShadow(color: Color(0x0A000000), blurRadius: 4, offset: Offset(0, 1)),
+            BoxShadow(color: Color(0x06000000), blurRadius: 2, offset: Offset(0, 1)),
+          ],
         ),
         child: IntrinsicHeight(
           child: Row(
@@ -78,8 +66,8 @@ class ServiceCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: accentColor,
                   borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(4),
-                    bottomLeft: Radius.circular(4),
+                    topLeft: Radius.circular(14),
+                    bottomLeft: Radius.circular(14),
                   ),
                 ),
               ),
@@ -92,8 +80,8 @@ class ServiceCard extends StatelessWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: accentColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(4),
+                    color: AppColors.primaryLight,
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(icon, color: accentColor, size: 22),
                 ),
@@ -111,6 +99,7 @@ class ServiceCard extends StatelessWidget {
                         title,
                         style: AppTypography.bodyLarge.copyWith(
                           fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -131,28 +120,28 @@ class ServiceCard extends StatelessWidget {
                         Row(
                           children: [
                             if (distanceLabel.isNotEmpty) ...[
-                              Icon(Icons.straighten_rounded,
-                                  size: 12,
-                                  color: AppColors.textMuted),
+                              const Icon(Icons.straighten_rounded,
+                                  size: 13,
+                                  color: AppColors.textTertiary),
                               const SizedBox(width: 4),
                               Text(
                                 distanceLabel,
                                 style: AppTypography.monoMedium
-                                    .copyWith(fontSize: 12),
+                                    .copyWith(fontSize: 13, color: AppColors.textSecondary),
                               ),
                             ],
                             if (distanceLabel.isNotEmpty &&
                                 etaLabel.isNotEmpty)
                               const SizedBox(width: 12),
                             if (etaLabel.isNotEmpty) ...[
-                              Icon(Icons.schedule_rounded,
-                                  size: 12,
-                                  color: AppColors.textMuted),
+                              const Icon(Icons.schedule_rounded,
+                                  size: 13,
+                                  color: AppColors.textTertiary),
                               const SizedBox(width: 4),
                               Text(
                                 etaLabel,
                                 style: AppTypography.monoMedium
-                                    .copyWith(fontSize: 12),
+                                    .copyWith(fontSize: 13, color: AppColors.textSecondary),
                               ),
                             ],
                           ],

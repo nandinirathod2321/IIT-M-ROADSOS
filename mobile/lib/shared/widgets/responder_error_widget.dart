@@ -34,7 +34,7 @@ class ResponderErrorWidget extends StatelessWidget {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: config.color.withOpacity(0.10),
+                color: config.color.withValues(alpha: 0.10),
                 shape: BoxShape.circle,
               ),
               child: Icon(config.icon, color: config.color, size: 36),

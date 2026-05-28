@@ -1,85 +1,84 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 import 'colors.dart';
 
-/// RoadSOS premium typographic scale.
-///
-/// - Headings: Space Grotesk (modern, premium, high clarity)
-/// - Body: Inter (high readability, neutral, system-like)
-/// - Mono: Roboto Mono (coords, IDs)
+/// RoadSOS premium typographic scale using Google Fonts:
+/// - Primary: DM Sans
+/// - Numbers / Data: DM Mono
 abstract final class AppTypography {
-  // ── Display ──────────────────────────────────────────────────────────
+  // ── Display ────────────────────────────────────────────────────
 
-  static TextStyle displayLarge = GoogleFonts.spaceGrotesk(
+  static TextStyle get displayLarge => GoogleFonts.dmSans(
     fontSize: 44,
     fontWeight: FontWeight.w700,
-    letterSpacing: -0.6,
+    letterSpacing: -0.3,
     height: 1.05,
     color: AppColors.textPrimary,
   );
 
-  static TextStyle displayMedium = GoogleFonts.spaceGrotesk(
+  static TextStyle get displayMedium => GoogleFonts.dmSans(
     fontSize: 34,
     fontWeight: FontWeight.w700,
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
     height: 1.10,
     color: AppColors.textPrimary,
   );
 
-  // ── Headlines ────────────────────────────────────────────────────────
+  // ── Headlines ────────────────────────────────────────────────────
 
-  static TextStyle headlineLarge = GoogleFonts.spaceGrotesk(
+  static TextStyle get headline => GoogleFonts.dmSans(
     fontSize: 24,
     fontWeight: FontWeight.w700,
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
     height: 1.15,
     color: AppColors.textPrimary,
   );
 
-  static TextStyle headlineMedium = GoogleFonts.spaceGrotesk(
+  static TextStyle get headlineLarge => headline;
+
+  static TextStyle get headlineMedium => GoogleFonts.dmSans(
     fontSize: 18,
     fontWeight: FontWeight.w700,
+    letterSpacing: -0.3,
     height: 1.2,
     color: AppColors.textPrimary,
   );
 
-  // ── Labels ───────────────────────────────────────────────────────────
+  // ── Labels / Buttons ─────────────────────────────────────────────
 
-  static TextStyle labelCaps = GoogleFonts.inter(
-    fontSize: 11,
-    fontWeight: FontWeight.w700,
-    letterSpacing: 1.8,
+  static TextStyle get labelCaps => GoogleFonts.dmSans(
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
     height: 1.1,
-    color: AppColors.textMuted,
-  );
-
-  // ── Body ─────────────────────────────────────────────────────────────
-
-  static TextStyle bodyLarge = GoogleFonts.inter(
-    fontSize: 16,
-    fontWeight: FontWeight.w400,
-    height: 1.55,
-    color: AppColors.textPrimary,
-  );
-
-  static TextStyle bodyMedium = GoogleFonts.inter(
-    fontSize: 14,
-    fontWeight: FontWeight.w400,
-    height: 1.55,
-    color: AppColors.textPrimary,
-  );
-
-  static TextStyle bodySmall = GoogleFonts.inter(
-    fontSize: 12,
-    fontWeight: FontWeight.w400,
-    height: 1.6,
     color: AppColors.textSecondary,
   );
 
-  // ── Monospace ────────────────────────────────────────────────────────
+  // ── Body ─────────────────────────────────────────────────────────
 
-  static TextStyle monoMedium = GoogleFonts.robotoMono(
+  static TextStyle get bodyLarge => GoogleFonts.dmSans(
+    fontSize: 16,
+    fontWeight: FontWeight.w400,
+    height: 1.55,
+    color: AppColors.textSecondary,
+  );
+
+  static TextStyle get bodyMedium => GoogleFonts.dmSans(
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    height: 1.55,
+    color: AppColors.textSecondary,
+  );
+
+  static TextStyle get bodySmall => GoogleFonts.dmSans(
+    fontSize: 14, // Minimum 14px for body text
+    fontWeight: FontWeight.w400,
+    height: 1.55,
+    color: AppColors.textSecondary,
+  );
+
+  // ── Monospace ────────────────────────────────────────────────────
+
+  static TextStyle get monoMedium => GoogleFonts.dmMono(
     fontSize: 14,
     fontWeight: FontWeight.w500,
     color: AppColors.textPrimary,

@@ -68,7 +68,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: AppColors.scaffoldBg,
       body: SafeArea(
         child: Column(
           children: [
@@ -103,7 +103,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         height: 8.0,
                         margin: const EdgeInsets.symmetric(horizontal: 4.0),
                         decoration: BoxDecoration(
-                          color: isSelected ? AppColors.emergencyRed : AppColors.textMuted,
+                          color: isSelected ? AppColors.emergencyRed : AppColors.textTertiary,
                           borderRadius: BorderRadius.circular(4.0),
                         ),
                       );
@@ -196,7 +196,7 @@ class _OnboardingPage1 extends StatelessWidget {
         width: 200,
         height: 200,
         decoration: BoxDecoration(
-          color: AppColors.emergencyRed.withOpacity(0.06),
+          color: AppColors.emergencyRed.withValues(alpha: 0.06),
           shape: BoxShape.circle,
         ),
         child: Center(
@@ -211,7 +211,7 @@ class _OnboardingPage1 extends StatelessWidget {
         children: [
           Text(
             "Crash Detection",
-            style: AppTypography.displayMedium.copyWith(color: Colors.white),
+            style: AppTypography.displayMedium.copyWith(color: AppColors.textPrimary),
             textAlign: TextAlign.center,
           ),
           Text(
@@ -255,12 +255,12 @@ class _OnboardingPage2 extends StatelessWidget {
         children: [
           Text(
             "Your Medical ID",
-            style: AppTypography.displayMedium.copyWith(color: Colors.white),
+            style: AppTypography.displayMedium.copyWith(color: AppColors.textPrimary),
             textAlign: TextAlign.center,
           ),
           Text(
             "Without Unlocking",
-            style: AppTypography.displayMedium.copyWith(color: AppColors.infoBlue),
+            style: AppTypography.displayMedium.copyWith(color: AppColors.primary),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -314,7 +314,7 @@ class _OnboardingPage3 extends StatelessWidget {
         children: [
           Text(
             "One Button.",
-            style: AppTypography.displayMedium.copyWith(color: Colors.white),
+            style: AppTypography.displayMedium.copyWith(color: AppColors.textPrimary),
             textAlign: TextAlign.center,
           ),
           Text(
@@ -351,7 +351,7 @@ class ShieldPainter extends CustomPainter {
     shieldPath.close();
 
     final shieldPaint = Paint()
-      ..color = Colors.white
+      ..color = AppColors.primary
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.0;
 
@@ -388,12 +388,12 @@ class QrPainter extends CustomPainter {
     final height = size.height;
 
     final strokePaint = Paint()
-      ..color = Colors.white
+      ..color = AppColors.textPrimary
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.0;
 
     final fillPaint = Paint()
-      ..color = Colors.white
+      ..color = AppColors.textPrimary
       ..style = PaintingStyle.fill;
 
     final redPaint = Paint()
@@ -419,7 +419,7 @@ class QrPainter extends CustomPainter {
 
     // Scattered modules in the middle region
     final dotPaint = Paint()
-      ..color = Colors.white.withOpacity(0.4)
+      ..color = AppColors.textPrimary.withValues(alpha: 0.4)
       ..style = PaintingStyle.fill;
 
     const double dotSize = 8.0;
@@ -464,8 +464,8 @@ class PhoneSosPainter extends CustomPainter {
     final width = size.width;
     final height = size.height;
 
-    final whiteStroke = Paint()
-      ..color = Colors.white
+    final darkStroke = Paint()
+      ..color = AppColors.textPrimary
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 
@@ -479,7 +479,7 @@ class PhoneSosPainter extends CustomPainter {
       Rect.fromCenter(center: Offset(width / 2, height / 2), width: width * 0.65, height: height * 0.95),
       const Radius.circular(16),
     );
-    canvas.drawRRect(phoneRect, whiteStroke);
+    canvas.drawRRect(phoneRect, darkStroke);
 
     // 2. SOS Button outline
     const double circleRadius = 40.0;
@@ -505,7 +505,7 @@ class PhoneSosPainter extends CustomPainter {
 
     // 4. Multi-layered touch waves (finger arcs)
     final gesturePaint = Paint()
-      ..color = AppColors.emergencyRed.withOpacity(0.3)
+      ..color = AppColors.emergencyRed.withValues(alpha: 0.3)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.0
       ..strokeCap = StrokeCap.round;
@@ -524,7 +524,7 @@ class PhoneSosPainter extends CustomPainter {
       0.3,
       0.8,
       false,
-      gesturePaint..color = AppColors.emergencyRed.withOpacity(0.15),
+      gesturePaint..color = AppColors.emergencyRed.withValues(alpha: 0.15),
     );
   }
 

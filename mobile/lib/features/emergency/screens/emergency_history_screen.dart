@@ -47,7 +47,7 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
         ),
         title: Text(
           "CLEAR HISTORY",
-          style: AppTypography.headlineMedium.copyWith(color: Colors.white),
+          style: AppTypography.headlineMedium.copyWith(color: AppColors.textPrimary),
         ),
         content: Text(
           "Are you sure you want to permanently erase all local incident telemetry and emergency history logs?",
@@ -110,15 +110,15 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
 
     if (trigger.toLowerCase() == 'voice') {
       label = "VOICE TRIGGER";
-      bg = AppColors.policeBlue.withOpacity(0.15);
+      bg = AppColors.policeBlue.withValues(alpha: 0.15);
       text = AppColors.policeBlue;
     } else if (trigger.toLowerCase() == 'crash') {
       label = "CRASH DETECTED";
-      bg = AppColors.emergencyAmber.withOpacity(0.15);
+      bg = AppColors.emergencyAmber.withValues(alpha: 0.15);
       text = AppColors.emergencyAmber;
     } else if (trigger.toLowerCase() == 'manual') {
       label = "MANUAL SOS";
-      bg = AppColors.emergencyRed.withOpacity(0.15);
+      bg = AppColors.emergencyRed.withValues(alpha: 0.15);
       text = AppColors.emergencyRed;
     }
 
@@ -127,7 +127,7 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: text.withOpacity(0.2)),
+        border: Border.all(color: text.withValues(alpha: 0.2)),
       ),
       child: Text(
         label,
@@ -141,9 +141,9 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: isResolved ? AppColors.safeGreen.withOpacity(0.12) : AppColors.emergencyRed.withOpacity(0.12),
+        color: isResolved ? AppColors.safeGreen.withValues(alpha: 0.12) : AppColors.emergencyRed.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: isResolved ? AppColors.safeGreen.withOpacity(0.3) : AppColors.emergencyRed.withOpacity(0.3)),
+        border: Border.all(color: isResolved ? AppColors.safeGreen.withValues(alpha: 0.3) : AppColors.emergencyRed.withValues(alpha: 0.3)),
       ),
       child: Text(
         status.toUpperCase(),
@@ -159,14 +159,14 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
         title: Text(
           "INCIDENT HISTORY",
-          style: AppTypography.headlineLarge.copyWith(letterSpacing: 0.5),
+          style: AppTypography.headlineLarge.copyWith(color: AppColors.textPrimary, letterSpacing: 0.5),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary, size: 18),
           onPressed: () => context.pop(),
         ),
         backgroundColor: AppColors.surface,
@@ -196,12 +196,12 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
                             color: AppColors.surfaceAlt,
                             border: Border.all(color: AppColors.borderSubtle, width: 1.5),
                           ),
-                          child: Icon(Icons.history_toggle_off_rounded, color: AppColors.textMuted.withOpacity(0.5), size: 48),
+                          child: Icon(Icons.history_toggle_off_rounded, color: AppColors.textMuted.withValues(alpha: 0.5), size: 48),
                         ),
                         const SizedBox(height: 24),
                         Text(
                           "NO INCIDENTS LOGGED",
-                          style: AppTypography.headlineMedium.copyWith(color: Colors.white),
+                          style: AppTypography.headlineMedium.copyWith(color: AppColors.textPrimary),
                         ),
                         const SizedBox(height: 8),
                         Text(
@@ -240,7 +240,7 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
                             children: [
                               Text(
                                 "EVENT: $id",
-                                style: AppTypography.monoMedium.copyWith(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                style: AppTypography.monoMedium.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
                               ),
                               const Spacer(),
                               _buildStatusBadge(status),

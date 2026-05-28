@@ -8,7 +8,7 @@ import 'presentation/blocs/chat/chat_cubit.dart';
 import 'core/responders/responder_cubit.dart';
 
 /// Main Application widget for RoadSOS.
-/// Outfitted with system scale clamps and light government-style tokens.
+/// Outfitted with system scale clamps and premium light theme.
 ///
 /// Provides three global cubits at root:
 ///   • [LocationCubit] — single GPS source for the entire app
@@ -42,7 +42,7 @@ class RoadSOSApp extends StatelessWidget {
       child: MaterialApp.router(
         title: 'RoadSOS',
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
+        theme: AppTheme.lightTheme,
         routerConfig: AppRouter.router(initialLocation),
         builder: (context, child) {
           // Clamp text scale — prevents system large fonts breaking emergency UI

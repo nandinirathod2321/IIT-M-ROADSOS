@@ -484,7 +484,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: AppColors.scaffoldBg,
       body: SafeArea(
         child: Column(
           children: [
@@ -511,7 +511,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: const Text(
@@ -570,7 +570,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                         child: Text(
                           label,
                           style: AppTypography.bodySmall.copyWith(
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             fontSize: 12,
                           ),
                         ),
@@ -628,7 +628,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                   Expanded(
                     child: TextField(
                       controller: _controller,
-                      style: AppTypography.bodyMedium.copyWith(color: Colors.white),
+                      style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
                       maxLines: 3,
                       minLines: 1,
                       textInputAction: TextInputAction.send,
@@ -766,7 +766,7 @@ class _MessageCard extends StatelessWidget {
             margin: const EdgeInsets.only(top: 8),
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            color: AppColors.safeGreen.withOpacity(0.1),
+            color: AppColors.safeGreen.withValues(alpha: 0.1),
             child: Text(
               line,
               style: AppTypography.bodyMedium.copyWith(
@@ -782,14 +782,14 @@ class _MessageCard extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4),
             child: Text(
               line,
-              style: AppTypography.bodyMedium.copyWith(color: Colors.white, height: 1.5),
+              style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary, height: 1.5),
             ),
           );
         }
 
         return Text(
           line,
-          style: AppTypography.bodyMedium.copyWith(color: Colors.white, height: 1.5),
+          style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary, height: 1.5),
         );
       }).toList(),
     );

@@ -1,24 +1,18 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../core/theme/colors.dart';
-import '../../core/theme/tokens.dart';
 
-/// Premium surface card with optional glass blur.
+/// Premium surface card with standard light-theme styling.
+/// Aligned with Step 4 guidelines: white fill, border, shadow, and 14px radius.
 class AppCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry? margin;
-  final BorderRadius borderRadius;
-  final bool glass;
   final VoidCallback? onTap;
 
   const AppCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(AppTokens.s4),
+    this.padding = const EdgeInsets.all(16),
     this.margin,
-    this.borderRadius = AppTokens.r16,
-    this.glass = false,
     this.onTap,
   });
 
@@ -27,11 +21,13 @@ class AppCard extends StatelessWidget {
     final card = Container(
       margin: margin,
       decoration: BoxDecoration(
-        borderRadius: borderRadius,
-        border: Border.all(color: AppColors.borderSubtle),
-        gradient: AppColors.surfaceSheen,
-        color: glass ? AppColors.surfaceOverlay : AppColors.surface,
-        boxShadow: AppTokens.shadowSm,
+        color: Colors.white, // Always white
+        borderRadius: BorderRadius.circular(14), // Consistent 14px
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0), // Consistent border
+        boxShadow: const [
+          BoxShadow(color: Color(0x0A000000), blurRadius: 4, offset: Offset(0, 1)),
+          BoxShadow(color: Color(0x06000000), blurRadius: 2, offset: Offset(0, 1)),
+        ],
       ),
       child: Padding(
         padding: padding,
@@ -39,26 +35,11 @@ class AppCard extends StatelessWidget {
       ),
     );
 
-    final clipped = ClipRRect(
-      borderRadius: borderRadius,
-      child: glass
-          ? BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-              child: card,
-            )
-          : card,
-    );
-
-    if (onTap == null) return clipped;
+    if (onTap == null) return card;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: AnimatedScale(
-        duration: const Duration(milliseconds: 120),
-        scale: 1.0,
-        child: clipped,
-      ),
+      child: card,
     );
   }
 }
-

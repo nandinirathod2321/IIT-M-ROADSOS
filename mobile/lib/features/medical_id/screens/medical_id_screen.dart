@@ -1,16 +1,18 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
-import '../../../core/services/auth_service.dart';
 import '../../../data/repositories/medical_repository.dart';
 import '../../../data/models/medical_profile.dart';
+import '../../../core/services/auth_service.dart';
+import '../../../core/utils/logger.dart';
 
-/// Complete, production-grade Medical ID screen for paramedics and first responders.
-/// Displays an emergency medical card, secure local QR code module, and permits full profile editing.
+/// Renders a paramedic-readable Medical ID screen with QR code access
+/// and safe emergency information inputs.
 class MedicalIdScreen extends StatefulWidget {
   const MedicalIdScreen({super.key});
 
@@ -19,36 +21,31 @@ class MedicalIdScreen extends StatefulWidget {
 }
 
 class _MedicalIdScreenState extends State<MedicalIdScreen> {
-  final MedicalRepository _medicalRepo = MedicalRepository();
+  final _formKey = GlobalKey<FormState>();
+  final _repository = MedicalRepository();
+
   bool _isLoading = true;
   bool _isEditing = false;
-  MedicalProfile? _profile;
   String _errorMsg = '';
 
-  // Form Controllers — Initialized immediately to prevent late-variable runtime exceptions
-  final _formKey = GlobalKey<FormState>();
-  late TextEditingController _nameController;
-  late TextEditingController _ageController;
-  late TextEditingController _allergiesController;
-  late TextEditingController _medicationsController;
-  late TextEditingController _conditionsController;
-  late TextEditingController _contactController;
-  late TextEditingController _notesController;
-  
+  MedicalProfile? _profile;
+
+  // Controllers for editing
+  final _nameController = TextEditingController();
+  final _ageController = TextEditingController();
+  final _allergiesController = TextEditingController();
+  final _medicationsController = TextEditingController();
+  final _conditionsController = TextEditingController();
+  final _contactController = TextEditingController();
+  final _notesController = TextEditingController();
+
   String _selectedBloodGroup = "O+";
   String _selectedGender = "Male";
-  bool _isOrganDonor = true;
+  bool _isOrganDonor = false;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController();
-    _ageController = TextEditingController();
-    _allergiesController = TextEditingController();
-    _medicationsController = TextEditingController();
-    _conditionsController = TextEditingController();
-    _contactController = TextEditingController();
-    _notesController = TextEditingController();
     _loadProfile();
   }
 
@@ -64,7 +61,6 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
     super.dispose();
   }
 
-  /// Loads the medical profile from SQLite/Firestore, initializing user values if empty.
   Future<void> _loadProfile() async {
     setState(() {
       _isLoading = true;
@@ -73,138 +69,120 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
 
     try {
       final currentUserId = AuthService.instance.currentUserId ?? 'me';
-      MedicalProfile? profile = await _medicalRepo.getMedicalProfile(currentUserId);
-      
-      if (profile == null) {
-        final email = AuthService.instance.currentUserEmail ?? 'rahul.rathod@gmail.com';
-        final fullName = AuthService.instance.currentUserFullName ?? 'Nandini Rathod';
-        final phone = AuthService.instance.currentUserPhone ?? '+91 98765 43210';
-
-        profile = MedicalProfile(
-          userId: currentUserId,
-          fullName: fullName,
-          age: 21,
-          gender: 'Female',
-          bloodGroup: 'O+',
-          allergies: const ['Penicillin', 'Peanuts'],
-          medications: const ['None'],
-          conditions: const ['None'],
-          emergencyContactId: phone,
-          organDonor: true,
-          emergencyNotes: 'No critical notes.',
-        );
-        await _medicalRepo.saveMedicalProfile(profile);
+      final profile = await _repository.getMedicalProfile(currentUserId);
+      if (profile != null) {
+        setState(() {
+          _profile = profile;
+          _nameController.text = profile.fullName;
+          _ageController.text = profile.age > 0 ? profile.age.toString() : '';
+          _allergiesController.text = profile.allergies.join(', ');
+          _medicationsController.text = profile.medications.join(', ');
+          _conditionsController.text = profile.conditions.join(', ');
+          _contactController.text = profile.emergencyContactId;
+          _notesController.text = profile.emergencyNotes;
+          _selectedBloodGroup = profile.bloodGroup.isNotEmpty ? profile.bloodGroup : "O+";
+          _selectedGender = profile.gender.isNotEmpty ? profile.gender : "Male";
+          _isOrganDonor = profile.organDonor;
+        });
+      } else {
+        // Seed an empty profile
+        setState(() {
+          _profile = MedicalProfile(
+            userId: currentUserId,
+            fullName: '',
+            age: 0,
+            bloodGroup: 'O+',
+            gender: 'Male',
+            allergies: const [],
+            medications: const [],
+            conditions: const [],
+            emergencyContactId: '',
+            emergencyNotes: '',
+            organDonor: false,
+          );
+          _isEditing = true;
+        });
       }
-
-      _nameController.text = profile.fullName;
-      _ageController.text = profile.age > 0 ? profile.age.toString() : '';
-      _allergiesController.text = profile.allergies.join(', ');
-      _medicationsController.text = profile.medications.join(', ');
-      _conditionsController.text = profile.conditions.join(', ');
-      _contactController.text = profile.emergencyContactId;
-      _notesController.text = profile.emergencyNotes;
-      _selectedBloodGroup = _bloodGroupsList.contains(profile.bloodGroup) ? profile.bloodGroup : "O+";
-      _selectedGender = _gendersList.contains(profile.gender) ? profile.gender : "Female";
-      _isOrganDonor = profile.organDonor;
-
-      setState(() {
-        _profile = profile;
-        _isLoading = false;
-      });
-
     } catch (e) {
+      AppLogger.error('Failed to load medical ID profile', e);
       setState(() {
-        _errorMsg = 'Failed to load Medical ID database: ${e.toString()}';
-        _isLoading = false;
+        _errorMsg = 'Could not load your Medical ID: ${e.toString()}';
       });
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
-  /// Persists edits locally in SQLite/Firestore database.
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
+    final currentUserId = AuthService.instance.currentUserId ?? 'me';
+    final updated = MedicalProfile(
+      userId: currentUserId,
+      fullName: _nameController.text.trim(),
+      age: int.tryParse(_ageController.text.trim()) ?? 0,
+      bloodGroup: _selectedBloodGroup,
+      gender: _selectedGender,
+      allergies: _allergiesController.text
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList(),
+      medications: _medicationsController.text
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList(),
+      conditions: _conditionsController.text
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList(),
+      emergencyContactId: _contactController.text.trim(),
+      emergencyNotes: _notesController.text.trim(),
+      organDonor: _isOrganDonor,
+    );
+
     try {
-      final currentUserId = AuthService.instance.currentUserId ?? 'me';
-      final updatedProfile = MedicalProfile(
-        userId: currentUserId,
-        fullName: _nameController.text.trim(),
-        age: int.tryParse(_ageController.text.trim()) ?? 0,
-        gender: _selectedGender,
-        bloodGroup: _selectedBloodGroup,
-        allergies: _allergiesController.text
-            .split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toList(),
-        medications: _medicationsController.text
-            .split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toList(),
-        conditions: _conditionsController.text
-            .split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toList(),
-        emergencyContactId: _contactController.text.trim(),
-        organDonor: _isOrganDonor,
-        emergencyNotes: _notesController.text.trim(),
-      );
-
-      await _medicalRepo.saveMedicalProfile(updatedProfile);
-      
+      await _repository.saveMedicalProfile(updated);
       setState(() {
-        _profile = updatedProfile;
+        _profile = updated;
         _isEditing = false;
-        _isLoading = false;
       });
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Medical ID profile saved successfully',
-              style: AppTypography.bodyMedium.copyWith(color: Colors.white),
-            ),
+          const SnackBar(
+            content: Text("Medical ID profile saved successfully."),
             backgroundColor: AppColors.safeGreen,
           ),
         );
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to save profile: ${e.toString()}'),
-          backgroundColor: AppColors.emergencyRed,
-        ),
-      );
+      AppLogger.error('Failed to save medical ID profile', e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed to save profile: ${e.toString()}"),
+            backgroundColor: AppColors.emergencyRed,
+          ),
+        );
+      }
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
-  /// Shares the pre-formatted Medical ID via share tray
   void _shareMedicalId() {
     if (_profile == null) return;
-    final p = _profile!;
-    final summary = 
-        "🚑 RoadSOS Emergency Medical ID:\n"
-        "---------------------------------\n"
-        "Full Name: ${p.fullName}\n"
-        "Age: ${p.age > 0 ? p.age : 'Unspecified'}\n"
-        "Gender: ${p.gender.isNotEmpty ? p.gender : 'Unspecified'}\n"
-        "Blood Group: ${p.bloodGroup}\n"
-        "Allergies: ${p.allergies.isNotEmpty ? p.allergies.join(', ') : 'None'}\n"
-        "Current Medications: ${p.medications.isNotEmpty ? p.medications.join(', ') : 'None'}\n"
-        "Medical Conditions: ${p.conditions.isNotEmpty ? p.conditions.join(', ') : 'None'}\n"
-        "Emergency Contact: ${p.emergencyContactId}\n"
-        "Organ Donor: ${p.organDonor ? 'Yes' : 'No'}\n"
-        "Emergency Notes: ${p.emergencyNotes.isNotEmpty ? p.emergencyNotes : 'None'}";
-
-    Share.share(summary, subject: "RoadSOS Emergency Medical ID");
+    final text = "RoadSOS Emergency Medical ID\n"
+        "Name: ${_profile!.fullName}\n"
+        "Blood Group: ${_profile!.bloodGroup}\n"
+        "Emergency Contact: ${_profile!.emergencyContactId}\n"
+        "Allergies: ${_profile!.allergies.join(', ')}\n"
+        "Notes: ${_profile!.emergencyNotes}";
+    SharePlus.instance.share(ShareParams(text: text));
   }
 
   final List<String> _bloodGroupsList = const ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
@@ -214,7 +192,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor: AppColors.primary,
+        backgroundColor: AppColors.scaffoldBg,
         body: Center(
           child: CircularProgressIndicator(color: AppColors.emergencyRed),
         ),
@@ -223,7 +201,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
 
     if (_errorMsg.isNotEmpty) {
       return Scaffold(
-        backgroundColor: AppColors.primary,
+        backgroundColor: AppColors.scaffoldBg,
         body: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Center(
@@ -250,22 +228,26 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
         title: Text(
           _isEditing ? 'EDIT MEDICAL ID' : 'MEDICAL ID',
-          style: AppTypography.headlineLarge.copyWith(letterSpacing: 0.5),
+          style: AppTypography.headlineLarge.copyWith(color: AppColors.textPrimary, letterSpacing: 0.5),
         ),
         backgroundColor: AppColors.surface,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary, size: 18),
+          onPressed: () => context.pop(),
+        ),
         actions: [
           if (!_isEditing)
             IconButton(
-              icon: const Icon(Icons.share_rounded, color: Colors.white),
+              icon: const Icon(Icons.share_rounded, color: AppColors.textPrimary),
               onPressed: _shareMedicalId,
             ),
           IconButton(
-            icon: Icon(_isEditing ? Icons.close_rounded : Icons.edit_rounded, color: Colors.white),
+            icon: Icon(_isEditing ? Icons.close_rounded : Icons.edit_rounded, color: AppColors.textPrimary),
             onPressed: () {
               setState(() {
                 if (_isEditing) {
@@ -303,9 +285,9 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: AppColors.emergencyRed.withOpacity(0.12),
+              color: AppColors.emergencyRed.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppColors.emergencyRed.withOpacity(0.3)),
+              border: Border.all(color: AppColors.emergencyRed.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -313,7 +295,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    "FIRST-RESPONDER MEDICAL DATA",
+                     "FIRST-RESPONDER MEDICAL DATA",
                     style: AppTypography.labelCaps.copyWith(
                       color: AppColors.emergencyRed,
                       fontWeight: FontWeight.bold,
@@ -360,9 +342,9 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            profile.fullName,
+                            profile.fullName.isNotEmpty ? profile.fullName : "Unknown Responder",
                             style: AppTypography.headlineMedium.copyWith(
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                               fontSize: 22,
                             ),
                           ),
@@ -385,7 +367,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
                       child: _buildBadgeCell(
                         "AGE",
                         profile.age > 0 ? "${profile.age} Yrs" : "--",
-                        Colors.white,
+                        AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -393,7 +375,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
                       child: _buildBadgeCell(
                         "GENDER",
                         profile.gender.isNotEmpty ? profile.gender.toUpperCase() : "--",
-                        Colors.white,
+                        AppColors.textPrimary,
                       ),
                     ),
                   ],
@@ -434,7 +416,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
                 _buildInfoSection(
                   "MEDICATIONS",
                   profile.medications.isNotEmpty ? profile.medications.join(", ") : "None",
-                  Colors.white,
+                  AppColors.textPrimary,
                 ),
                 const SizedBox(height: 16),
 
@@ -442,7 +424,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
                 _buildInfoSection(
                   "MEDICAL CONDITIONS",
                   profile.conditions.isNotEmpty ? profile.conditions.join(", ") : "None",
-                  Colors.white,
+                  AppColors.textPrimary,
                 ),
                 const SizedBox(height: 16),
 
@@ -450,14 +432,14 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
                 _buildInfoSection(
                   "EMERGENCY CONTACT",
                   profile.emergencyContactId,
-                  Colors.white,
+                  AppColors.textPrimary,
                 ),
                 const SizedBox(height: 16),
                 // Emergency Notes details
                 _buildInfoSection(
                   "EMERGENCY NOTES",
                   profile.emergencyNotes.isNotEmpty ? profile.emergencyNotes : "None",
-                  Colors.white,
+                  AppColors.textPrimary,
                 ),
               ],
             ),
@@ -478,6 +460,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.borderSubtle),
                   ),
                   child: QrImageView(
                     data: jsonEncode(profile.toSnapshot()),
@@ -653,14 +636,14 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
                   Expanded(
                     child: Text(
                       "Organ Donor",
-                      style: AppTypography.bodyMedium.copyWith(color: Colors.white),
+                      style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
                     ),
                   ),
                   Switch(
                     value: _isOrganDonor,
                     onChanged: (v) => setState(() => _isOrganDonor = v),
                     activeThumbColor: AppColors.safeGreen,
-                    activeTrackColor: AppColors.safeGreen.withOpacity(0.3),
+                    activeTrackColor: AppColors.safeGreen.withValues(alpha: 0.3),
                   ),
                 ],
               ),
@@ -704,7 +687,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
       controller: controller,
       validator: validator,
       keyboardType: keyboardType,
-      style: AppTypography.bodyLarge.copyWith(color: Colors.white),
+      style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary),
       decoration: InputDecoration(
         labelText: label,
         labelStyle: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
@@ -737,9 +720,9 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButtonFormField<String>(
-          value: _selectedBloodGroup,
+          initialValue: _selectedBloodGroup,
           dropdownColor: AppColors.surface,
-          style: AppTypography.bodyLarge.copyWith(color: Colors.white),
+          style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary),
           decoration: InputDecoration(
             labelText: "Blood Group",
             labelStyle: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
@@ -749,7 +732,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
           items: _bloodGroupsList
               .map((g) => DropdownMenuItem(
                     value: g,
-                    child: Text(g),
+                    child: Text(g, style: const TextStyle(color: AppColors.textPrimary)),
                   ))
               .toList(),
           onChanged: (val) {
@@ -772,9 +755,9 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButtonFormField<String>(
-          value: _selectedGender,
+          initialValue: _selectedGender,
           dropdownColor: AppColors.surface,
-          style: AppTypography.bodyLarge.copyWith(color: Colors.white),
+          style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary),
           decoration: InputDecoration(
             labelText: "Gender",
             labelStyle: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
@@ -784,7 +767,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
           items: _gendersList
               .map((g) => DropdownMenuItem(
                     value: g,
-                    child: Text(g),
+                    child: Text(g, style: const TextStyle(color: AppColors.textPrimary)),
                   ))
               .toList(),
           onChanged: (val) {

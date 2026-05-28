@@ -8,8 +8,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
+import '../../../core/theme/tokens.dart';
 import '../../../data/repositories/settings_repository.dart';
-import '../../../data/models/settings.dart' as model;
 import '../../crash_detection/crash_detector.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/config/ai_config.dart';
@@ -32,7 +32,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _voiceSOSAlwaysListening = false;
   String _sensitivityLabel = "Medium";
   int _sosCountdown = 10;
-  bool _darkModeOn = true;
   bool _autoShareOn = true;
 
   // Offline Data settings
@@ -77,7 +76,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           : (geminiKey.length > 8
               ? '${geminiKey.substring(0, 4)}...${geminiKey.substring(geminiKey.length - 4)}'
               : 'Configured');
-      _darkModeOn = settings.darkMode;
       _autoShareOn = settings.emergencyAutoShare;
       _aiAssistantOn = settings.aiAssistantEnabled;
     });
@@ -97,7 +95,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// Updates settings both locally and in the repository.
   Future<void> _updateSetting({
     bool? voiceSosEnabled,
-    bool? darkMode,
     bool? emergencyAutoShare,
     bool? aiAssistantEnabled,
     int? sosCountdown,
@@ -106,7 +103,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final current = await _settingsRepo.getSettings();
     final updated = current.copyWith(
       voiceSosEnabled: voiceSosEnabled,
-      darkMode: darkMode,
       emergencyAutoShare: emergencyAutoShare,
       aiAssistantEnabled: aiAssistantEnabled,
       sosCountdown: sosCountdown,
@@ -163,7 +159,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     } catch (e) {
-      print("Sync failed: $e");
+      debugPrint("Sync failed: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -171,7 +167,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'Database update failed: $e',
               style: AppTypography.bodyMedium.copyWith(color: Colors.white),
             ),
-            backgroundColor: AppColors.emergencyRed,
+            backgroundColor: AppColors.emergency,
           ),
         );
       }
@@ -198,18 +194,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              backgroundColor: AppColors.surface,
+              backgroundColor: Colors.white,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: AppColors.borderSubtle, width: 1),
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
               ),
               title: Row(
                 children: [
-                  const Icon(Icons.psychology_rounded, color: AppColors.emergencyRed, size: 24),
+                  const Icon(Icons.psychology_rounded, color: AppColors.emergency, size: 24),
                   const SizedBox(width: 12),
                   Text(
                     "GEMINI FLASH API KEY",
-                    style: AppTypography.headlineMedium.copyWith(color: Colors.white, fontSize: 16),
+                    style: AppTypography.headlineMedium.copyWith(color: AppColors.textPrimary, fontSize: 16),
                   ),
                 ],
               ),
@@ -225,16 +221,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   TextField(
                     controller: controller,
                     obscureText: obscureText,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
                     decoration: InputDecoration(
                       labelText: "API Key",
-                      labelStyle: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                      labelStyle: AppTypography.bodySmall.copyWith(color: AppColors.textTertiary),
                       filled: true,
-                      fillColor: AppColors.surfaceAlt,
+                      fillColor: const Color(0xFFF0F2F5),
                       suffixIcon: IconButton(
                         icon: Icon(
                           obscureText ? Icons.visibility_off : Icons.visibility,
-                          color: AppColors.textMuted,
+                          color: AppColors.textTertiary,
                           size: 20,
                         ),
                         onPressed: () {
@@ -244,16 +240,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         },
                       ),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(6),
-                        borderSide: const BorderSide(color: AppColors.borderSubtle),
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
                       ),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(6),
-                        borderSide: const BorderSide(color: AppColors.borderSubtle),
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(6),
-                        borderSide: const BorderSide(color: AppColors.emergencyRed),
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF1A56DB), width: 2),
                       ),
                     ),
                   ),
@@ -264,7 +260,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onPressed: () => Navigator.pop(context),
                   child: Text(
                     "CANCEL",
-                    style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary, fontSize: 11),
+                    style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary, fontSize: 13),
                   ),
                 ),
                 ElevatedButton(
@@ -285,12 +281,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.emergencyRed,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: Text(
                     "SAVE",
-                    style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 11),
+                    style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 13),
                   ),
                 ),
               ],
@@ -305,11 +301,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showSensitivityPicker() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(8),
-          topRight: Radius.circular(8),
+          topLeft: Radius.circular(14),
+          topRight: Radius.circular(14),
         ),
       ),
       builder: (BuildContext context) {
@@ -364,6 +360,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     double gyro,
   ) {
     final isSelected = _sensitivityLabel == label;
+    
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -381,7 +378,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: const BoxDecoration(
           border: Border(
-            bottom: BorderSide(color: AppColors.borderSubtle, width: 1),
+            bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
           ),
         ),
         child: Row(
@@ -392,7 +389,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Text(
                     label,
-                    style: AppTypography.headlineMedium.copyWith(color: Colors.white, fontSize: 16),
+                    style: AppTypography.headlineMedium.copyWith(color: AppColors.textPrimary, fontSize: 16),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -405,7 +402,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             if (isSelected)
               const Icon(
                 Icons.check,
-                color: AppColors.emergencyRed,
+                color: AppColors.emergency,
                 size: 20,
               ),
           ],
@@ -429,13 +426,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             margin: const EdgeInsets.only(left: 8),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: isSelected ? AppColors.emergencyRed : AppColors.surfaceAlt,
-              borderRadius: BorderRadius.circular(4),
+              color: isSelected ? AppColors.emergency : const Color(0xFFF0F2F5),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
               "${seconds}s",
               style: isSelected
-                  ? const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)
+                  ? const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)
                   : AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
             ),
           ),
@@ -445,7 +442,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   /// Helper list-tile item for settings entries.
-  Widget _SettingsTile({
+  Widget _settingsTile({
     required String title,
     String? subtitle,
     Widget? trailing,
@@ -457,9 +454,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         height: subtitle != null ? 64 : 52,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: const BoxDecoration(
-          color: AppColors.surface,
+          color: Colors.white,
           border: Border(
-            bottom: BorderSide(color: AppColors.borderSubtle, width: 1),
+            bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
           ),
         ),
         child: Row(
@@ -471,7 +468,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Text(
                     title,
-                    style: AppTypography.bodyMedium.copyWith(color: Colors.white),
+                    style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
                   ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 4),
@@ -500,7 +497,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _NumberRow(String emoji, String label, String number) {
+  Widget _numberRow(String emoji, String label, String number) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -509,7 +506,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(width: 12),
           Text(
             label,
-            style: AppTypography.bodyMedium.copyWith(color: Colors.white),
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
           ),
           const Spacer(),
           GestureDetector(
@@ -521,7 +518,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
             child: Text(
               number,
-              style: AppTypography.monoMedium.copyWith(color: AppColors.emergencyRed),
+              style: AppTypography.monoMedium.copyWith(color: AppColors.emergency),
             ),
           ),
         ],
@@ -532,7 +529,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: AppColors.scaffoldBg,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -542,7 +539,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.only(top: 20, left: 20, bottom: 10),
               child: Text(
                 "SETTINGS",
-                style: AppTypography.headlineLarge.copyWith(color: Colors.white),
+                style: AppTypography.headline.copyWith(color: AppColors.textPrimary),
               ),
             ),
             Expanded(
@@ -553,7 +550,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     // PROTECTION SECTION
                     _buildSectionHeader("PROTECTION"),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Crash Detection",
                       subtitle: "Auto-detects impacts via sensors",
                       trailing: CupertinoSwitch(
@@ -570,21 +567,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         },
                       ),
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Detection Sensitivity",
                       subtitle: "Current: $_sensitivityLabel",
                       trailing: const Icon(
                         Icons.chevron_right,
-                        color: AppColors.textMuted,
+                        color: AppColors.textTertiary,
                         size: 20,
                       ),
                       onTap: _showSensitivityPicker,
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "SOS Countdown",
                       trailing: _buildCountdownSelector(),
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Voice SOS",
                       subtitle: "Say 'Help RoadSOS' to trigger",
                       trailing: CupertinoSwitch(
@@ -603,7 +600,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     if (_voiceSOSOn)
-                      _SettingsTile(
+                      _settingsTile(
                         title: "Always-Listening Mode",
                         subtitle: "Keep microphone scanning continuously",
                         trailing: CupertinoSwitch(
@@ -615,19 +612,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           },
                         ),
                       ),
-                    _SettingsTile(
-                      title: "Forced Dark Mode",
-                      subtitle: "High-contrast theme for emergency situations",
-                      trailing: CupertinoSwitch(
-                        value: _darkModeOn,
-                        activeTrackColor: AppColors.safeGreen,
-                        onChanged: (v) {
-                          setState(() => _darkModeOn = v);
-                          _updateSetting(darkMode: v);
-                        },
-                      ),
-                    ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Emergency Auto-Share",
                       subtitle: "Instantly alert emergency networks on SOS triggers",
                       trailing: CupertinoSwitch(
@@ -644,11 +629,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _buildSectionHeader("EMERGENCY HOTLINES"),
                     Container(
                       margin: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        border: Border.all(color: AppColors.borderSubtle, width: 1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
+                      decoration: AppTokens.cardDecoration,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -656,29 +637,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             padding: const EdgeInsets.all(16.0),
                             child: Text(
                               "INDIA 🇮🇳",
-                              style: AppTypography.bodyMedium.copyWith(color: Colors.white),
+                              style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
                             ),
                           ),
                           const Divider(color: AppColors.borderSubtle, height: 1),
-                          _NumberRow("🚔", "Police Control Room", "100"),
-                          _NumberRow("📞", "National Single Hotline", "112"),
+                          _numberRow("🚔", "Police Control Room", "100"),
+                          _numberRow("📞", "National Single Hotline", "112"),
                         ],
                       ),
                     ),
 
                     // AI ASSISTANT SECTION
                     _buildSectionHeader("AI ASSISTANT"),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Gemini API Key",
                       subtitle: _geminiKeyDisplay,
                       trailing: const Icon(
                         Icons.vpn_key_rounded,
-                        color: AppColors.textMuted,
+                        color: AppColors.textTertiary,
                         size: 20,
                       ),
                       onTap: _showGeminiKeyDialog,
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "AI First-Aid Assistant",
                       subtitle: "Enable Gemini REST medical emergency chatbot",
                       trailing: CupertinoSwitch(
@@ -693,7 +674,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     // OFFLINE DATA SECTION
                     _buildSectionHeader("OFFLINE DATA"),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Emergency Database",
                       subtitle: "$_dbRecordCount local records · ${_dbSizeKb.toStringAsFixed(1)} KB size",
                       trailing: GestureDetector(
@@ -704,28 +685,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 height: 14,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: AppColors.emergencyRed,
+                                  color: AppColors.emergency,
                                 ),
                               )
                             : Text(
                                 "UPDATE ›",
-                                style: AppTypography.labelCaps.copyWith(color: AppColors.emergencyRed),
+                                style: AppTypography.labelCaps.copyWith(color: AppColors.emergency),
                               ),
                       ),
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Last Updated",
                       trailing: Text(
                         _lastSync,
                         style: AppTypography.monoMedium.copyWith(fontSize: 12, color: AppColors.textSecondary),
                       ),
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Incident History Logs",
                       subtitle: "View telemetry of previous SOS activations",
                       trailing: const Icon(
                         Icons.chevron_right_rounded,
-                        color: AppColors.textMuted,
+                        color: AppColors.textTertiary,
                         size: 20,
                       ),
                       onTap: () => context.push('/history'),
@@ -733,34 +714,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     // ABOUT SECTION
                     _buildSectionHeader("ABOUT"),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Version",
                       trailing: Text(
                         "RoadSOS v1.0.0",
                         style: AppTypography.monoMedium.copyWith(fontSize: 12, color: AppColors.textSecondary),
                       ),
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Data Sources",
                       trailing: Text(
                         "NHM · OSM · NCRB",
                         style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
                       ),
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Share App",
+                      // ignore: deprecated_member_use
                       onTap: () => Share.share("Check out RoadSOS - Road Emergency & Rescue Operating System app!"),
                     ),
-                    _SettingsTile(
+                    _settingsTile(
                       title: "Logout Profile",
                       trailing: const Icon(
                         Icons.logout,
-                        color: AppColors.emergencyRed,
+                        color: AppColors.emergency,
                         size: 20,
                       ),
                       onTap: () async {
                         await AuthService.instance.signOut();
-                        if (mounted) {
+                        if (context.mounted) {
                           context.go('/login');
                         }
                       },

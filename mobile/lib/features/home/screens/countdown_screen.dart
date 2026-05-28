@@ -257,6 +257,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
         throw 'Could not launch dialer';
       }
     } catch (_) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -314,7 +315,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                         height: 90,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: AppColors.emergencyRed.withOpacity(0.1),
+                          color: AppColors.emergencyRed.withValues(alpha: 0.1),
                         ),
                       ),
                       AnimatedBuilder(
@@ -325,7 +326,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                             height: 70 * _blinkAnimation.value,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: AppColors.emergencyRed.withOpacity(0.15),
+                              color: AppColors.emergencyRed.withValues(alpha: 0.15),
                             ),
                           );
                         },
@@ -760,7 +761,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: iconBg.withOpacity(0.12),
+                  color: iconBg.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Icon(icon, color: iconBg, size: 18),
@@ -851,7 +852,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: iconBg.withOpacity(0.12),
+              color: iconBg.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Icon(icon, color: iconBg, size: 18),
@@ -924,6 +925,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
                   throw 'Could not launch dialer';
                 }
               } catch (_) {
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text("Calling ${primary.name}: ${primary.phone}", style: const TextStyle(color: Colors.white)),
@@ -1114,6 +1116,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
         throw 'Could not launch mail client';
       }
     } catch (_) {
+      if (!mounted) return;
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -1189,7 +1192,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.emergencyRed.withOpacity(0.12),
+                  color: AppColors.emergencyRed.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.emergency_share_rounded, color: AppColors.emergencyRed, size: 48),

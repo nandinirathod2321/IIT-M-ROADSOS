@@ -348,7 +348,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primary,
+      backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
         title: Text(
           'EMERGENCY FIRST AID',
@@ -427,7 +427,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          color: AppColors.emergencyRed.withOpacity(0.12),
+          color: AppColors.emergencyRed.withValues(alpha: 0.12),
           child: Row(
             children: [
               const Icon(Icons.emergency_rounded, color: AppColors.emergencyRed, size: 20),
@@ -627,7 +627,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
             bottomRight: Radius.circular(message.isUser ? 0 : 12),
           ),
           border: Border.all(
-            color: message.isUser ? AppColors.borderSubtle : AppColors.emergencyRed.withOpacity(0.15),
+            color: message.isUser ? AppColors.borderSubtle : AppColors.emergencyRed.withValues(alpha: 0.15),
             width: 1,
           ),
         ),
@@ -702,9 +702,9 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.emergencyAmber.withOpacity(0.08),
+              color: AppColors.emergencyAmber.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.emergencyAmber.withOpacity(0.3)),
+              border: Border.all(color: AppColors.emergencyAmber.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [

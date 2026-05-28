@@ -146,7 +146,7 @@ TONE: Military medic — calm, fast, clear.
               yield chunkText;
             }
           } catch (_) {
-            buffer = line + '\n' + buffer;
+            buffer = '$line\n$buffer';
           }
         }
       }

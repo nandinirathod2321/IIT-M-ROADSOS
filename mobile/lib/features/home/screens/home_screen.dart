@@ -51,10 +51,12 @@ class _HomeView extends StatefulWidget {
 class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixin {
   // Voice SOS Trigger system
   final stt.SpeechToText _speech = stt.SpeechToText();
+  // ignore: unused_field
   bool _speechAvailable = false;
   bool _isListening = false;
   String _wordsSpoken = "Waiting...";
   bool _voiceSosEnabled = false;
+  // ignore: unused_field
   bool _voiceAlwaysListening = false;
   String _micPermissionStatus = "unknown"; // "unknown", "granted", "denied", "permanentlyDenied", "notSupported"
   double _voiceConfidence = 0.0;
@@ -108,7 +110,7 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
     try {
       final available = await _speech.initialize(
         onStatus: (status) {
-          print("STT status change: $status");
+          debugPrint("STT status change: $status");
           if (status == 'notListening') {
             if (mounted) {
               setState(() {
@@ -135,7 +137,7 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
           }
         },
         onError: (err) {
-          print("STT error change: $err");
+          debugPrint("STT error change: $err");
           if (mounted) {
             setState(() {
               _isListening = false;
@@ -287,7 +289,7 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppColors.emergencyRed.withOpacity(0.1),
+                        color: AppColors.emergencyRed.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -360,18 +362,18 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            AppColors.emergencyAmber.withOpacity(0.15),
-                            AppColors.emergencyAmber.withOpacity(0.05),
+                            AppColors.emergencyAmber.withValues(alpha: 0.15),
+                            AppColors.emergencyAmber.withValues(alpha: 0.05),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: AppColors.emergencyAmber.withOpacity(0.3),
+                          color: AppColors.emergencyAmber.withValues(alpha: 0.3),
                           width: 1.5,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.emergencyAmber.withOpacity(0.05),
+                            color: AppColors.emergencyAmber.withValues(alpha: 0.05),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -382,7 +384,7 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: AppColors.emergencyAmber.withOpacity(0.2),
+                              color: AppColors.emergencyAmber.withValues(alpha: 0.2),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
@@ -440,9 +442,9 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
-                                color: AppColors.emergencyAmber.withOpacity(0.12),
+                                color: AppColors.emergencyAmber.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.emergencyAmber.withOpacity(0.3)),
+                                border: Border.all(color: AppColors.emergencyAmber.withValues(alpha: 0.3)),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -501,10 +503,10 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: _micPermissionStatus == 'granted'
-                                      ? AppColors.emergencyRed.withOpacity(0.3)
+                                      ? AppColors.emergencyRed.withValues(alpha: 0.3)
                                       : _micPermissionStatus == 'denied'
-                                          ? AppColors.emergencyAmber.withOpacity(0.4)
-                                          : AppColors.textMuted.withOpacity(0.2),
+                                          ? AppColors.emergencyAmber.withValues(alpha: 0.4)
+                                          : AppColors.textMuted.withValues(alpha: 0.2),
                                   width: 1,
                                 ),
                               ),
@@ -554,7 +556,7 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
                                     ),
                                     const SizedBox(height: 12),
                                     Text(
-                                      'Input: "${_wordsSpoken}"',
+                                      'Input: "$_wordsSpoken"',
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: AppTypography.bodyMedium.copyWith(
@@ -631,7 +633,7 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
                                     // Not Supported or Web Fallback
                                     Row(
                                       children: [
-                                        Icon(Icons.warning_amber_rounded, color: AppColors.textMuted.withOpacity(0.5), size: 24),
+                                        Icon(Icons.warning_amber_rounded, color: AppColors.textMuted.withValues(alpha: 0.5), size: 24),
                                         const SizedBox(width: 12),
                                         Expanded(
                                           child: Column(
@@ -787,12 +789,12 @@ class _VoiceWaveformState extends State<_VoiceWaveform> with SingleTickerProvide
                 decoration: BoxDecoration(
                   color: widget.isListening
                       ? AppColors.emergencyRed
-                      : AppColors.textMuted.withOpacity(0.2),
+                      : AppColors.textMuted.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(2),
                   boxShadow: widget.isListening
                       ? [
                           BoxShadow(
-                            color: AppColors.emergencyRed.withOpacity(0.3),
+                            color: AppColors.emergencyRed.withValues(alpha: 0.3),
                             blurRadius: 4,
                             spreadRadius: 0.5,
                           )

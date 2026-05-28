@@ -86,7 +86,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     // Check location right now (avoid missing already-emitted state)
     final locState = _locationCubit.state;
     if (locState.hasLocation) {
-      print('[HomeBloc] GPS available immediately: ${locState.latitude}, ${locState.longitude}');
+      debugPrint('[HomeBloc] GPS available immediately: ${locState.latitude}, ${locState.longitude}');
       add(HomeLocationUpdated(latitude: locState.latitude!, longitude: locState.longitude!));
     } else if (locState.status == LocationStatus.failure ||
                locState.status == LocationStatus.denied) {
@@ -101,14 +101,14 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       _safetyTimer?.cancel();
       _safetyTimer = Timer(const Duration(seconds: 6), () {
         if (!isClosed && state.isLoading && (state.latitude == null || state.longitude == null)) {
-          print('[HomeBloc] GPS resolution timed out (6s). Checking for cache fallback.');
+          debugPrint('[HomeBloc] GPS resolution timed out (6s). Checking for cache fallback.');
           final currentLoc = _locationCubit.state;
           if (currentLoc.hasLocation) {
-            print('[HomeBloc] Safety timeout triggered — utilizing cached location: ${currentLoc.latitude}, ${currentLoc.longitude}');
+            debugPrint('[HomeBloc] Safety timeout triggered — utilizing cached location: ${currentLoc.latitude}, ${currentLoc.longitude}');
             debugPrint('[OfflineMode] LAST_LOCATION_USED');
             add(HomeLocationUpdated(latitude: currentLoc.latitude!, longitude: currentLoc.longitude!));
           } else {
-            print('[HomeBloc] Safety timeout triggered and no cached location. Showing error.');
+            debugPrint('[HomeBloc] Safety timeout triggered and no cached location. Showing error.');
             emit(state.copyWith(
               isLoading: false,
               isRespondersLoading: false,
@@ -182,7 +182,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
         isOffline: rs.isOffline,
         isFromCache: rs.isFromCache,
       ));
-      print('[HomeBloc] Responders updated: ${rs.hospitals.length} hospitals, '
+      debugPrint('[HomeBloc] Responders updated: ${rs.hospitals.length} hospitals, '
           '${rs.police.length} police, ${rs.towing.length} towing.');
     } else if (rs.isLoading) {
       if (state.latitude == null) {

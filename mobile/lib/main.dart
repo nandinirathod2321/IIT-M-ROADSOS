@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-import 'core/theme/colors.dart';
 import 'features/crash_detection/crash_detector.dart';
 import 'core/router/app_router.dart';
 import 'data/database/db_initializer.dart';
@@ -30,12 +29,12 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // Set system navigation overlay styling for premium immersive visuals
+  // Set system navigation overlay styling for premium light mode visuals
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: AppColors.surface,
-    systemNavigationBarIconBrightness: Brightness.light,
+    statusBarIconBrightness: Brightness.dark,
+    systemNavigationBarColor: Colors.white,
+    systemNavigationBarIconBrightness: Brightness.dark,
   ));
 
   // Initialize SQLite local spatial nodes database

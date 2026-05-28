@@ -1,41 +1,24 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/colors.dart';
 import '../../core/theme/typography.dart';
 
 /// The primary SOS activation button — a large, pulsing red circle
 /// placed at the centre of the home screen.
-///
-/// Supports two states:
-///   • **idle** — steady glow, awaiting tap/long-press.
-///   • **active** — rapid pulse, indicating an SOS is in progress.
-///
-/// Usage:
-/// ```dart
-/// SOSButton(
-///   isActive: false,
-///   onPressed: () => _triggerSOS(),
-/// )
-/// ```
 class SOSButton extends StatefulWidget {
-  /// Whether the SOS is currently active (rapid-pulse mode).
+  /// Whether the SOS is currently active.
   final bool isActive;
 
   /// Callback when the button is tapped.
   final VoidCallback? onPressed;
 
-  /// Callback when the button is long-pressed (force-trigger SOS).
+  /// Callback when the button is long-pressed.
   final VoidCallback? onLongPress;
-
-  /// Diameter of the outer ring. Defaults to 200.
-  final double size;
 
   const SOSButton({
     super.key,
     this.isActive = false,
     this.onPressed,
     this.onLongPress,
-    this.size = 200,
   });
 
   @override
@@ -55,7 +38,7 @@ class _SOSButtonState extends State<SOSButton>
       duration: Duration(milliseconds: widget.isActive ? 600 : 1500),
     )..repeat(reverse: true);
 
-    _pulseAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
+    _pulseAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
   }
@@ -87,68 +70,43 @@ class _SOSButtonState extends State<SOSButton>
         return GestureDetector(
           onTap: widget.onPressed,
           onLongPress: widget.onLongPress,
-          child: SizedBox(
-            width: widget.size,
-            height: widget.size,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Outer glow ring
-                Transform.scale(
-                  scale: scale,
-                  child: Container(
-                    width: widget.size,
-                    height: widget.size,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.emergencyRed
-                            .withValues(alpha: 0.3 * scale),
-                        width: 2,
-                      ),
+          child: Transform.scale(
+            scale: scale,
+            child: Container(
+              width: 160,
+              height: 160,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFFDC2626), // Solid emergency red
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x66DC2626), // Red glow shadow
+                    blurRadius: 24,
+                    spreadRadius: 4,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.error_outline_rounded,
+                    color: Colors.white,
+                    size: 36,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'SOS',
+                    style: AppTypography.displayLarge.copyWith(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2,
                     ),
                   ),
-                ),
-                // Middle glow ring
-                Transform.scale(
-                  scale: scale * 0.92,
-                  child: Container(
-                    width: widget.size * 0.85,
-                    height: widget.size * 0.85,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.emergencyRed
-                            .withValues(alpha: 0.15 * scale),
-                        width: 1.5,
-                      ),
-                    ),
-                  ),
-                ),
-                // Core button
-                Container(
-                  width: widget.size * 0.65,
-                  height: widget.size * 0.65,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.emergencyRed,
-                    border: Border.all(
-                      color: AppColors.emergencyRed.withValues(alpha: 0.6),
-                      width: 3,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      'SOS',
-                      style: AppTypography.displayLarge.copyWith(
-                        color: AppColors.textPrimary,
-                        fontSize: widget.size * 0.16,
-                        letterSpacing: 4,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );

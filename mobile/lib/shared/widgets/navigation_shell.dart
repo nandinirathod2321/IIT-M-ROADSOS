@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/colors.dart';
 import '../../core/theme/typography.dart';
-import '../../core/theme/tokens.dart';
 
 /// Shell scaffold wrapping the bottom navigation bar around child routes.
 class NavigationShell extends StatelessWidget {
@@ -59,18 +58,23 @@ class NavigationShell extends StatelessWidget {
       bottomNavigationBar: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(AppTokens.s4, 0, AppTokens.s4, AppTokens.s3),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
           child: Container(
             height: 72,
             decoration: BoxDecoration(
-              borderRadius: AppTokens.r20,
-              border: Border.all(color: AppColors.borderSubtle),
-              color: AppColors.surfaceOverlay,
-              boxShadow: AppTokens.shadowMd,
-              gradient: AppColors.surfaceSheen,
+              color: Colors.white, // Always white
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0A000000),
+                  blurRadius: 10,
+                  offset: Offset(0, -2),
+                ),
+              ],
             ),
             child: ClipRRect(
-              borderRadius: AppTokens.r20,
+              borderRadius: BorderRadius.circular(20),
               child: Row(
                 children: List.generate(_tabs.length, (i) {
                   final isActive = currentIndex == i;
@@ -85,12 +89,12 @@ class NavigationShell extends StatelessWidget {
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 180),
                           curve: Curves.easeOut,
-                          margin: const EdgeInsets.all(8),
+                          margin: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
-                            borderRadius: AppTokens.r16,
-                            color: isActive ? const Color(0x1AFF3B4C) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(16),
+                            color: isActive ? AppColors.primaryLight : Colors.transparent,
                             border: Border.all(
-                              color: isActive ? const Color(0x33FF3B4C) : Colors.transparent,
+                              color: isActive ? AppColors.primary.withValues(alpha: 0.1) : Colors.transparent,
                             ),
                           ),
                           child: Column(
@@ -99,14 +103,14 @@ class NavigationShell extends StatelessWidget {
                               Icon(
                                 isActive ? tab.activeIcon : tab.icon,
                                 size: 24,
-                                color: isActive ? AppColors.emergencyRed : AppColors.textMuted,
+                                color: isActive ? AppColors.primary : AppColors.textTertiary,
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 4),
                               Text(
                                 tab.tooltip.toUpperCase(),
                                 style: AppTypography.labelCaps.copyWith(
-                                  fontSize: 9,
-                                  color: isActive ? AppColors.textPrimary : AppColors.textMuted,
+                                  fontSize: 13, // Minimum 13px
+                                  color: isActive ? AppColors.textPrimary : AppColors.textTertiary,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,

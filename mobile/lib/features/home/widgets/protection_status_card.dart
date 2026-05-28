@@ -61,9 +61,13 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.borderSubtle, width: 1),
+          color: Colors.white, // Always white
+          borderRadius: BorderRadius.circular(14), // Step 4: 14px radius
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0), // Step 4: border
+          boxShadow: const [
+            BoxShadow(color: Color(0x0A000000), blurRadius: 4, offset: Offset(0, 1)),
+            BoxShadow(color: Color(0x06000000), blurRadius: 2, offset: Offset(0, 1)),
+          ],
         ),
         child: Column(
           children: [
@@ -75,7 +79,7 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
                   size: 20,
                   color: widget.crashDetectionEnabled
                       ? AppColors.safeGreen
-                      : AppColors.textMuted,
+                      : AppColors.textTertiary,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -84,7 +88,7 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
                     children: [
                       Text(
                         'Crash Detection',
-                        style: AppTypography.bodyLarge,
+                        style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -92,10 +96,10 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
                             ? 'Sensors armed & listening in background'
                             : 'Sensors disarmed — Emergency triggers OFF',
                         style: AppTypography.bodySmall.copyWith(
-                          fontSize: 11,
+                          fontSize: 13, // Minimum 13px
                           color: widget.crashDetectionEnabled
                               ? AppColors.safeGreen
-                              : AppColors.textMuted,
+                              : AppColors.textSecondary,
                         ),
                       ),
                     ],
@@ -106,16 +110,16 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
                   child: Switch(
                     value: widget.crashDetectionEnabled,
                     onChanged: widget.onCrashDetectionToggled,
-                    activeThumbColor: AppColors.safeGreen,
-                    activeTrackColor: AppColors.safeGreen.withOpacity(0.3),
-                    inactiveThumbColor: AppColors.textMuted,
-                    inactiveTrackColor: AppColors.surfaceAlt,
+                    activeThumbColor: Colors.white,
+                    activeTrackColor: AppColors.safeGreen,
+                    inactiveThumbColor: AppColors.textTertiary,
+                    inactiveTrackColor: const Color(0xFFF0F2F5),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            const Divider(height: 1),
+            const Divider(height: 1, color: Color(0xFFE2E8F0)),
             const SizedBox(height: 12),
 
             // Mesh SOS row
@@ -131,7 +135,10 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text('Mesh SOS', style: AppTypography.bodyLarge),
+                      child: Text(
+                        'Mesh SOS',
+                        style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary),
+                      ),
                     ),
                     // Animated Status Dot
                     if (widget.meshStatus != MeshSOSStatus.disabled)
@@ -157,6 +164,7 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
                       style: AppTypography.labelCaps.copyWith(
                         color: _meshColor,
                         fontWeight: FontWeight.bold,
+                        fontSize: 13, // Minimum 13px
                       ),
                     ),
                   ],
@@ -168,7 +176,7 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
                     child: Text(
                       _meshSubtitle,
                       style: AppTypography.bodySmall.copyWith(
-                        fontSize: 11,
+                        fontSize: 13, // Minimum 13px
                         color: AppColors.textSecondary,
                       ),
                     ),
@@ -177,7 +185,7 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
               ],
             ),
             const SizedBox(height: 12),
-            const Divider(height: 1),
+            const Divider(height: 1, color: Color(0xFFE2E8F0)),
             const SizedBox(height: 12),
 
             // Last DB Sync row
@@ -186,18 +194,21 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
                 const Icon(
                   Icons.sync_rounded,
                   size: 20,
-                  color: AppColors.textMuted,
+                  color: AppColors.textTertiary,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text('Last DB Sync', style: AppTypography.bodyLarge),
+                  child: Text(
+                    'Last DB Sync',
+                    style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary),
+                  ),
                 ),
                 Text(
                   widget.lastDbSync != null
                       ? DateFormat('HH:mm:ss').format(widget.lastDbSync!)
                       : '--:--',
                   style: AppTypography.monoMedium.copyWith(
-                    fontSize: 12,
+                    fontSize: 13, // Minimum 13px
                     color: AppColors.textSecondary,
                   ),
                 ),
@@ -214,24 +225,24 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
       case MeshSOSStatus.active:
         return AppColors.safeGreen;
       case MeshSOSStatus.connecting:
-        return AppColors.emergencyAmber;
+        return AppColors.warningAmber;
       case MeshSOSStatus.offline:
-        return AppColors.emergencyRed;
+        return AppColors.emergency;
       case MeshSOSStatus.disabled:
-        return AppColors.textMuted;
+        return AppColors.textTertiary;
     }
   }
 
   Color _getMeshDotColor() {
     switch (widget.meshStatus) {
       case MeshSOSStatus.active:
-        return AppColors.statusActive;
+        return AppColors.safeGreen;
       case MeshSOSStatus.connecting:
-        return AppColors.emergencyAmber;
+        return AppColors.warningAmber;
       case MeshSOSStatus.offline:
-        return AppColors.emergencyRed;
+        return AppColors.emergency;
       case MeshSOSStatus.disabled:
-        return AppColors.textMuted;
+        return AppColors.textTertiary;
     }
   }
 
@@ -266,11 +277,11 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
       case MeshSOSStatus.active:
         return AppColors.safeGreen;
       case MeshSOSStatus.connecting:
-        return AppColors.emergencyAmber;
+        return AppColors.warningAmber;
       case MeshSOSStatus.offline:
-        return AppColors.emergencyRed;
+        return AppColors.emergency;
       case MeshSOSStatus.disabled:
-        return AppColors.textMuted;
+        return AppColors.textTertiary;
     }
   }
 }

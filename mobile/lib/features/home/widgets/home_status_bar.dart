@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
-import '../../../core/theme/tokens.dart';
 import '../bloc/home_event.dart';
 import '../../../shared/widgets/app_card.dart';
 
@@ -60,10 +59,9 @@ class _HomeStatusBarState extends State<HomeStatusBar>
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppTokens.s4, AppTokens.s3, AppTokens.s4, 0),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: AppCard(
-        glass: true,
-        padding: const EdgeInsets.symmetric(horizontal: AppTokens.s4, vertical: AppTokens.s3),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
             // Pulsing dot + status
@@ -77,8 +75,7 @@ class _HomeStatusBarState extends State<HomeStatusBar>
                     height: 10,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: widget.isProtected ? AppColors.statusActive : AppColors.textMuted,
-                      boxShadow: widget.isProtected ? AppTokens.shadowSm : const [],
+                      color: widget.isProtected ? AppColors.safeGreen : AppColors.textTertiary,
                     ),
                   ),
                 );
@@ -88,28 +85,28 @@ class _HomeStatusBarState extends State<HomeStatusBar>
             Text(
               widget.isProtected ? 'PROTECTED' : 'UNPROTECTED',
               style: AppTypography.labelCaps.copyWith(
-                fontSize: 10,
-                color: widget.isProtected ? AppColors.statusActive : AppColors.textMuted,
+                fontSize: 13, // Minimum 13px
+                color: widget.isProtected ? AppColors.safeGreen : AppColors.textTertiary,
               ),
             ),
             const Spacer(),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                borderRadius: AppTokens.r12,
-                color: AppColors.surfaceAlt,
-                border: Border.all(color: AppColors.borderSubtle),
+                borderRadius: BorderRadius.circular(12),
+                color: const Color(0xFFF0F2F5),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               child: Text(
                 widget.coordinates,
                 style: AppTypography.monoMedium.copyWith(
-                  fontSize: 11,
+                  fontSize: 13, // Minimum 13px
                   color: AppColors.textSecondary,
                 ),
               ),
             ),
             const SizedBox(width: 10),
-            Icon(_connectivityIcon, size: 16, color: _connectivityColor),
+            Icon(_connectivityIcon, size: 18, color: _connectivityColor),
           ],
         ),
       ),
@@ -134,7 +131,7 @@ class _HomeStatusBarState extends State<HomeStatusBar>
       case ConnectivityType.mobile:
         return AppColors.safeGreen;
       case ConnectivityType.offline:
-        return AppColors.emergencyAmber;
+        return AppColors.warningAmber;
     }
   }
 }

@@ -21,7 +21,7 @@ class LoadingSkeleton extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       child: Shimmer.fromColors(
         baseColor: AppColors.surfaceAlt,
-        highlightColor: AppColors.surface.withOpacity(0.4),
+        highlightColor: AppColors.surface.withValues(alpha: 0.4),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

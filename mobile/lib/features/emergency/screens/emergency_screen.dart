@@ -166,7 +166,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        value: relationCtrl.text,
+                        initialValue: relationCtrl.text,
                         dropdownColor: AppColors.surface,
                         style: const TextStyle(color: AppColors.textPrimary),
                         decoration: _inputDeco("Relationship", Icons.people_outline_rounded),
@@ -184,7 +184,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                         subtitle: Text("Prioritized for SOS alerts",
                             style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
                         value: isPrimaryVal,
-                        activeColor: AppColors.safeGreen,
+                        activeThumbColor: AppColors.safeGreen,
                         contentPadding: EdgeInsets.zero,
                         onChanged: (val) => setDialogState(() => isPrimaryVal = val),
                       ),
@@ -315,7 +315,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
             locState.status == LocationStatus.initial;
 
         return Scaffold(
-          backgroundColor: AppColors.primary,
+          backgroundColor: AppColors.scaffoldBg,
           appBar: AppBar(
             title: Text("EMERGENCY RESPONDERS",
                 style: AppTypography.headlineLarge.copyWith(letterSpacing: 0.5)),
@@ -334,7 +334,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                 icon: const Icon(Icons.refresh_rounded, color: AppColors.textPrimary),
                 tooltip: "Force Refresh",
                 onPressed: () {
-                  print('[EmergencyScreen] Manual refresh triggered.');
+                  debugPrint('[EmergencyScreen] Manual refresh triggered.');
                   context.read<ResponderCubit>().forceRefresh();
                 },
               ),
@@ -615,8 +615,6 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.borderSubtle, width: 1.5),
           ),
           child: Row(
             children: [
@@ -639,7 +637,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: AppColors.emergencyRed.withOpacity(0.12),
+                              color: AppColors.emergencyRed.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text("PRIMARY",
@@ -697,6 +695,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
 
   // ── Helpers ─────────────────────────────────────────────────────────────
 
+
   Widget _tabChip(int index, String label, IconData icon, int count) {
     final isSelected = _selectedTab == index;
     return GestureDetector(
@@ -725,7 +724,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                 decoration: BoxDecoration(
-                  color: isSelected ? Colors.white.withOpacity(0.2) : AppColors.borderSubtle,
+                  color: isSelected ? Colors.white.withValues(alpha: 0.2) : AppColors.borderSubtle,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -748,7 +747,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: color.withOpacity(0.10),
+      color: color.withValues(alpha: 0.10),
       child: Row(
         children: [
           Icon(icon, color: color, size: 15),
@@ -796,7 +795,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: accentColor.withOpacity(0.12),
+                        color: accentColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
@@ -887,7 +886,7 @@ class _ShimmerList extends StatelessWidget {
     return ListView.builder(
       itemCount: 5,
       padding: const EdgeInsets.all(16),
-      itemBuilder: (_, __) => Padding(
+      itemBuilder: (context, index) => Padding(
         padding: const EdgeInsets.only(bottom: 16),
         child: Shimmer.fromColors(
           baseColor: AppColors.surface,

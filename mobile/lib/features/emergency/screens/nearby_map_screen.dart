@@ -15,7 +15,7 @@ import '../../../presentation/blocs/location/location_cubit.dart';
 import '../../../core/responders/responder_cubit.dart';
 import '../../../core/responders/responder_state.dart';
 import '../../../data/models/hospital.dart';
-import '../../../data/models/police_station.dart';
+
 
 /// Interactive map view showing nearby hospitals and police stations with
 /// cached tiles for offline usage. Designed to be embedded inside a parent
@@ -134,7 +134,7 @@ class _NearbyMapViewState extends State<NearbyMapView> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: accentColor.withOpacity(0.12),
+                      color: accentColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(icon, color: accentColor, size: 22),
@@ -284,7 +284,7 @@ class _NearbyMapViewState extends State<NearbyMapView> {
                 border: Border.all(color: Colors.white, width: 2),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.emergencyRed.withOpacity(0.4),
+                    color: AppColors.emergencyRed.withValues(alpha: 0.4),
                     blurRadius: 6,
                     spreadRadius: 1,
                   ),
@@ -326,7 +326,7 @@ class _NearbyMapViewState extends State<NearbyMapView> {
                 border: Border.all(color: Colors.white, width: 2),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.policeBlue.withOpacity(0.4),
+                    color: AppColors.policeBlue.withValues(alpha: 0.4),
                     blurRadius: 6,
                     spreadRadius: 1,
                   ),
@@ -360,7 +360,7 @@ class _NearbyMapViewState extends State<NearbyMapView> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.emergencyRed.withOpacity(0.1),
+                color: AppColors.emergencyRed.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.location_off_rounded,
@@ -479,7 +479,7 @@ class _NearbyMapViewState extends State<NearbyMapView> {
                               color: AppColors.emergencyRed, width: 3),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.emergencyRed.withOpacity(0.3),
+                              color: AppColors.emergencyRed.withValues(alpha: 0.3),
                               blurRadius: 8,
                               spreadRadius: 2,
                             ),
@@ -507,7 +507,7 @@ class _NearbyMapViewState extends State<NearbyMapView> {
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  color: AppColors.emergencyAmber.withOpacity(0.92),
+                  color: AppColors.emergencyAmber.withValues(alpha: 0.92),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -536,13 +536,13 @@ class _NearbyMapViewState extends State<NearbyMapView> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: AppColors.surface.withOpacity(0.92),
+                  color: AppColors.surface.withValues(alpha: 0.92),
                   borderRadius: BorderRadius.circular(8),
                   border:
                       Border.all(color: AppColors.borderSubtle, width: 1),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
+                      color: Colors.black.withValues(alpha: 0.15),
                       blurRadius: 6,
                     ),
                   ],
