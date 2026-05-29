@@ -2,11 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:cloud_firestore/cloud_firestore.dart' hide Settings;
-import '../../core/services/auth_service.dart';
 import 'db_size_helper.dart';
-
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -20,7 +16,6 @@ import '../models/towing_service.dart';
 import '../models/emergency_contact.dart';
 import '../models/medical_profile.dart';
 import '../models/user.dart';
-import '../models/settings.dart';
 import '../models/sos_event.dart';
 import '../models/chat_message.dart';
 import '../models/emergency_shelter.dart';
@@ -50,7 +45,6 @@ class DatabaseHelper {
   static final List<EmergencyShelter> _webShelters = [];
   
   static User? _webUser;
-  static Settings? _webSettings;
 
   /// Public method to update the in-memory web spatial database.
   void updateWebCache({
@@ -1594,28 +1588,7 @@ class DatabaseHelper {
     ];
   }
 
-  static List<Map<String, dynamic>> _getSheltersSeedData(double lat, double lng) {
-    return [
-      {
-        'id': 's1',
-        'name': 'Ahmedabad Stadium Safety Shelter',
-        'address': 'Sports Stadium Complex, Navrangpura, Ahmedabad',
-        'latitude': lat + 0.0040,
-        'longitude': lng + 0.0110,
-        'phone': '+91 79 2644 4444',
-        'capacity': 500,
-      },
-      {
-        'id': 's2',
-        'name': 'Satellite Community Shelter',
-        'address': 'Community Hall Road, Satellite, Ahmedabad',
-        'latitude': lat - 0.0070,
-        'longitude': lng - 0.0090,
-        'phone': '+91 79 2676 7777',
-        'capacity': 300,
-      }
-    ];
-  }
+
 
   _BoundingBox _boundingBox(double lat, double lng, double radiusKm) {
     final latDelta = radiusKm / 111.32;

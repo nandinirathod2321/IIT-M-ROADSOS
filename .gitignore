@@ -32,3 +32,8 @@ Thumbs.db
 # Local SDK and artifacts
 flutter/
 
+# IDE Settings
+.idea/
+.vscode/
+mobile/fix_const.py
+

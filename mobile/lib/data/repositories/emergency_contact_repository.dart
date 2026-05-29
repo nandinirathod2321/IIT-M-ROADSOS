@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import '../database/database_helper.dart';
 import '../models/emergency_contact.dart';
 

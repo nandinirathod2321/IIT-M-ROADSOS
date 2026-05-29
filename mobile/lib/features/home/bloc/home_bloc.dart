@@ -46,7 +46,15 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   }
 
   Future<void> _onStarted(HomeStarted event, Emitter<HomeState> emit) async {
-    emit(state.copyWith(isLoading: true, isRespondersLoading: true, hasLocationError: false));
+    emit(state.copyWith(
+      isLoading: true,
+      isRespondersLoading: true,
+      hasLocationError: false,
+      locationStatus: HomeLocationStatus.loading,
+    ));
+
+    // Log location fetch start
+    debugPrint('LOCATION_FETCH_STARTED');
 
     // 1. Connectivity stream
     _connectivitySub?.cancel();
@@ -61,67 +69,112 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     }
     emit(state.copyWith(connectivity: mappedConn));
 
-    // 3. Subscribe to global LocationCubit
+    // 2. Initialize 6-second safety timeout timer
+    _safetyTimer?.cancel();
+    _safetyTimer = Timer(const Duration(seconds: 6), () {
+      if (!isClosed && state.locationStatus == HomeLocationStatus.loading) {
+        debugPrint('LOCATION_FETCH_TIMEOUT');
+        debugPrint('USING_LAST_LOCATION');
+
+        final currentLoc = _locationCubit.state;
+        double? lat = currentLoc.latitude;
+        double? lng = currentLoc.longitude;
+        String addr = currentLoc.city ?? 'Ahmedabad';
+
+        if (lat == null || lng == null) {
+          lat = 23.0225;
+          lng = 72.5714;
+          addr = 'Ahmedabad';
+        }
+
+        emit(state.copyWith(
+          isLoading: false,
+          isRespondersLoading: false,
+          latitude: lat,
+          longitude: lng,
+          address: addr,
+          locationStatus: HomeLocationStatus.timeout,
+          hasLocationError: false,
+        ));
+
+        _responderCubit.retry();
+      }
+    });
+
+    // 3. Check location right now (avoid missing already-emitted state)
+    final locState = _locationCubit.state;
+    if (locState.hasLocation) {
+      debugPrint('[HomeBloc] GPS available immediately: ${locState.latitude}, ${locState.longitude}');
+      debugPrint('USING_LAST_LOCATION');
+      emit(state.copyWith(
+        latitude: locState.latitude!,
+        longitude: locState.longitude!,
+        address: locState.city ?? 'Local',
+        locationStatus: HomeLocationStatus.timeout,
+        isLoading: false,
+      ));
+      add(HomeLocationUpdated(
+        latitude: locState.latitude!,
+        longitude: locState.longitude!,
+        status: HomeLocationStatus.timeout,
+      ));
+    }
+
+    // 4. Subscribe to global LocationCubit
     _locationSub?.cancel();
     _locationSub = _locationCubit.stream.listen((locState) {
       if (!isClosed) {
         if (locState.hasLocation) {
-          add(HomeLocationUpdated(latitude: locState.latitude!, longitude: locState.longitude!));
+          debugPrint('LOCATION_FETCH_SUCCESS');
+          add(HomeLocationUpdated(
+            latitude: locState.latitude!,
+            longitude: locState.longitude!,
+            status: HomeLocationStatus.success,
+          ));
         } else if (locState.status == LocationStatus.denied ||
-                   locState.status == LocationStatus.deniedForever ||
-                   locState.status == LocationStatus.failure) {
-          if (!isClosed && (state.latitude == null || state.longitude == null)) {
-            _safetyTimer?.cancel();
-            emit(state.copyWith(
-              isLoading: false,
-              isRespondersLoading: false,
-              hasLocationError: true,
-              locationErrorMessage: locState.errorMessage,
-            ));
-          }
+                   locState.status == LocationStatus.deniedForever) {
+          debugPrint('LOCATION_PERMISSION_DENIED');
+          _safetyTimer?.cancel();
+
+          final currentLoc = _locationCubit.state;
+          double lat = currentLoc.latitude ?? 23.0225;
+          double lng = currentLoc.longitude ?? 72.5714;
+          String addr = currentLoc.city ?? 'Ahmedabad';
+
+          emit(state.copyWith(
+            isLoading: false,
+            isRespondersLoading: false,
+            latitude: lat,
+            longitude: lng,
+            address: addr,
+            locationStatus: HomeLocationStatus.permissionDenied,
+            hasLocationError: false,
+          ));
+        } else if (locState.status == LocationStatus.failure) {
+          _safetyTimer?.cancel();
+
+          final currentLoc = _locationCubit.state;
+          double lat = currentLoc.latitude ?? 23.0225;
+          double lng = currentLoc.longitude ?? 72.5714;
+          String addr = currentLoc.city ?? 'Ahmedabad';
+
+          final isGpsDisabled = locState.errorMessage.toLowerCase().contains('disabled') ||
+                               locState.errorMessage.toLowerCase().contains('services');
+
+          emit(state.copyWith(
+            isLoading: false,
+            isRespondersLoading: false,
+            latitude: lat,
+            longitude: lng,
+            address: addr,
+            locationStatus: isGpsDisabled ? HomeLocationStatus.gpsDisabled : HomeLocationStatus.timeout,
+            hasLocationError: false,
+          ));
         }
       }
     });
 
-    // Check location right now (avoid missing already-emitted state)
-    final locState = _locationCubit.state;
-    if (locState.hasLocation) {
-      debugPrint('[HomeBloc] GPS available immediately: ${locState.latitude}, ${locState.longitude}');
-      add(HomeLocationUpdated(latitude: locState.latitude!, longitude: locState.longitude!));
-    } else if (locState.status == LocationStatus.failure ||
-               locState.status == LocationStatus.denied) {
-      emit(state.copyWith(
-        isLoading: false,
-        isRespondersLoading: false,
-        hasLocationError: true,
-        locationErrorMessage: locState.errorMessage,
-      ));
-    } else {
-      // Start 6-second safety timeout timer if location is not resolved immediately
-      _safetyTimer?.cancel();
-      _safetyTimer = Timer(const Duration(seconds: 6), () {
-        if (!isClosed && state.isLoading && (state.latitude == null || state.longitude == null)) {
-          debugPrint('[HomeBloc] GPS resolution timed out (6s). Checking for cache fallback.');
-          final currentLoc = _locationCubit.state;
-          if (currentLoc.hasLocation) {
-            debugPrint('[HomeBloc] Safety timeout triggered — utilizing cached location: ${currentLoc.latitude}, ${currentLoc.longitude}');
-            debugPrint('[OfflineMode] LAST_LOCATION_USED');
-            add(HomeLocationUpdated(latitude: currentLoc.latitude!, longitude: currentLoc.longitude!));
-          } else {
-            debugPrint('[HomeBloc] Safety timeout triggered and no cached location. Showing error.');
-            emit(state.copyWith(
-              isLoading: false,
-              isRespondersLoading: false,
-              hasLocationError: true,
-              locationErrorMessage: 'GPS lock timeout. Please ensure location services are enabled.',
-            ));
-          }
-        }
-      });
-    }
-    // If status is initial/loading, the stream listener above will handle it
-
-    // 4. Subscribe to global ResponderCubit
+    // 5. Subscribe to global ResponderCubit
     _responderSub?.cancel();
     _responderSub = _responderCubit.stream.listen((rState) {
       if (!isClosed) add(HomeRespondersUpdated(rState));
@@ -133,13 +186,13 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       add(HomeRespondersUpdated(currentResponders));
     }
 
-    // 5. Load contacts count
+    // 6. Load contacts count
     try {
       final contacts = await _contactsRepo.getContacts();
       if (!isClosed) emit(state.copyWith(contactsCount: contacts.length));
     } catch (_) {}
 
-    // 6. Start mesh telemetry
+    // 7. Start mesh telemetry
     _triggerMeshTransition(state.connectivity, state.crashDetectionEnabled);
   }
 
@@ -152,7 +205,8 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
       latitude: event.latitude,
       longitude: event.longitude,
       hasLocationError: false,
-      isLoading: false, // Stop loading once we have location
+      isLoading: false,
+      locationStatus: event.status ?? HomeLocationStatus.success,
     ));
 
     // Reverse geocode for the address label (non-blocking)

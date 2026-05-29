@@ -6,10 +6,7 @@ import 'database_helper.dart';
 /// JSON asset instead. This class provides a quick programmatic
 /// alternative.
 class DbSeeder {
-  final DatabaseHelper _dbHelper;
-
-  DbSeeder({DatabaseHelper? dbHelper})
-      : _dbHelper = dbHelper ?? DatabaseHelper();
+  const DbSeeder();
 
   /// Seeds all tables from the bundled JSON asset at [assetPath].
   ///

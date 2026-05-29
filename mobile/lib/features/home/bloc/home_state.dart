@@ -4,6 +4,14 @@ import 'home_event.dart';
 
 enum MeshSOSStatus { active, connecting, disabled, offline }
 
+enum HomeLocationStatus {
+  loading,
+  success,
+  timeout,
+  permissionDenied,
+  gpsDisabled,
+}
+
 class HomeState extends Equatable {
   final bool isLoading;
   final bool isRespondersLoading;
@@ -26,6 +34,7 @@ class HomeState extends Equatable {
   final String locationErrorMessage;
   final bool isOffline;
   final bool isFromCache;
+  final HomeLocationStatus locationStatus;
 
   const HomeState({
     this.isLoading = true,
@@ -49,6 +58,7 @@ class HomeState extends Equatable {
     this.locationErrorMessage = '',
     this.isOffline = false,
     this.isFromCache = false,
+    this.locationStatus = HomeLocationStatus.loading,
   });
 
   factory HomeState.initial() => HomeState(
@@ -57,6 +67,7 @@ class HomeState extends Equatable {
         syncStatus: 'Not Synced',
         isOffline: false,
         isFromCache: false,
+        locationStatus: HomeLocationStatus.loading,
       );
 
   String get formattedCoordinates {
@@ -100,6 +111,7 @@ class HomeState extends Equatable {
     String? locationErrorMessage,
     bool? isOffline,
     bool? isFromCache,
+    HomeLocationStatus? locationStatus,
   }) {
     return HomeState(
       isLoading: isLoading ?? this.isLoading,
@@ -123,6 +135,7 @@ class HomeState extends Equatable {
       locationErrorMessage: locationErrorMessage ?? this.locationErrorMessage,
       isOffline: isOffline ?? this.isOffline,
       isFromCache: isFromCache ?? this.isFromCache,
+      locationStatus: locationStatus ?? this.locationStatus,
     );
   }
 
@@ -133,6 +146,6 @@ class HomeState extends Equatable {
         signalQuality, syncStatus, lastDbSync,
         nearbyHospitalCount, nearbyPoliceCount, nearbyTowingCount,
         contactsCount, nearestHospital, hasLocationError, locationErrorMessage,
-        isOffline, isFromCache,
+        isOffline, isFromCache, locationStatus,
       ];
 }

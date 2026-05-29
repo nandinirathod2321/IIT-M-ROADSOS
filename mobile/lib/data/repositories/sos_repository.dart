@@ -1,6 +1,4 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import '../database/database_helper.dart';
-import '../models/sos_event.dart';
 
 class SosRepository {
   final DatabaseHelper _db;

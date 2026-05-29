@@ -59,7 +59,7 @@ class ChatCubit extends Cubit<ChatState> {
     ));
 
     try {
-      final response = await _repository.sendChatMessage(text, locationContext: locationContext);
+      await _repository.sendChatMessage(text, locationContext: locationContext);
       
       if (isClosed) return;
 

@@ -15,9 +15,10 @@ class HomeStarted extends HomeEvent {
 class HomeLocationUpdated extends HomeEvent {
   final double latitude;
   final double longitude;
-  const HomeLocationUpdated({required this.latitude, required this.longitude});
+  final HomeLocationStatus? status;
+  const HomeLocationUpdated({required this.latitude, required this.longitude, this.status});
   @override
-  List<Object?> get props => [latitude, longitude];
+  List<Object?> get props => [latitude, longitude, status];
 }
 
 class HomeCrashDetectionToggled extends HomeEvent {

@@ -16,6 +16,7 @@ import '../../../data/models/emergency_contact.dart';
 import '../../../shared/widgets/countdown_overlay.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../presentation/blocs/location/location_cubit.dart';
+import 'sos_success_screen.dart';
 
 /// Full-screen countdown overlay and premium interactive emergency success screen.
 /// Resolves real coordinates, queries spatial SQLite lists, dials emergency numbers,
@@ -83,6 +84,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
   /// Triggers real GPS detection, queries nearby responders, fires alert hotlines, and logs event
   Future<void> _handleSosDispatched() async {
     final locCubit = context.read<LocationCubit>();
+    locCubit.enableLocationUpdates();
     final double lat = locCubit.state.latitude ?? 23.0225;
     final double lng = locCubit.state.longitude ?? 72.5714;
     final String addr = locCubit.state.city != null ? "${locCubit.state.city}, India" : 'Locating...';
@@ -1231,7 +1233,34 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
               width: double.infinity,
               height: 48,
               child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  Navigator.pop(context);
+                  final nearest = nearestHosp;
+                  if (nearest != null) {
+                    final int minutes = nearest.estimatedMinutes > 0
+                        ? nearest.estimatedMinutes.round()
+                        : (nearest.distanceKm / 40.0 * 60).round();
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SosSuccessScreen(
+                          hospitalName: nearest.name,
+                          hospitalLat: nearest.latitude,
+                          hospitalLng: nearest.longitude,
+                          distanceText: "${nearest.distanceKm.toStringAsFixed(1)} km",
+                          estimatedTime: "~$minutes min",
+                        ),
+                      ),
+                    );
+                  } else {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SosSuccessScreen.fallback(),
+                      ),
+                    );
+                  }
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.emergencyRed,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

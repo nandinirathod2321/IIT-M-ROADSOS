@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:geolocator/geolocator.dart';
 import '../errors/app_exceptions.dart';
 import '../utils/logger.dart';
@@ -31,14 +31,18 @@ class LocationService {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
+        debugPrint("GPS_PERMISSION_DENIED");
         throw const LocationException('Location permissions are denied.');
       }
     }
 
     if (permission == LocationPermission.deniedForever) {
+      debugPrint("GPS_PERMISSION_DENIED");
       throw const LocationException(
           'Location permissions are permanently denied. Please enable them in device settings.');
     }
+
+    debugPrint("GPS_PERMISSION_GRANTED");
 
     final timeoutSecs = kIsWeb ? 12 : 8;
     AppLogger.info('Location services approved. Fetching coordinates (timeout: $timeoutSecs s)...');

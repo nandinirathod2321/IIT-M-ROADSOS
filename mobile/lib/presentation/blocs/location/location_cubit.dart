@@ -15,6 +15,7 @@ class LocationCubit extends Cubit<LocationState> {
   final LocationService _locationService;
   final CacheService _cacheService;
   StreamSubscription<Position>? _positionSub;
+  bool _explicitlyRequested = false;
 
   LocationCubit({
     LocationService? locationService,
@@ -167,8 +168,23 @@ class LocationCubit extends Cubit<LocationState> {
     ));
   }
 
+  void enableLocationUpdates() {
+    _explicitlyRequested = true;
+    _startLocationStream();
+  }
+
+  void disableLocationUpdates() {
+    _explicitlyRequested = false;
+    _positionSub?.cancel();
+    _positionSub = null;
+  }
+
   /// Subscribes to geolocator location updates for minor movements.
   void _startLocationStream() {
+    if (!_explicitlyRequested) {
+      AppLogger.info('LocationCubit: Skipping GPS stream subscription - not explicitly requested.');
+      return;
+    }
     _positionSub?.cancel();
     _positionSub = _locationService.getLocationStream().listen(
       (pos) {

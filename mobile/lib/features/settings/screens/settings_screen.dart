@@ -80,12 +80,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _aiAssistantOn = settings.aiAssistantEnabled;
     });
 
-    // Keep active sensor daemon synced with settings state
-    if (_crashDetectionOn) {
-      CrashDetector.instance.startListening();
-    } else {
-      CrashDetector.instance.stopListening();
-    }
+    // Keep active sensor daemon synced with settings state (sensors postponed until Driving Mode is active)
+    debugPrint("SENSOR_INIT_SKIPPED_AT_STARTUP");
+    CrashDetector.instance.stopListening();
 
     final double accel = prefs.getDouble('sensitivity_accel') ?? 25.0;
     final double gyro = prefs.getDouble('sensitivity_gyro') ?? 4.0;

@@ -21,6 +21,7 @@ import '../widgets/home_sos_button.dart';
 import '../widgets/quick_services_row.dart';
 import '../widgets/nearest_hospital_card.dart';
 import '../widgets/protection_status_card.dart';
+import '../../crash_detection/crash_detection_provider.dart';
 
 import '../../../core/responders/responder_cubit.dart';
 
@@ -68,6 +69,10 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      debugPrint("HOME_SCREEN_RENDERED");
+      debugPrint("MOBILE_HOME_RENDERED");
+    });
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -249,96 +254,6 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
   Widget build(BuildContext context) {
     return BlocBuilder<HomeBloc, HomeState>(
       builder: (context, state) {
-        // 1. Loading Screen State
-        if (state.isLoading && state.latitude == null) {
-          return const Scaffold(
-            backgroundColor: AppColors.primary,
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: AppColors.emergencyRed),
-                  SizedBox(height: 16),
-                  Text(
-                    "RESOLVING GPS POSITION...",
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textSecondary,
-                      letterSpacing: 1.5,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        // 2. Permission / GPS Error State Screen
-        if (state.hasLocationError) {
-          return Scaffold(
-            backgroundColor: AppColors.primary,
-            body: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.emergencyRed.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.location_off_rounded,
-                        color: AppColors.emergencyRed,
-                        size: 64,
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    Text(
-                      "GPS LOCATION ACCESS REQUIRED",
-                      textAlign: TextAlign.center,
-                      style: AppTypography.displayMedium.copyWith(fontSize: 28),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      state.locationErrorMessage.isNotEmpty
-                          ? state.locationErrorMessage
-                          : "RoadSOS requires real-time GPS coordinates to determine nearest hospitals, police, and towing services during a critical emergency.",
-                      textAlign: TextAlign.center,
-                      style: AppTypography.bodyLarge.copyWith(color: AppColors.textSecondary),
-                    ),
-                    const SizedBox(height: 48),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          context.read<HomeBloc>().add(const HomeStarted());
-                        },
-                        icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                        label: Text(
-                          "RETRY LOCATION ACCESS",
-                          style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 13, letterSpacing: 1.5),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.emergencyRed,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          elevation: 2,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
         return Scaffold(
           backgroundColor: AppColors.primary,
           body: SafeArea(
@@ -431,9 +346,265 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
                       children: [
                         // Location header
                         LocationHeader(
-                          isLoading: state.isLoading,
+                          locationStatus: state.locationStatus,
                           address: state.address,
                           coordinates: state.formattedCoordinates,
+                        ),
+
+                        AnimatedBuilder(
+                          animation: CrashDetectionProvider.instance,
+                          builder: (context, _) {
+                            final provider = CrashDetectionProvider.instance;
+                            return Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: provider.drivingMode
+                                    ? AppColors.emergencyRed.withValues(alpha: 0.08)
+                                    : AppColors.surface,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: provider.drivingMode
+                                      ? AppColors.emergencyRed.withValues(alpha: 0.3)
+                                      : AppColors.borderSubtle,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: provider.drivingMode
+                                              ? AppColors.emergencyRed.withValues(alpha: 0.15)
+                                              : AppColors.surfaceAlt,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          Icons.directions_car_rounded,
+                                          color: provider.drivingMode
+                                              ? AppColors.emergencyRed
+                                              : AppColors.textSecondary,
+                                          size: 24,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              "DRIVING MODE SAFETY",
+                                              style: AppTypography.labelCaps.copyWith(
+                                                color: provider.drivingMode
+                                                    ? AppColors.emergencyRed
+                                                    : AppColors.textPrimary,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12,
+                                                letterSpacing: 0.8,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              provider.drivingMode
+                                                  ? "Monitoring sensors & GPS coordinates in background."
+                                                  : "Tap to arm real-time crash impact sensors.",
+                                              style: AppTypography.bodySmall.copyWith(
+                                                color: AppColors.textSecondary,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Switch(
+                                        value: provider.drivingMode,
+                                        onChanged: (val) {
+                                          provider.toggleDrivingMode(val);
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                val
+                                                    ? "Driving Mode Enabled — Sensors Monitoring Armed"
+                                                    : "Driving Mode Disabled — Sensor Monitoring Stopped",
+                                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                              ),
+                                              backgroundColor: val ? AppColors.safeGreen : AppColors.textSecondary,
+                                              duration: const Duration(seconds: 2),
+                                            ),
+                                          );
+                                        },
+                                        activeThumbColor: AppColors.emergencyRed,
+                                        activeTrackColor: AppColors.emergencyRed.withValues(alpha: 0.2),
+                                      ),
+                                    ],
+                                  ),
+                                  if (provider.drivingMode) ...[
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(vertical: 12.0),
+                                      child: Divider(color: AppColors.borderSubtle, height: 1.5),
+                                    ),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: provider.testingMode
+                                                ? AppColors.emergencyAmber.withValues(alpha: 0.15)
+                                                : AppColors.surfaceAlt,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(
+                                            Icons.bug_report_rounded,
+                                            color: provider.testingMode
+                                                ? AppColors.emergencyAmber
+                                                : AppColors.textSecondary,
+                                            size: 24,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                "TEST SENSITIVITY MODE",
+                                                style: AppTypography.labelCaps.copyWith(
+                                                  color: provider.testingMode
+                                                      ? AppColors.emergencyAmber
+                                                      : AppColors.textPrimary,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                  letterSpacing: 0.8,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                "Lowers thresholds for easy telephone shake testing.",
+                                                style: AppTypography.bodySmall.copyWith(
+                                                  color: AppColors.textSecondary,
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Switch(
+                                          value: provider.testingMode,
+                                          onChanged: (val) {
+                                            provider.toggleTestingMode(val);
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  val
+                                                      ? "Test sensitivity mode enabled: thresholds lowered!"
+                                                      : "Standard safety thresholds armed.",
+                                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                                ),
+                                                backgroundColor: val ? AppColors.emergencyAmber : AppColors.textSecondary,
+                                                duration: const Duration(seconds: 2),
+                                              ),
+                                            );
+                                          },
+                                          activeThumbColor: AppColors.emergencyAmber,
+                                          activeTrackColor: AppColors.emergencyAmber.withValues(alpha: 0.2),
+                                        ),
+                                      ],
+                                    ),
+                                    if (provider.testingMode) ...[
+                                      const SizedBox(height: 16),
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF8FAFC),
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(color: AppColors.borderSubtle),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Text(
+                                                  "LIVE SENSOR DEBUG TELEMETRY",
+                                                  style: AppTypography.labelCaps.copyWith(
+                                                    color: AppColors.textSecondary,
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                Container(
+                                                  width: 8,
+                                                  height: 8,
+                                                  decoration: const BoxDecoration(
+                                                    color: AppColors.safeGreen,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 10),
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Text("Impact Magnitude:", style: AppTypography.bodySmall),
+                                                Text(
+                                                  "${provider.currentAccel.toStringAsFixed(1)} m/s² / 14.0",
+                                                  style: AppTypography.monoMedium.copyWith(
+                                                    color: provider.currentAccel > 14.0
+                                                        ? AppColors.emergencyRed
+                                                        : AppColors.textPrimary,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Text("Gyro Magnitude:", style: AppTypography.bodySmall),
+                                                Text(
+                                                  "${provider.currentGyro.toStringAsFixed(1)} rad/s / 1.8",
+                                                  style: AppTypography.monoMedium.copyWith(
+                                                    color: provider.currentGyro > 1.8
+                                                        ? AppColors.emergencyRed
+                                                        : AppColors.textPrimary,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Text("Crash Probability:", style: AppTypography.bodySmall),
+                                                Text(
+                                                  "${(provider.currentScore * 100).toStringAsFixed(0)}%",
+                                                  style: AppTypography.monoMedium.copyWith(
+                                                    color: provider.currentScore > 0.8
+                                                        ? AppColors.emergencyRed
+                                                        : AppColors.infoBlue,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ],
+                              ),
+                            );
+                          },
                         ),
 
                         if (state.isOffline && state.isFromCache)

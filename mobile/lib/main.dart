@@ -14,7 +14,10 @@ import 'app.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables
+  // Log sensor initialization skipped at startup as required by FIX 2
+  debugPrint("SENSOR_INIT_SKIPPED_AT_STARTUP");
+
+  // Load environment variables (fast)
   try {
     await dotenv.load(fileName: ".env");
     final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
@@ -24,57 +27,108 @@ void main() async {
   }
 
   // Lock device orientation to portrait
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-
-  // Set system navigation overlay styling for premium light mode visuals
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.dark,
-    systemNavigationBarColor: Colors.white,
-    systemNavigationBarIconBrightness: Brightness.dark,
-  ));
-
-  // Initialize SQLite local spatial nodes database
-  await DbInitializer.initialize();
-
-  // Initialize unified Authentication and session manager
-  await AuthService.initialize();
-
-  // Pre-initialize map tile cache store (fire-and-forget)
-  () async {
-    try {
-      await MapCacheService.instance.getCacheStore();
-    } catch (e) {
-      debugPrint('[MapCache] Pre-init failed (non-blocking): $e');
-    }
-  }();
-
-  // Inspect onboarding status
-  final SharedPreferences prefs = await SharedPreferences.getInstance();
-  final bool onboardingDone = prefs.getBool('onboarding_complete') ?? false;
-
-  // Initialize and run background telemetry daemon if enabled
-  final double accelThreshold = prefs.getDouble('accel_threshold') ?? 25.0;
-  final double gyroThreshold = prefs.getDouble('gyro_threshold') ?? 4.0;
-  final bool crashEnabled = prefs.getBool('crash_detection') ?? true;
-
-  if (crashEnabled) {
-    CrashDetector.instance.updateThresholds(
-      accel: accelThreshold,
-      gyro: gyroThreshold,
-    );
-    CrashDetector.instance.startListening();
-    CrashDetector.instance.onCrashDetected = (event) {
-      // Direct global routing context breakout outside the widget lifecycle
-      AppRouter.rootNavigatorKey.currentContext?.go(
-        '/countdown',
-        extra: event,
-      );
-    };
+  try {
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  } catch (e) {
+    debugPrint("SystemChrome error: $e");
   }
 
-  runApp(RoadSOSApp(initialLocation: onboardingDone ? '/' : '/onboarding'));
+  // Set system navigation overlay styling for premium light mode visuals
+  try {
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      systemNavigationBarColor: Colors.white,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    ));
+  } catch (e) {
+    debugPrint("SystemUIOverlayStyle error: $e");
+  }
+
+  // Retrieve SharedPreferences and determine initialLocation immediately (fast and safe)
+  SharedPreferences? prefs;
+  bool onboardingDone = false;
+  bool loggedIn = false;
+  try {
+    prefs = await SharedPreferences.getInstance();
+    onboardingDone = prefs.getBool('onboarding_complete') ?? false;
+  } catch (e) {
+    debugPrint("SharedPreferences initialization error: $e");
+  }
+
+  // Defer heavy database and authentication initialization after the first frame renders
+  Future.microtask(() async {
+    try {
+      // Initialize SQLite local spatial nodes database in background
+      await DbInitializer.initialize();
+      debugPrint("DbInitializer initialized in background.");
+    } catch (e) {
+      debugPrint("DbInitializer error (graceful fallback): $e");
+    }
+
+    try {
+      // Initialize unified Authentication and session manager in background
+      await AuthService.initialize();
+      debugPrint("AuthService initialized in background.");
+    } catch (e) {
+      debugPrint("AuthService error (graceful fallback): $e");
+    }
+
+    // Pre-initialize map tile cache store (fire-and-forget)
+    () async {
+      try {
+        await MapCacheService.instance.getCacheStore();
+      } catch (e) {
+        debugPrint('[MapCache] Pre-init failed (non-blocking): $e');
+      }
+    }();
+
+    // Initialize and run background telemetry daemon if enabled (without starting sensors)
+    try {
+      final SharedPreferences p = prefs ?? await SharedPreferences.getInstance();
+      final double accelThreshold = p.getDouble('accel_threshold') ?? 25.0;
+      final double gyroThreshold = p.getDouble('gyro_threshold') ?? 4.0;
+      final bool crashEnabled = p.getBool('crash_detection') ?? true;
+
+      if (crashEnabled) {
+        CrashDetector.instance.updateThresholds(
+          accel: accelThreshold,
+          gyro: gyroThreshold,
+        );
+        // Do NOT call CrashDetector.instance.startListening() at startup to prevent opening sensor streams
+        CrashDetector.instance.onCrashDetected = (event) {
+          AppRouter.rootNavigatorKey.currentContext?.go(
+            '/countdown',
+            extra: event,
+          );
+        };
+      }
+    } catch (e) {
+      debugPrint("Telemetry initialization error: $e");
+    }
+
+    debugPrint("ANDROID_READY");
+  });
+
+  // Resolve initial location
+  try {
+    loggedIn = AuthService.instance.isLoggedIn;
+  } catch (_) {
+    // If AuthService is not initialized yet, fall back to false
+  }
+
+  final String initialLocation;
+  if (!onboardingDone) {
+    initialLocation = '/onboarding';
+  } else if (loggedIn) {
+    initialLocation = '/';
+  } else {
+    initialLocation = '/login';
+  }
+
+  runApp(RoadSOSApp(initialLocation: initialLocation));
+  debugPrint("APP_INITIALIZED");
 }
