@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🚑 RoadSOS
+# 🚑 Sanjeevani
 
 ### AI-Powered Road Safety & Emergency Response Platform
 
