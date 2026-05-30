@@ -399,7 +399,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
         margin: const EdgeInsets.symmetric(horizontal: 4),
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.emergencyRed : AppColors.surfaceAlt,
+          color: isSelected ? AppColors.primary : AppColors.surfaceSecondary,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -521,7 +521,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
                           child: Container(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: _isListening ? AppColors.emergencyRed : AppColors.surfaceAlt,
+                              color: _isListening ? AppColors.primary : AppColors.surfaceSecondary,
                             ),
                             child: IconButton(
                               icon: Icon(
@@ -546,19 +546,19 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
                           hintText: _isListening ? "Listening..." : "Ask AI First Aid...",
                           hintStyle: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
                           filled: true,
-                          fillColor: AppColors.surfaceAlt,
+                          fillColor: AppColors.surfaceSecondary,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(12),
                             borderSide: const BorderSide(color: AppColors.borderSubtle),
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(12),
                             borderSide: const BorderSide(color: AppColors.borderSubtle),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            borderSide: const BorderSide(color: AppColors.emergencyRed),
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.primary),
                           ),
                         ),
                         onSubmitted: (_) => _handleSendMessage(),
@@ -570,7 +570,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
                     Container(
                       decoration: const BoxDecoration(
                         shape: BoxShape.circle,
-                        color: AppColors.emergencyRed,
+                        color: AppColors.primary,
                       ),
                       child: IconButton(
                         icon: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
@@ -594,7 +594,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
         margin: const EdgeInsets.symmetric(horizontal: 4),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
-          color: AppColors.surfaceAlt,
+          color: AppColors.surfaceSecondary,
           border: Border.all(color: AppColors.borderSubtle),
           borderRadius: BorderRadius.circular(15),
         ),
@@ -619,7 +619,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
         padding: const EdgeInsets.all(14),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
         decoration: BoxDecoration(
-          color: message.isUser ? AppColors.surfaceAlt : AppColors.surface,
+          color: message.isUser ? AppColors.surfaceSecondary : AppColors.surface,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(12),
             topRight: const Radius.circular(12),
@@ -678,7 +678,7 @@ class _FirstAidScreenState extends State<FirstAidScreen> with SingleTickerProvid
               height: 12,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: AppColors.emergencyRed,
+                color: AppColors.primary,
               ),
             ),
             const SizedBox(width: 10),

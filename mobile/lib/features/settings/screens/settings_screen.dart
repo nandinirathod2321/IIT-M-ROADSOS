@@ -194,7 +194,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               backgroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
-                side: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                side: const BorderSide(color: AppColors.borderSubtle, width: 1),
               ),
               title: Row(
                 children: [
@@ -223,7 +223,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       labelText: "API Key",
                       labelStyle: AppTypography.bodySmall.copyWith(color: AppColors.textTertiary),
                       filled: true,
-                      fillColor: const Color(0xFFF0F2F5),
+                      fillColor: AppColors.surfaceSecondary,
                       suffixIcon: IconButton(
                         icon: Icon(
                           obscureText ? Icons.visibility_off : Icons.visibility,
@@ -238,15 +238,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                        borderSide: const BorderSide(color: AppColors.borderSubtle),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                        borderSide: const BorderSide(color: AppColors.borderSubtle),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF1A56DB), width: 2),
+                        borderSide: const BorderSide(color: AppColors.primary, width: 2),
                       ),
                     ),
                   ),
@@ -375,7 +375,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: const BoxDecoration(
           border: Border(
-            bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+            bottom: BorderSide(color: AppColors.borderSubtle, width: 1),
           ),
         ),
         child: Row(
@@ -423,7 +423,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             margin: const EdgeInsets.only(left: 8),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: isSelected ? AppColors.emergency : const Color(0xFFF0F2F5),
+              color: isSelected ? AppColors.primary : AppColors.surfaceSecondary,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
@@ -453,7 +453,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         decoration: const BoxDecoration(
           color: Colors.white,
           border: Border(
-            bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+            bottom: BorderSide(color: AppColors.borderSubtle, width: 1),
           ),
         ),
         child: Row(
@@ -569,7 +569,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       subtitle: "Current: $_sensitivityLabel",
                       trailing: const Icon(
                         Icons.chevron_right,
-                        color: AppColors.textTertiary,
+                        color: AppColors.borderSubtle,
                         size: 20,
                       ),
                       onTap: _showSensitivityPicker,
@@ -682,12 +682,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 height: 14,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: AppColors.emergency,
+                                  color: AppColors.primary,
                                 ),
                               )
                             : Text(
                                 "UPDATE ›",
-                                style: AppTypography.labelCaps.copyWith(color: AppColors.emergency),
+                                style: AppTypography.labelCaps.copyWith(color: AppColors.primary),
                               ),
                       ),
                     ),
@@ -703,7 +703,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       subtitle: "View telemetry of previous SOS activations",
                       trailing: const Icon(
                         Icons.chevron_right_rounded,
-                        color: AppColors.textTertiary,
+                        color: AppColors.borderSubtle,
                         size: 20,
                       ),
                       onTap: () => context.push('/history'),

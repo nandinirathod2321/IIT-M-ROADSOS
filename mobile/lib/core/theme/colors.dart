@@ -1,27 +1,28 @@
 import 'package:flutter/material.dart';
 
-/// Premium light theme color palette for RoadSOS.
-/// Meticulously aligned with the specified visual design system.
+/// Unified light theme color palette for RoadSOS.
+/// All colors flow from these tokens — never hardcode hex values in screens.
 abstract final class AppColors {
-  // ── Color Tokens (Step 2) ───────────────────────────────────────────
-  static const Color scaffoldBg       = Color(0xFFF5F6F8); // warm off-white, NOT pure white
+  // ── Core Color Tokens ─────────────────────────────────────────────
+  static const Color scaffoldBg       = Color(0xFFF8FBFF); // primary background
   static const Color surfacePrimary   = Color(0xFFFFFFFF); // cards, sheets
-  static const Color surfaceSecondary = Color(0xFFF0F2F5); // input fills, inner sections
-  static const Color primary          = Color(0xFF1A56DB); // brand blue
-  static const Color primaryLight     = Color(0xFFEEF3FF); // icon badges, tints
-  static const Color emergency        = Color(0xFFDC2626); // SOS, alerts
-  static const Color emergencyLight   = Color(0xFFFEF2F2); // emergency card bg
-  static const Color textPrimary      = Color(0xFF0F172A); // headings
-  static const Color textSecondary    = Color(0xFF475569); // body — never go lighter for real content
+  static const Color surfaceSecondary = Color(0xFFEEF6FF); // input fills, headers, inner sections
+  static const Color primary          = Color(0xFFA9D3FF); // accent blue
+  static const Color primaryLight     = Color(0xFFEEF6FF); // icon badges, tints
+  static const Color emergency        = Color(0xFFE53935); // SOS, crash alert, blood badge, destructive ONLY
+  static const Color emergencyLight   = Color(0xFFFFF3F3); // emergency card bg
+  static const Color textPrimary      = Color(0xFF1E293B); // headings, primary text
+  static const Color textSecondary    = Color(0xFF64748B); // body text — floor for real content
   static const Color textTertiary     = Color(0xFF94A3B8); // metadata only
-  static const Color borderSubtle     = Color(0xFFE2E8F0); // card borders, dividers
+  static const Color borderSubtle     = Color(0xFFDCE7F5); // card borders, dividers
 
-  // ── Semantic Aliases (Ensuring full compatibility) ──────────────────
+  // ── Semantic Aliases ──────────────────────────────────────────────
   static const Color background = scaffoldBg;
   static const Color surface = surfacePrimary;
   static const Color surfaceLight = surfaceSecondary;
   static const Color surfaceAlt = surfaceSecondary;
-  
+  static const Color accentBlue = primary;
+
   static const Color emergencyRed = emergency;
   static const Color infoBlue = primary;
   static const Color policeBlue = primary;
@@ -30,30 +31,30 @@ abstract final class AppColors {
   static const Color textOnDark = Colors.white;
 
   static const Color border = borderSubtle;
-  static const Color borderStrong = Color(0xFFCBD5E1); // intermediate border
+  static const Color borderStrong = borderSubtle; // unified border
   static const Color divider = borderSubtle;
-  static const Color shadowColor = Color(0x0A000000); // Step 4 shadow color
+  static const Color shadowColor = Color(0x0A000000);
 
   // Legacy compat aliases
   static const Color text = textPrimary;
-  static const Color textOnPrimary = textOnDark;
+  static const Color textOnPrimary = textPrimary; // dark text on light accent
   static const Color textMuted = textTertiary;
   static const Color cardBackground = surfacePrimary;
   static const Color bgPrimary = scaffoldBg;
   static const Color bgSurface = surfacePrimary;
   static const Color bgSurfaceAlt = surfaceSecondary;
   static const Color emergencyAmber = warningAmber;
-  static const Color trustNavy = Color(0xFF0B2A4A);
+  static const Color trustNavy = textPrimary; // legacy alias — no dark navy
   static const Color towingOrange = Color(0xFFF97316);
   static const Color statusActive = safeGreen;
 
-  // ── Gradients ────────────────────────────────────────────────────────
+  // ── Gradients ────────────────────────────────────────────────────
   static const LinearGradient emergencyGlow = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0x33DC2626),
-      Color(0x00DC2626),
+      Color(0x33E53935),
+      Color(0x00E53935),
     ],
   );
 

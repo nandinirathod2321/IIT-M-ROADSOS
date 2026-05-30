@@ -93,7 +93,7 @@ class _CountdownOverlayState extends State<CountdownOverlay>
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.primary.withValues(alpha: 0.95),
+      color: AppColors.scaffoldBg,
       child: SafeArea(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/colors.dart';
 import '../../core/theme/typography.dart';
 
 /// The primary SOS activation button — a large, pulsing red circle
@@ -75,15 +76,15 @@ class _SOSButtonState extends State<SOSButton>
             child: Container(
               width: 160,
               height: 160,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Color(0xFFDC2626), // Solid emergency red
+                color: AppColors.emergency,
                 boxShadow: [
                   BoxShadow(
-                    color: Color(0x66DC2626), // Red glow shadow
+                    color: AppColors.emergency.withValues(alpha: 0.4),
                     blurRadius: 24,
                     spreadRadius: 4,
-                    offset: Offset(0, 8),
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),

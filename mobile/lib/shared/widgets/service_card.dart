@@ -49,9 +49,9 @@ class ServiceCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white, // Always white
-          borderRadius: BorderRadius.circular(14), // Step 4: 14px radius
-          border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0), // Step 4: border
+          color: AppColors.surfacePrimary,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.borderSubtle, width: 1.0),
           boxShadow: const [
             BoxShadow(color: Color(0x0A000000), blurRadius: 4, offset: Offset(0, 1)),
             BoxShadow(color: Color(0x06000000), blurRadius: 2, offset: Offset(0, 1)),
@@ -66,8 +66,8 @@ class ServiceCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: accentColor,
                   borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(14),
-                    bottomLeft: Radius.circular(14),
+                    topLeft: Radius.circular(12),
+                    bottomLeft: Radius.circular(12),
                   ),
                 ),
               ),
@@ -80,8 +80,8 @@ class ServiceCard extends StatelessWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
-                    borderRadius: BorderRadius.circular(14),
+                    color: AppColors.surfaceSecondary,
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(icon, color: accentColor, size: 22),
                 ),

@@ -61,9 +61,9 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white, // Always white
-          borderRadius: BorderRadius.circular(14), // Step 4: 14px radius
-          border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0), // Step 4: border
+          color: AppColors.surfacePrimary,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.borderSubtle, width: 1.0),
           boxShadow: const [
             BoxShadow(color: Color(0x0A000000), blurRadius: 4, offset: Offset(0, 1)),
             BoxShadow(color: Color(0x06000000), blurRadius: 2, offset: Offset(0, 1)),
@@ -113,13 +113,13 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
                     activeThumbColor: Colors.white,
                     activeTrackColor: AppColors.safeGreen,
                     inactiveThumbColor: AppColors.textTertiary,
-                    inactiveTrackColor: const Color(0xFFF0F2F5),
+                    inactiveTrackColor: AppColors.surfaceSecondary,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+            const Divider(height: 1, color: AppColors.borderSubtle),
             const SizedBox(height: 12),
 
             // Mesh SOS row
@@ -185,7 +185,7 @@ class _ProtectionStatusCardState extends State<ProtectionStatusCard>
               ],
             ),
             const SizedBox(height: 12),
-            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+            const Divider(height: 1, color: AppColors.borderSubtle),
             const SizedBox(height: 12),
 
             // Last DB Sync row

@@ -224,7 +224,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                     if (context.mounted) Navigator.pop(context);
                     _loadContacts();
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.emergencyRed),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
                   child: Text(isEditing ? "SAVE" : "ADD",
                       style: AppTypography.labelCaps.copyWith(color: Colors.white)),
                 ),
@@ -274,16 +274,16 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
         labelStyle: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
         prefixIcon: Icon(icon, color: AppColors.textMuted, size: 18),
         filled: true,
-        fillColor: AppColors.surfaceAlt,
+        fillColor: AppColors.surfaceSecondary,
         border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: AppColors.borderSubtle)),
         enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: AppColors.borderSubtle)),
         focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: const BorderSide(color: AppColors.emergencyRed)),
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.primary)),
       );
 
   String _avatarFor(String rel) {
@@ -401,7 +401,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
           floatingActionButton: _selectedTab == 4
               ? FloatingActionButton(
                   onPressed: () => _showContactFormDialog(),
-                  backgroundColor: AppColors.emergencyRed,
+                  backgroundColor: AppColors.primary,
                   child: const Icon(Icons.add_rounded, color: Colors.white),
                 )
               : null,
@@ -423,7 +423,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(color: AppColors.emergencyRed),
+              CircularProgressIndicator(color: AppColors.primary),
               SizedBox(height: 16),
               Text("RESOLVING GPS...",
                   style: TextStyle(
@@ -594,7 +594,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
 
   Widget _buildContactsTab() {
     if (_contactsLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.emergencyRed));
+      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
     }
     if (_contacts.isEmpty) {
       return ResponderErrorWidget(
@@ -620,7 +620,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
             children: [
               CircleAvatar(
                 radius: 24,
-                backgroundColor: AppColors.surfaceAlt,
+                backgroundColor: AppColors.surfaceSecondary,
                 child: Text(c.avatarEmoji, style: const TextStyle(fontSize: 22)),
               ),
               const SizedBox(width: 16),
@@ -704,10 +704,10 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
         margin: const EdgeInsets.symmetric(horizontal: 6),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.emergencyRed : AppColors.surfaceAlt,
+          color: isSelected ? AppColors.primary : AppColors.surfaceSecondary,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? AppColors.emergencyRed : AppColors.borderSubtle,
+            color: isSelected ? AppColors.primary : AppColors.borderSubtle,
           ),
         ),
         child: Row(

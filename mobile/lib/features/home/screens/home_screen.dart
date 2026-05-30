@@ -255,7 +255,7 @@ class _HomeViewState extends State<_HomeView> with SingleTickerProviderStateMixi
     return BlocBuilder<HomeBloc, HomeState>(
       builder: (context, state) {
         return Scaffold(
-          backgroundColor: AppColors.primary,
+          backgroundColor: AppColors.scaffoldBg,
           body: SafeArea(
             child: Column(
               children: [

@@ -123,7 +123,7 @@ class _HomeSosButtonState extends State<HomeSosButton>
                         child: CircularProgressIndicator(
                           value: 1.0,
                           strokeWidth: 3,
-                          color: Color(0xFFDC2626),
+                          color: AppColors.emergency,
                           backgroundColor: Colors.transparent,
                         ),
                       ),
@@ -134,7 +134,7 @@ class _HomeSosButtonState extends State<HomeSosButton>
                         child: CircularProgressIndicator(
                           value: _holdProgress,
                           strokeWidth: 3,
-                          color: Color(0xFF1A56DB),
+                          color: AppColors.primary,
                           backgroundColor: Colors.transparent,
                         ),
                       ),
@@ -144,12 +144,12 @@ class _HomeSosButtonState extends State<HomeSosButton>
                       child: Container(
                         width: 160,
                         height: 160,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Color(0xFFDC2626),
+                          color: AppColors.emergency,
                           boxShadow: [
                             BoxShadow(
-                              color: Color(0x66DC2626),
+                              color: AppColors.emergency.withValues(alpha: 0.4),
                               blurRadius: 24,
                               spreadRadius: 4,
                               offset: Offset(0, 8),

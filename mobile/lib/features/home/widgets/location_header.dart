@@ -102,8 +102,8 @@ class LocationHeader extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                    color: const Color(0xFFF0F2F5),
+                    border: Border.all(color: AppColors.borderSubtle),
+                    color: AppColors.surfaceSecondary,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -135,13 +135,13 @@ class LocationHeader extends StatelessWidget {
             const SizedBox(height: 12),
             if (locationStatus == HomeLocationStatus.loading && address == 'Locating...')
               Shimmer.fromColors(
-                baseColor: const Color(0xFFF0F2F5),
+                baseColor: AppColors.surfaceSecondary,
                 highlightColor: Colors.white,
                 child: Container(
                   height: 28,
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF0F2F5),
+                    color: AppColors.surfaceSecondary,
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
@@ -156,13 +156,13 @@ class LocationHeader extends StatelessWidget {
             const SizedBox(height: 8),
             if (locationStatus == HomeLocationStatus.loading && coordinates == '-- --')
               Shimmer.fromColors(
-                baseColor: const Color(0xFFF0F2F5),
+                baseColor: AppColors.surfaceSecondary,
                 highlightColor: Colors.white,
                 child: Container(
                   height: 14,
                   width: 200,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF0F2F5),
+                    color: AppColors.surfaceSecondary,
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),

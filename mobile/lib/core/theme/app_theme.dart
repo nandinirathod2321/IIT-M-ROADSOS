@@ -4,10 +4,10 @@ import 'colors.dart';
 import 'typography.dart';
 
 /// Builds the premium [ThemeData] for RoadSOS.
-/// Single professional light theme with Apple-level polish.
+/// Single professional light theme with unified design language.
 abstract final class AppTheme {
   /// Premium light theme - the only theme for the app.
-  /// Clean white backgrounds, strong contrast, professional design.
+  /// #F8FBFF backgrounds, white cards, #A9D3FF accent blue, #DCE7F5 borders.
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
@@ -16,46 +16,46 @@ abstract final class AppTheme {
       // ── Colour scheme ────────────────────────────────────────────────
       colorScheme: const ColorScheme.light(
         primary: AppColors.primary,
-        secondary: AppColors.infoBlue,
+        secondary: AppColors.primary,
         surface: AppColors.surfacePrimary,
         error: AppColors.emergency,
-        onPrimary: Colors.white,
-        onSecondary: Colors.white,
+        onPrimary: AppColors.textPrimary, // dark text on light accent
+        onSecondary: AppColors.textPrimary,
         onSurface: AppColors.textPrimary,
         onError: Colors.white,
       ),
 
       scaffoldBackgroundColor: AppColors.scaffoldBg,
 
-      // ── AppBar (Step 7: white bg, 0 elevation, 1px E2E8F0 bottom border, left-aligned title, textPrimary color) ──
+      // ── AppBar (white bg, 0 elevation, 1px DCE7F5 bottom border) ──
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
         shape: const Border(
-          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1.0),
+          bottom: BorderSide(color: AppColors.borderSubtle, width: 1.0),
         ),
         titleTextStyle: AppTypography.headline.copyWith(color: AppColors.textPrimary),
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
         surfaceTintColor: Colors.transparent,
       ),
 
-      // ── Cards (Step 4: white + border + shadow + 14px radius) ────────
+      // ── Cards (white + border + shadow + 12px radius) ────────────
       cardTheme: CardThemeData(
         color: Colors.white,
-        elevation: 0, // Shadows handled explicitly by decoration/shadow or custom card
+        elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.0),
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppColors.borderSubtle, width: 1.0),
         ),
       ),
 
-      // ── Bottom Navigation (Step 7: white bg, 1px E2E8F0 top border, elevation 8, selected indicator E8EFFE, selected 1A56DB) ──
+      // ── Bottom Navigation (white bg, accent blue active, grey inactive, NO colored tab) ──
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: Colors.white,
-        selectedItemColor: Color(0xFF1A56DB),
+        selectedItemColor: AppColors.primary,
         unselectedItemColor: AppColors.textTertiary,
         type: BottomNavigationBarType.fixed,
         elevation: 8,
@@ -64,11 +64,11 @@ abstract final class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: Colors.white,
         elevation: 8,
-        indicatorColor: const Color(0xFFE8EFFE),
+        indicatorColor: Colors.transparent, // no colored active tab
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return AppTypography.labelCaps.copyWith(
-              color: const Color(0xFF1A56DB),
+              color: AppColors.primary,
               fontSize: 13,
               fontWeight: FontWeight.w600,
             );
@@ -81,40 +81,40 @@ abstract final class AppTheme {
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: Color(0xFF1A56DB), size: 24);
+            return const IconThemeData(color: AppColors.primary, size: 24);
           }
           return const IconThemeData(color: AppColors.textTertiary, size: 24);
         }),
       ),
 
-      // ── Elevated Button (Step 5: 52px height, 12px radius, 1A56DB fill, white w600 label) ──
+      // ── Elevated Button (48px height, 12px radius, accent blue fill, dark text) ──
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF1A56DB),
-          foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(52),
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.textPrimary,
+          minimumSize: const Size.fromHeight(48),
           elevation: 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: AppTypography.labelCaps.copyWith(
             fontWeight: FontWeight.w600,
             fontSize: 13,
-            color: Colors.white,
+            color: AppColors.textPrimary,
           ),
         ),
       ),
 
-      // ── Outlined Button (Step 5: same size, white fill, 1.5px blue border) ──
+      // ── Outlined Button (same size, white fill, accent blue border) ──
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFF1A56DB),
+          foregroundColor: AppColors.primary,
           backgroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(52),
-          side: const BorderSide(color: Color(0xFF1A56DB), width: 1.5),
+          minimumSize: const Size.fromHeight(48),
+          side: const BorderSide(color: AppColors.primary, width: 1.5),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: AppTypography.labelCaps.copyWith(
             fontWeight: FontWeight.w600,
             fontSize: 13,
-            color: const Color(0xFF1A56DB),
+            color: AppColors.primary,
           ),
         ),
       ),
@@ -122,7 +122,7 @@ abstract final class AppTheme {
       // ── Text Button ──────────────────────────────────────────────────
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: const Color(0xFF1A56DB),
+          foregroundColor: AppColors.primary,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: AppTypography.labelCaps.copyWith(
             fontWeight: FontWeight.w600,
@@ -131,21 +131,21 @@ abstract final class AppTheme {
         ),
       ),
 
-      // ── Input Decoration (Step 8: F0F2F5 fill, 1px CBD5E1 border, 2px blue border focus) ──
+      // ── Input Decoration (EEF6FF fill, DCE7F5 border, A9D3FF focus border, 48px height) ──
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFFF0F2F5),
+        fillColor: AppColors.surfaceSecondary,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFCBD5E1), width: 1.0),
+          borderSide: const BorderSide(color: AppColors.borderSubtle, width: 1.0),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFCBD5E1), width: 1.0),
+          borderSide: const BorderSide(color: AppColors.borderSubtle, width: 1.0),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF1A56DB), width: 2.0),
+          borderSide: const BorderSide(color: AppColors.primary, width: 2.0),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -189,8 +189,8 @@ abstract final class AppTheme {
         backgroundColor: Colors.white,
         elevation: 8,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.0),
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppColors.borderSubtle, width: 1.0),
         ),
       ),
     );

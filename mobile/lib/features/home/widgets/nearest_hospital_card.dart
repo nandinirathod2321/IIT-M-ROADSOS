@@ -38,7 +38,7 @@ class NearestHospitalCard extends StatelessWidget {
               height: 44,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(14),
-                color: AppColors.primaryLight,
+                color: AppColors.surfaceSecondary,
                 border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
               ),
               child: const Icon(Icons.emergency_rounded, color: AppColors.emergency),
@@ -108,8 +108,8 @@ class NearestHospitalCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        color: const Color(0xFFF0F2F5),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: AppColors.surfaceSecondary,
+        border: Border.all(color: AppColors.borderSubtle),
       ),
       child: Text(
         label,
@@ -126,9 +126,9 @@ class NearestHospitalCard extends StatelessWidget {
       height: 24,
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F2F5),
+        color: AppColors.surfaceSecondary,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: AppColors.borderSubtle),
       ),
       child: Center(
         child: Text(

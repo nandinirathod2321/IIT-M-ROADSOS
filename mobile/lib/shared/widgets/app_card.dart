@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/colors.dart';
+
 /// Premium surface card with standard light-theme styling.
-/// Aligned with Step 4 guidelines: white fill, border, shadow, and 14px radius.
+/// White fill, #DCE7F5 border, subtle shadow, and 12px radius.
 class AppCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -21,9 +23,9 @@ class AppCard extends StatelessWidget {
     final card = Container(
       margin: margin,
       decoration: BoxDecoration(
-        color: Colors.white, // Always white
-        borderRadius: BorderRadius.circular(14), // Consistent 14px
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0), // Consistent border
+        color: AppColors.surfacePrimary,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderSubtle, width: 1.0),
         boxShadow: const [
           BoxShadow(color: Color(0x0A000000), blurRadius: 4, offset: Offset(0, 1)),
           BoxShadow(color: Color(0x06000000), blurRadius: 2, offset: Offset(0, 1)),

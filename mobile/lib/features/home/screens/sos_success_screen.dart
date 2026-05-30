@@ -98,7 +98,7 @@ class SosSuccessScreen extends StatelessWidget {
     return PopScope(
       canPop: false, // Do not allow back navigation
       child: Scaffold(
-        backgroundColor: AppColors.primary,
+        backgroundColor: AppColors.scaffoldBg,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -163,10 +163,10 @@ class SosSuccessScreen extends StatelessWidget {
                               fallbackWidget: !callPermissionGranted
                                   ? TextButton.icon(
                                       onPressed: () => launchHospitalNavigation(null, null), // calls tel:108
-                                      icon: const Icon(Icons.phone, size: 14, color: AppColors.emergencyRed),
+                                      icon: const Icon(Icons.phone, size: 14, color: AppColors.emergency),
                                       label: Text(
                                         "Tap to call 108",
-                                        style: AppTypography.bodySmall.copyWith(color: AppColors.emergencyRed, fontWeight: FontWeight.bold),
+                                        style: AppTypography.bodySmall.copyWith(color: AppColors.emergency, fontWeight: FontWeight.bold),
                                       ),
                                     )
                                   : null,
@@ -209,7 +209,7 @@ class SosSuccessScreen extends StatelessWidget {
                             children: [
                               Row(
                                 children: [
-                                  const Icon(Icons.local_hospital, color: AppColors.emergencyRed, size: 20),
+                                  const Icon(Icons.local_hospital, color: AppColors.emergency, size: 20),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
@@ -292,8 +292,8 @@ class SosSuccessScreen extends StatelessWidget {
                             style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.5),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.emergencyRed,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            backgroundColor: AppColors.emergency,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             elevation: 4,
                           ),
                         ),
@@ -314,8 +314,8 @@ class SosSuccessScreen extends StatelessWidget {
                             style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 13, letterSpacing: 1.5),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: callPermissionGranted ? AppColors.emergencyRed : AppColors.surfaceAlt,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            backgroundColor: callPermissionGranted ? AppColors.emergency : AppColors.surfaceAlt,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
                       ),
@@ -338,9 +338,9 @@ class SosSuccessScreen extends StatelessWidget {
                           ),
                         ),
                         style: OutlinedButton.styleFrom(
-                          backgroundColor: isFallback ? AppColors.emergencyRed : Colors.transparent,
+                          backgroundColor: isFallback ? AppColors.emergency : Colors.transparent,
                           side: BorderSide(color: isFallback ? Colors.transparent : AppColors.borderSubtle, width: 1.5),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
                     ),
@@ -404,8 +404,8 @@ class SosSuccessScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
+        color: AppColors.surfaceSecondary,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.borderSubtle),
       ),
       child: Row(

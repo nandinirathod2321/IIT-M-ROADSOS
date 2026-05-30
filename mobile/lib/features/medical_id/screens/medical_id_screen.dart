@@ -165,7 +165,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Failed to save profile: ${e.toString()}"),
-            backgroundColor: AppColors.emergencyRed,
+            backgroundColor: AppColors.emergency,
           ),
         );
       }
@@ -194,7 +194,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
       return const Scaffold(
         backgroundColor: AppColors.scaffoldBg,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.emergencyRed),
+          child: CircularProgressIndicator(color: AppColors.primary),
         ),
       );
     }
@@ -208,7 +208,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error_outline_rounded, color: AppColors.emergencyRed, size: 48),
+                const Icon(Icons.error_outline_rounded, color: AppColors.primary, size: 48),
                 const SizedBox(height: 16),
                 Text(
                   _errorMsg,
@@ -285,19 +285,19 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: AppColors.emergencyRed.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppColors.emergencyRed.withValues(alpha: 0.3)),
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
-                const Icon(Icons.medical_services_rounded, color: AppColors.emergencyRed),
+                const Icon(Icons.medical_services_rounded, color: AppColors.primary),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                      "FIRST-RESPONDER MEDICAL DATA",
                     style: AppTypography.labelCaps.copyWith(
-                      color: AppColors.emergencyRed,
+                      color: AppColors.primary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -326,7 +326,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
                       width: 54,
                       height: 54,
                       decoration: const BoxDecoration(
-                        color: AppColors.surfaceAlt,
+                        color: AppColors.surfaceSecondary,
                         shape: BoxShape.circle,
                       ),
                       child: const Center(
@@ -389,7 +389,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
                       child: _buildBadgeCell(
                         "BLOOD GROUP",
                         profile.bloodGroup,
-                        AppColors.emergencyRed,
+                        AppColors.emergency,
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -408,7 +408,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
                 _buildInfoSection(
                   "ALLERGIES",
                   profile.allergies.isNotEmpty ? profile.allergies.join(", ") : "No Known Allergies",
-                  profile.allergies.isNotEmpty ? AppColors.emergencyRed : AppColors.textSecondary,
+                  profile.allergies.isNotEmpty ? AppColors.primary : AppColors.textSecondary,
                 ),
                 const SizedBox(height: 16),
 
@@ -459,7 +459,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: AppColors.borderSubtle),
                   ),
                   child: QrImageView(
@@ -495,7 +495,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.borderSubtle),
       ),
       child: Column(
@@ -657,8 +657,8 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
               child: ElevatedButton(
                 onPressed: _saveProfile,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.emergencyRed,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  backgroundColor: AppColors.primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: Text(
                   "SAVE CHANGES",
@@ -695,16 +695,16 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
         filled: true,
         fillColor: AppColors.surface,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.borderSubtle),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.borderSubtle),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: AppColors.emergencyRed),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primary),
         ),
       ),
     );
@@ -715,7 +715,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.borderSubtle),
       ),
       child: DropdownButtonHideUnderline(
@@ -726,7 +726,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
           decoration: InputDecoration(
             labelText: "Blood Group",
             labelStyle: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-            prefixIcon: const Icon(Icons.water_drop_rounded, color: AppColors.emergencyRed, size: 18),
+            prefixIcon: const Icon(Icons.water_drop_rounded, color: AppColors.emergency, size: 18),
             border: InputBorder.none,
           ),
           items: _bloodGroupsList
@@ -750,7 +750,7 @@ class _MedicalIdScreenState extends State<MedicalIdScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.borderSubtle),
       ),
       child: DropdownButtonHideUnderline(

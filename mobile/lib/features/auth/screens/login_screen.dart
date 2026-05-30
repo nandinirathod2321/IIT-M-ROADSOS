@@ -110,9 +110,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Form inside a white card with shadowLg and 20px radius
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+                    color: AppColors.surfacePrimary,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.borderSubtle, width: 1.0),
                     boxShadow: const [
                       BoxShadow(
                         color: Color(0x1F000000),
@@ -221,7 +221,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         // Action Submit Button
                         SizedBox(
-                          height: 52,
+                          height: 48,
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _handleLogin,
                             style: ElevatedButton.styleFrom(
@@ -232,12 +232,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ? const SizedBox(
                                     width: 24,
                                     height: 24,
-                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                    child: CircularProgressIndicator(color: AppColors.textPrimary, strokeWidth: 2),
                                   )
                                 : Text(
                                     "LOGIN",
                                     style: AppTypography.labelCaps.copyWith(
-                                      color: Colors.white,
+                                      color: AppColors.textPrimary,
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -282,23 +282,23 @@ class _LoginScreenState extends State<LoginScreen> {
   InputDecoration _inputDecoration(String label, IconData icon, {Widget? suffixIcon}) {
     return InputDecoration(
       labelText: label,
-      labelStyle: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+      labelStyle: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
       prefixIcon: Icon(icon, color: AppColors.textTertiary, size: 18),
       suffixIcon: suffixIcon,
       filled: true,
-      fillColor: const Color(0xFFF0F2F5),
+      fillColor: AppColors.surfaceSecondary,
       hintStyle: AppTypography.bodyMedium.copyWith(color: AppColors.textTertiary),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFCBD5E1), width: 1.0),
+        borderSide: const BorderSide(color: AppColors.borderSubtle, width: 1.0),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFCBD5E1), width: 1.0),
+        borderSide: const BorderSide(color: AppColors.borderSubtle, width: 1.0),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF1A56DB), width: 2.0),
+        borderSide: const BorderSide(color: AppColors.primary, width: 2.0),
       ),
     );
   }

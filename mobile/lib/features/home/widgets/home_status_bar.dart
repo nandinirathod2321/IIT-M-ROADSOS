@@ -94,8 +94,8 @@ class _HomeStatusBarState extends State<HomeStatusBar>
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                color: const Color(0xFFF0F2F5),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                color: AppColors.surfaceSecondary,
+                border: Border.all(color: AppColors.borderSubtle),
               ),
               child: Text(
                 widget.coordinates,

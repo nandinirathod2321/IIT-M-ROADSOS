@@ -63,7 +63,7 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.emergencyRed),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.emergency),
             child: Text(
               "CLEAR",
               style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 11),
@@ -105,7 +105,7 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
 
   Widget _buildTriggerBadge(String trigger) {
     String label = trigger.toUpperCase();
-    Color bg = AppColors.surfaceAlt;
+    Color bg = AppColors.surfaceSecondary;
     Color text = AppColors.textPrimary;
 
     if (trigger.toLowerCase() == 'voice') {
@@ -118,8 +118,8 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
       text = AppColors.emergencyAmber;
     } else if (trigger.toLowerCase() == 'manual') {
       label = "MANUAL SOS";
-      bg = AppColors.emergencyRed.withValues(alpha: 0.15);
-      text = AppColors.emergencyRed;
+      bg = AppColors.emergency.withValues(alpha: 0.15);
+      text = AppColors.emergency;
     }
 
     return Container(
@@ -141,15 +141,15 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: isResolved ? AppColors.safeGreen.withValues(alpha: 0.12) : AppColors.emergencyRed.withValues(alpha: 0.12),
+        color: isResolved ? AppColors.safeGreen.withValues(alpha: 0.12) : AppColors.emergency.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: isResolved ? AppColors.safeGreen.withValues(alpha: 0.3) : AppColors.emergencyRed.withValues(alpha: 0.3)),
+        border: Border.all(color: isResolved ? AppColors.safeGreen.withValues(alpha: 0.3) : AppColors.emergency.withValues(alpha: 0.3)),
       ),
       child: Text(
         status.toUpperCase(),
         style: AppTypography.labelCaps.copyWith(
           fontSize: 8.5,
-          color: isResolved ? AppColors.safeGreen : AppColors.emergencyRed,
+          color: isResolved ? AppColors.safeGreen : AppColors.emergency,
           fontWeight: FontWeight.bold,
         ),
       ),
@@ -174,14 +174,14 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
         actions: [
           if (_events.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.delete_sweep_rounded, color: AppColors.emergencyRed),
+              icon: const Icon(Icons.delete_sweep_rounded, color: AppColors.emergency),
               onPressed: _clearHistory,
               tooltip: "Clear History",
             ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.emergencyRed))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.emergency))
           : _events.isEmpty
               ? Center(
                   child: Padding(
@@ -193,7 +193,7 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.surfaceAlt,
+                            color: AppColors.surfaceSecondary,
                             border: Border.all(color: AppColors.borderSubtle, width: 1.5),
                           ),
                           child: Icon(Icons.history_toggle_off_rounded, color: AppColors.textMuted.withValues(alpha: 0.5), size: 48),
@@ -230,7 +230,7 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: AppColors.borderSubtle),
                       ),
                       child: Column(

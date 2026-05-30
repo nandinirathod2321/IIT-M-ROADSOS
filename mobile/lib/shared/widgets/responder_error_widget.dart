@@ -68,20 +68,21 @@ class ResponderErrorWidget extends StatelessWidget {
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: onRetry,
-                icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 16),
+                icon: const Icon(Icons.refresh_rounded, color: AppColors.textPrimary, size: 16),
                 label: Text(
                   retryLabel ?? 'RETRY',
                   style: AppTypography.labelCaps.copyWith(
-                    color: Colors.white,
-                    fontSize: 11,
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
                     letterSpacing: 1.2,
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.emergencyRed,
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.textPrimary,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
                 ),
               ),
             ],

@@ -113,9 +113,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 // Form inside a white card with shadowLg and 20px radius
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+                    color: AppColors.surfacePrimary,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.borderSubtle, width: 1.0),
                     boxShadow: const [
                       BoxShadow(
                         color: Color(0x1F000000),
@@ -263,22 +263,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   InputDecoration _inputDecoration(String label, IconData icon) {
     return InputDecoration(
       labelText: label,
-      labelStyle: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+      labelStyle: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
       prefixIcon: Icon(icon, color: AppColors.textTertiary, size: 18),
       filled: true,
-      fillColor: const Color(0xFFF0F2F5),
+      fillColor: AppColors.surfaceSecondary,
       hintStyle: AppTypography.bodyMedium.copyWith(color: AppColors.textTertiary),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFCBD5E1), width: 1.0),
+        borderSide: const BorderSide(color: AppColors.borderSubtle, width: 1.0),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFCBD5E1), width: 1.0),
+        borderSide: const BorderSide(color: AppColors.borderSubtle, width: 1.0),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF1A56DB), width: 2.0),
+        borderSide: const BorderSide(color: AppColors.primary, width: 2.0),
       ),
     );
   }

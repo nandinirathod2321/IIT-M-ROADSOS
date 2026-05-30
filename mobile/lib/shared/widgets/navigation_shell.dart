@@ -62,9 +62,9 @@ class NavigationShell extends StatelessWidget {
           child: Container(
             height: 72,
             decoration: BoxDecoration(
-              color: Colors.white, // Always white
+              color: Colors.white,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+              border: Border.all(color: AppColors.borderSubtle, width: 1.0),
               boxShadow: const [
                 BoxShadow(
                   color: Color(0x0A000000),
@@ -92,10 +92,8 @@ class NavigationShell extends StatelessWidget {
                           margin: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(16),
-                            color: isActive ? AppColors.primaryLight : Colors.transparent,
-                            border: Border.all(
-                              color: isActive ? AppColors.primary.withValues(alpha: 0.1) : Colors.transparent,
-                            ),
+                            // No colored active tab background
+                            color: Colors.transparent,
                           ),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -103,14 +101,15 @@ class NavigationShell extends StatelessWidget {
                               Icon(
                                 isActive ? tab.activeIcon : tab.icon,
                                 size: 24,
+                                // Accent blue active, grey inactive
                                 color: isActive ? AppColors.primary : AppColors.textTertiary,
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 tab.tooltip.toUpperCase(),
                                 style: AppTypography.labelCaps.copyWith(
-                                  fontSize: 13, // Minimum 13px
-                                  color: isActive ? AppColors.textPrimary : AppColors.textTertiary,
+                                  fontSize: 13,
+                                  color: isActive ? AppColors.primary : AppColors.textTertiary,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,

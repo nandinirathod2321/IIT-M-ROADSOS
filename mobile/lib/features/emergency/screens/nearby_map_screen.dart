@@ -214,11 +214,11 @@ class _NearbyMapViewState extends State<NearbyMapView> {
                             .copyWith(color: Colors.white, fontSize: 11),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.infoBlue,
+                        backgroundColor: AppColors.primary,
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
@@ -239,7 +239,7 @@ class _NearbyMapViewState extends State<NearbyMapView> {
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
@@ -274,17 +274,17 @@ class _NearbyMapViewState extends State<NearbyMapView> {
               lat: h.lat,
               lng: h.lng,
               distanceKm: h.distanceKm,
-              accentColor: AppColors.emergencyRed,
+              accentColor: AppColors.emergency,
               icon: Icons.local_hospital_rounded,
             ),
             child: Container(
               decoration: BoxDecoration(
-                color: AppColors.emergencyRed,
+                color: AppColors.emergency,
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 2),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.emergencyRed.withValues(alpha: 0.4),
+                    color: AppColors.emergency.withValues(alpha: 0.4),
                     blurRadius: 6,
                     spreadRadius: 1,
                   ),
@@ -360,11 +360,11 @@ class _NearbyMapViewState extends State<NearbyMapView> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.emergencyRed.withValues(alpha: 0.1),
+                color: AppColors.emergency.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.location_off_rounded,
-                  color: AppColors.emergencyRed, size: 40),
+                  color: AppColors.emergency, size: 40),
             ),
             const SizedBox(height: 16),
             Text(
@@ -398,7 +398,7 @@ class _NearbyMapViewState extends State<NearbyMapView> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(color: AppColors.emergencyRed),
+                CircularProgressIndicator(color: AppColors.primary),
                 SizedBox(height: 16),
                 Text(
                   "INITIALIZING MAP CACHE...",
@@ -476,10 +476,10 @@ class _NearbyMapViewState extends State<NearbyMapView> {
                           color: Colors.white,
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: AppColors.emergencyRed, width: 3),
+                              color: AppColors.primary, width: 3),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.emergencyRed.withValues(alpha: 0.3),
+                              color: AppColors.primary.withValues(alpha: 0.3),
                               blurRadius: 8,
                               spreadRadius: 2,
                             ),
@@ -487,7 +487,7 @@ class _NearbyMapViewState extends State<NearbyMapView> {
                         ),
                         child: const Center(
                           child: Icon(Icons.person_pin,
-                              color: AppColors.emergencyRed, size: 14),
+                              color: AppColors.primary, size: 14),
                         ),
                       ),
                     ),
@@ -537,7 +537,7 @@ class _NearbyMapViewState extends State<NearbyMapView> {
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: AppColors.surface.withValues(alpha: 0.92),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                   border:
                       Border.all(color: AppColors.borderSubtle, width: 1),
                   boxShadow: [
@@ -551,7 +551,7 @@ class _NearbyMapViewState extends State<NearbyMapView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _legendItem(AppColors.emergencyRed,
+                    _legendItem(AppColors.emergency,
                         "Hospitals (${responderState.hospitals.length})"),
                     const SizedBox(height: 4),
                     _legendItem(AppColors.policeBlue,
@@ -575,7 +575,7 @@ class _NearbyMapViewState extends State<NearbyMapView> {
                   );
                 },
                 child: const Icon(Icons.my_location_rounded,
-                    color: AppColors.emergencyRed, size: 20),
+                    color: AppColors.primary, size: 20),
               ),
             ),
           ],

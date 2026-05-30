@@ -171,7 +171,7 @@ class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProv
     return PopScope(
       canPop: false, // Prevent back navigation
       child: Scaffold(
-        backgroundColor: AppColors.primary,
+        backgroundColor: AppColors.scaffoldBg,
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),

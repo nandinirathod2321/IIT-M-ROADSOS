@@ -18,7 +18,8 @@ class ErrorRetryWidget extends StatelessWidget {
       width: double.infinity,
       decoration: BoxDecoration(
         color: AppColors.surface,
-        border: Border.all(color: AppColors.emergencyRed, width: 1),
+        border: Border.all(color: AppColors.borderSubtle, width: 1),
+        borderRadius: BorderRadius.circular(12),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       child: Column(
@@ -28,7 +29,7 @@ class ErrorRetryWidget extends StatelessWidget {
           // Icon indicator
           const Icon(
             Icons.error_outline_rounded,
-            color: AppColors.emergencyRed,
+            color: AppColors.primary,
             size: 32,
           ),
           const SizedBox(height: 12),
@@ -36,7 +37,7 @@ class ErrorRetryWidget extends StatelessWidget {
           Text(
             'ALERT SYSTEM WARNING',
             style: AppTypography.labelCaps.copyWith(
-              color: AppColors.emergencyRed,
+              color: AppColors.primary,
               fontWeight: FontWeight.bold,
               fontSize: 12,
               letterSpacing: 1.5,
@@ -57,23 +58,24 @@ class ErrorRetryWidget extends StatelessWidget {
           ElevatedButton(
             onPressed: onRetry,
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.emergencyRed,
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.textPrimary,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
               elevation: 0,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.refresh_rounded, color: Colors.white, size: 16),
+                const Icon(Icons.refresh_rounded, color: AppColors.textPrimary, size: 16),
                 const SizedBox(width: 6),
                 Text(
                   'RETRY FETCH',
                   style: AppTypography.labelCaps.copyWith(
-                    color: Colors.white,
-                    fontSize: 11,
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.0,
                   ),

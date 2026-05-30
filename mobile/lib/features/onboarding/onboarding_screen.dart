@@ -113,7 +113,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         height: 8.0,
                         margin: const EdgeInsets.symmetric(horizontal: 4.0),
                         decoration: BoxDecoration(
-                          color: isSelected ? AppColors.emergencyRed : AppColors.textTertiary,
+                          color: isSelected ? AppColors.primary : AppColors.textTertiary,
                           borderRadius: BorderRadius.circular(4.0),
                         ),
                       );
@@ -282,7 +282,7 @@ class _OnboardingPage2 extends StatelessWidget {
           OutlinedButton(
             onPressed: onSetupNow,
             style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: AppColors.emergencyRed, width: 1.5),
+              side: const BorderSide(color: AppColors.primary, width: 1.5),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(4),
               ),
@@ -291,7 +291,7 @@ class _OnboardingPage2 extends StatelessWidget {
             child: Text(
               "SET UP MEDICAL ID NOW",
               style: AppTypography.headlineMedium.copyWith(
-                color: AppColors.emergencyRed,
+                color: AppColors.primary,
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
               ),
