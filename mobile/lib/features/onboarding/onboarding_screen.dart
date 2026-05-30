@@ -38,9 +38,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       return;
     }
 
+    final prefs = await SharedPreferences.getInstance();
+
     // Location permissions
     await Permission.locationWhenInUse.request();
     await Permission.locationAlways.request();
+
+    // CALL_PHONE permission
+    final callStatus = await Permission.phone.request();
+    await prefs.setBool('perm_call', callStatus.isGranted);
+
+    // SEND_SMS permission
+    final smsStatus = await Permission.sms.request();
+    await prefs.setBool('perm_sms', smsStatus.isGranted);
 
     // Notification permissions
     await Permission.notification.request();

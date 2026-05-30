@@ -9,56 +9,44 @@ import '../../../shared/widgets/app_card.dart';
 
 /// Launches navigation intent or browser URL to Google Maps directions.
 Future<void> launchHospitalNavigation(double? lat, double? lng) async {
-  if (lat == null || lng == null) {
-    final fallbackUrl = Uri.parse("https://www.google.com/maps/search/hospital+near+me");
-    try {
+  try {
+    if (lat == null || lng == null) {
+      final searchUrl = Uri.parse("https://www.google.com/maps/search/hospital+near+me");
+      if (await canLaunchUrl(searchUrl)) {
+        await launchUrl(searchUrl, mode: LaunchMode.externalApplication);
+      }
+      return;
+    }
+
+    final fallbackUrl = Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving");
+
+    if (kIsWeb) {
       if (await canLaunchUrl(fallbackUrl)) {
         await launchUrl(fallbackUrl, mode: LaunchMode.externalApplication);
       }
-    } catch (_) {}
-    return;
-  }
-
-  final primaryUrl = Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving");
-
-  if (kIsWeb) {
-    try {
-      if (await canLaunchUrl(primaryUrl)) {
-        await launchUrl(primaryUrl, mode: LaunchMode.externalApplication);
-      }
-    } catch (_) {}
-    return;
-  }
-
-  if (Platform.isAndroid) {
-    final androidIntent = Uri.parse("google.navigation:q=$lat,$lng&mode=d");
-    try {
-      if (await canLaunchUrl(androidIntent)) {
-        await launchUrl(androidIntent, mode: LaunchMode.externalApplication);
-      } else {
-        if (await canLaunchUrl(primaryUrl)) {
-          await launchUrl(primaryUrl, mode: LaunchMode.externalApplication);
-        }
-      }
-    } catch (_) {
-      try {
-        if (await canLaunchUrl(primaryUrl)) {
-          await launchUrl(primaryUrl, mode: LaunchMode.externalApplication);
-        }
-      } catch (_) {}
+      return;
     }
-  } else {
-    try {
-      if (await canLaunchUrl(primaryUrl)) {
-        await launchUrl(primaryUrl, mode: LaunchMode.externalApplication);
+
+    if (Platform.isAndroid) {
+      final nativeIntent = Uri.parse("google.navigation:q=$lat,$lng&mode=d");
+      if (await canLaunchUrl(nativeIntent)) {
+        await launchUrl(nativeIntent, mode: LaunchMode.externalApplication);
+      } else {
+        if (await canLaunchUrl(fallbackUrl)) {
+          await launchUrl(fallbackUrl, mode: LaunchMode.externalApplication);
+        }
       }
-    } catch (_) {}
+    } else {
+      if (await canLaunchUrl(fallbackUrl)) {
+        await launchUrl(fallbackUrl, mode: LaunchMode.externalApplication);
+      }
+    }
+  } catch (_) {
+    // Graceful degradation - never crash
   }
 }
 
 /// Screen displayed after a critical SOS alert is dispatched.
-/// Replaces the responder tracker screen and focuses solely on guiding
-/// the user to the nearest hospital facility using Google Maps.
 class SosSuccessScreen extends StatelessWidget {
   final String? hospitalName;
   final double? hospitalLat;
@@ -67,6 +55,14 @@ class SosSuccessScreen extends StatelessWidget {
   final String? estimatedTime;
   final bool isFallback;
 
+  // Actions Checklist States
+  final bool callTriggered;
+  final bool callPermissionGranted;
+  final int smsCount;
+  final bool smsPermissionGranted;
+  final bool emailSentOrQueued;
+  final bool isOffline;
+
   const SosSuccessScreen({
     super.key,
     required this.hospitalName,
@@ -74,10 +70,23 @@ class SosSuccessScreen extends StatelessWidget {
     required this.hospitalLng,
     required this.distanceText,
     required this.estimatedTime,
+    this.callTriggered = true,
+    this.callPermissionGranted = true,
+    this.smsCount = 0,
+    this.smsPermissionGranted = true,
+    this.emailSentOrQueued = true,
+    this.isOffline = false,
   }) : isFallback = false;
 
-  const SosSuccessScreen.fallback({super.key})
-      : hospitalName = null,
+  const SosSuccessScreen.fallback({
+    super.key,
+    this.callTriggered = false,
+    this.callPermissionGranted = false,
+    this.smsCount = 0,
+    this.smsPermissionGranted = false,
+    this.emailSentOrQueued = false,
+    this.isOffline = false,
+  })  : hospitalName = null,
         hospitalLat = null,
         hospitalLng = null,
         distanceText = null,
@@ -86,236 +95,268 @@ class SosSuccessScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.primary,
-      // Strictly no back button in appBar and no leading dismiss button
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+    return PopScope(
+      canPop: false, // Do not allow back navigation
+      child: Scaffold(
+        backgroundColor: AppColors.primary,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          automaticallyImplyLeading: false,
+          title: Text(
+            "EMERGENCY DISPATCH STATUS",
+            style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary, fontSize: 13),
+          ),
+          centerTitle: true,
+        ),
+        body: SafeArea(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Spacer(flex: 1),
-
-              // 1. Success State Icon & Message
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.safeGreen.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.check_circle_rounded,
-                  color: AppColors.safeGreen,
-                  size: 72,
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                "EMERGENCY ALERT SENT",
-                textAlign: TextAlign.center,
-                style: AppTypography.displayMedium.copyWith(
-                  color: AppColors.safeGreen,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                "Emergency Alert Sent Successfully",
-                textAlign: TextAlign.center,
-                style: AppTypography.bodyLarge.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                "Your critical broadcast was transmitted to Cellular and BLE Mesh networks. Responders have been notified of your incident.",
-                textAlign: TextAlign.center,
-                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-              ),
-
-              const Spacer(flex: 1),
-
-              // 2. Hospital details card
-              if (!isFallback && hospitalName != null) ...[
-                AppCard(
-                  padding: const EdgeInsets.all(20),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: AppColors.emergencyRed.withValues(alpha: 0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.local_hospital_rounded,
-                              color: AppColors.emergencyRed,
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              "Nearest Hospital Found",
-                              style: AppTypography.labelCaps.copyWith(
-                                color: AppColors.emergencyRed,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
+                      // 1. Success Indicator
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.safeGreen.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.check_circle_rounded,
+                          color: AppColors.safeGreen,
+                          size: 64,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        hospitalName!,
+                        "Emergency Alert Sent Successfully",
+                        textAlign: TextAlign.center,
                         style: AppTypography.headlineLarge.copyWith(
-                          fontSize: 20,
-                          color: AppColors.textPrimary,
+                          color: AppColors.safeGreen,
+                          fontWeight: FontWeight.bold,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          _buildMetricBadge(Icons.navigation_rounded, distanceText ?? "Pending"),
-                          const SizedBox(width: 12),
-                          _buildMetricBadge(Icons.access_time_filled_rounded, estimatedTime ?? "Pending"),
-                        ],
+                      const SizedBox(height: 24),
+
+                      // 2. Actions Completed Checklist
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          "COMMUNICATION LOGS",
+                          style: AppTypography.labelCaps.copyWith(color: AppColors.textMuted, fontSize: 11),
+                        ),
                       ),
+                      const SizedBox(height: 8),
+                      AppCard(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            _buildChecklistItem(
+                              isSuccess: callTriggered,
+                              text: callTriggered 
+                                  ? "Emergency services called" 
+                                  : "Emergency services call skipped",
+                              fallbackWidget: !callPermissionGranted
+                                  ? TextButton.icon(
+                                      onPressed: () => launchHospitalNavigation(null, null), // calls tel:108
+                                      icon: const Icon(Icons.phone, size: 14, color: AppColors.emergencyRed),
+                                      label: Text(
+                                        "Tap to call 108",
+                                        style: AppTypography.bodySmall.copyWith(color: AppColors.emergencyRed, fontWeight: FontWeight.bold),
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            const Divider(color: AppColors.borderSubtle, height: 16),
+                            _buildChecklistItem(
+                              isSuccess: smsPermissionGranted && smsCount > 0,
+                              text: smsPermissionGranted 
+                                  ? "SMS sent to $smsCount contacts" 
+                                  : "SMS permission not granted",
+                              isWarning: !smsPermissionGranted,
+                            ),
+                            const Divider(color: AppColors.borderSubtle, height: 16),
+                            _buildChecklistItem(
+                              isSuccess: emailSentOrQueued,
+                              text: isOffline 
+                                  ? "Queued — will send when online" 
+                                  : "Email alerts sent",
+                              isPending: isOffline,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // 3. Hospital Card
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          "NEAREST MEDICAL ASSISTANCE",
+                          style: AppTypography.labelCaps.copyWith(color: AppColors.textMuted, fontSize: 11),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (!isFallback && hospitalName != null) ...[
+                        AppCard(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.local_hospital, color: AppColors.emergencyRed, size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      "Nearest Hospital Found",
+                                      style: AppTypography.bodyMedium.copyWith(
+                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                hospitalName!,
+                                style: AppTypography.headlineMedium.copyWith(color: AppColors.textPrimary),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  _buildMetricBadge(Icons.navigation, distanceText ?? "Pending"),
+                                  const SizedBox(width: 8),
+                                  _buildMetricBadge(Icons.access_time, estimatedTime ?? "Pending"),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ] else ...[
+                        AppCard(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.location_searching, color: AppColors.warningAmber, size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    "Nearest Hospital Pending",
+                                    style: AppTypography.bodyMedium.copyWith(
+                                      color: AppColors.warningAmber,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                "Trauma facility coordinates could not be resolved instantly. Utilize external map navigation below.",
+                                style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 32),
                     ],
                   ),
                 ),
-              ] else ...[
-                // Fallback card if hospital data is null
-                AppCard(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: AppColors.warningAmber.withValues(alpha: 0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.location_searching_rounded,
-                              color: AppColors.warningAmber,
-                              size: 20,
-                            ),
+              ),
+
+              // Bottom persistent navigation actions
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  children: [
+                    // Emergency Call Fallback Button (red & prominent if call permission denied)
+                    if (!callPermissionGranted) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton.icon(
+                          onPressed: () => launchUrl(Uri.parse('tel:108'), mode: LaunchMode.externalApplication),
+                          icon: const Icon(Icons.phone, color: Colors.white),
+                          label: Text(
+                            "CALL 108 NOW",
+                            style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.5),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              "Nearest Hospital Pending",
-                              style: AppTypography.labelCaps.copyWith(
-                                color: AppColors.warningAmber,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.emergencyRed,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            elevation: 4,
                           ),
-                        ],
+                        ),
                       ),
                       const SizedBox(height: 12),
-                      Text(
-                        "Could not resolve nearest trauma facility in real-time. Please utilize external search mode below.",
-                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-                      ),
                     ],
-                  ),
-                ),
-              ],
 
-              const Spacer(flex: 2),
+                    // Navigate to hospital
+                    if (!isFallback) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton.icon(
+                          onPressed: () => launchHospitalNavigation(hospitalLat, hospitalLng),
+                          icon: const Icon(Icons.directions, color: Colors.white),
+                          label: Text(
+                            "NAVIGATE TO HOSPITAL",
+                            style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 13, letterSpacing: 1.5),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: callPermissionGranted ? AppColors.emergencyRed : AppColors.surfaceAlt,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
 
-              // 3. NAVIGATE NOW (Primary CTA)
-              if (!isFallback) ...[
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton.icon(
-                    onPressed: () => launchHospitalNavigation(hospitalLat, hospitalLng),
-                    icon: const Icon(Icons.directions_rounded, color: Colors.white, size: 20),
-                    label: Text(
-                      "NAVIGATE NOW",
-                      style: AppTypography.labelCaps.copyWith(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.5,
+                    // Search Nearby
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: OutlinedButton.icon(
+                        onPressed: () => launchHospitalNavigation(null, null),
+                        icon: Icon(Icons.search, color: isFallback ? Colors.white : AppColors.textPrimary),
+                        label: Text(
+                          "SEARCH NEARBY HOSPITALS",
+                          style: AppTypography.labelCaps.copyWith(
+                            color: isFallback ? Colors.white : AppColors.textPrimary,
+                            fontSize: 13,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: isFallback ? AppColors.emergencyRed : Colors.transparent,
+                          side: BorderSide(color: isFallback ? Colors.transparent : AppColors.borderSubtle, width: 1.5),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
                       ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.emergencyRed,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      elevation: 2,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
+                    const SizedBox(height: 16),
 
-              // 4. Search Nearby Hospitals (Secondary or Primary Fallback)
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: OutlinedButton.icon(
-                  onPressed: () => launchHospitalNavigation(null, null),
-                  icon: Icon(
-                    Icons.search_rounded,
-                    color: isFallback ? Colors.white : AppColors.textPrimary,
-                    size: 20,
-                  ),
-                  label: Text(
-                    "Search Nearby Hospitals",
-                    style: AppTypography.labelCaps.copyWith(
-                      color: isFallback ? Colors.white : AppColors.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
+                    // Safe Home Return Button
+                    TextButton(
+                      onPressed: () => context.go('/'),
+                      child: Text(
+                        "RETURN TO HOME SCREEN",
+                        style: AppTypography.labelCaps.copyWith(color: AppColors.textMuted, fontSize: 11, letterSpacing: 1.5),
+                      ),
                     ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: isFallback ? AppColors.emergencyRed : Colors.transparent,
-                    side: BorderSide(
-                      color: isFallback ? Colors.transparent : AppColors.borderSubtle,
-                      width: 1.5,
-                    ),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
+                  ],
                 ),
               ),
-
-              const SizedBox(height: 16),
-              
-              // 5. Safe Return to Home Menu Button
-              TextButton(
-                onPressed: () => context.go('/'),
-                child: Text(
-                  "RETURN TO HOME SCREEN",
-                  style: AppTypography.labelCaps.copyWith(
-                    color: AppColors.textMuted,
-                    fontSize: 11,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -323,23 +364,59 @@ class SosSuccessScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildChecklistItem({
+    required bool isSuccess,
+    required String text,
+    bool isWarning = false,
+    bool isPending = false,
+    Widget? fallbackWidget,
+  }) {
+    IconData iconData = Icons.check_circle;
+    Color iconColor = AppColors.safeGreen;
+
+    if (isPending) {
+      iconData = Icons.hourglass_empty;
+      iconColor = AppColors.warningAmber;
+    } else if (isWarning || !isSuccess) {
+      iconData = Icons.warning;
+      iconColor = AppColors.warningAmber;
+    }
+
+    return Row(
+      children: [
+        Icon(iconData, color: iconColor, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        if (fallbackWidget != null) fallbackWidget,
+      ],
+    );
+  }
+
   Widget _buildMetricBadge(IconData icon, String text) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F2F5),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.borderSubtle),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: AppColors.textSecondary),
-          const SizedBox(width: 6),
+          Icon(icon, size: 13, color: AppColors.textSecondary),
+          const SizedBox(width: 4),
           Text(
             text,
             style: AppTypography.monoMedium.copyWith(
-              fontSize: 13,
+              fontSize: 12,
               color: AppColors.textPrimary,
               fontWeight: FontWeight.bold,
             ),

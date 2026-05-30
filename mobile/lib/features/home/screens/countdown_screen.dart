@@ -1,26 +1,19 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:uuid/uuid.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/services/auth_service.dart';
-import '../../../data/repositories/emergency_contact_repository.dart';
-import '../../../data/repositories/medical_repository.dart';
-import '../../../data/repositories/sos_repository.dart';
-import '../../../core/responders/responder_cubit.dart';
-import '../../../data/models/emergency_contact.dart';
-import '../../../shared/widgets/countdown_overlay.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/services/emergency_communication_service.dart';
+import '../../../core/utils/emergency_logger.dart';
 import '../../../presentation/blocs/location/location_cubit.dart';
 import 'sos_success_screen.dart';
 
-/// Full-screen countdown overlay and premium interactive emergency success screen.
-/// Resolves real coordinates, queries spatial SQLite lists, dials emergency numbers,
-/// triggers native pre-populated email alerts, and tracks active event logs.
+/// Full-screen critical SOS Countdown Screen.
 class CountdownScreen extends StatefulWidget {
   final String triggerType;
   const CountdownScreen({super.key, this.triggerType = 'manual'});
@@ -30,1272 +23,299 @@ class CountdownScreen extends StatefulWidget {
 }
 
 class _CountdownScreenState extends State<CountdownScreen> with SingleTickerProviderStateMixin {
-  final SosRepository _sosRepo = SosRepository();
-  final EmergencyContactRepository _contactsRepo = EmergencyContactRepository();
-  final MedicalRepository _medicalRepo = MedicalRepository();
+  final EmergencyCommunicationService _communicationService = EmergencyCommunicationService();
 
-  bool _isDispatched = false;
-  bool _isLoadingDetails = false;
+  int _secondsLeft = 10;
+  Timer? _countdownTimer;
+  bool _isDispatching = false;
+  bool _isCancelled = false;
 
-  String _eventId = '';
-  List<EmergencyContact> _contacts = [];
-
-  double _latitude = 23.0225;
-  double _longitude = 72.5714;
-  String _address = 'Locating...';
-
-  // Animation controller for blinking alarm labels
-  late AnimationController _blinkController;
-  late Animation<double> _blinkAnimation;
-
-  // Real database sync logs for emergency broadcasts
-  final List<String> _dispatchSteps = [
-    "Initializing local emergency database...",
-    "Querying live GPS satellite telemetry...",
-    "Encoding medical profile into local SOS packet...",
-    "Simulating SMS alerts dispatch to emergency contacts...",
-    "Simulating emergency email broadcast with maps location...",
-    "Broadcasting rescue packet to local Mesh BLE peers...",
-    "Dispatched successfully to nearest responder networks!"
-  ];
-  int _currentStepIndex = 0;
-  Timer? _stepTimer;
+  late AnimationController _progressController;
 
   @override
   void initState() {
     super.initState();
-    _blinkController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
+    
+    // Log countdown start
+    EmergencyLogger.log("Countdown started (source: ${widget.triggerType})");
 
-    _blinkAnimation = Tween<double>(begin: 0.4, end: 1.0).animate(
-      CurvedAnimation(parent: _blinkController, curve: Curves.easeInOut),
+    // Animation controller for the circular sweep (10 seconds total)
+    _progressController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
     );
+    _progressController.forward();
+
+    // Start 1-second interval periodic timer
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_isCancelled) {
+        timer.cancel();
+        return;
+      }
+
+      setState(() {
+        if (_secondsLeft > 1) {
+          _secondsLeft--;
+        } else {
+          _secondsLeft = 0;
+          timer.cancel();
+          _dispatchEmergency();
+        }
+      });
+    });
   }
 
   @override
   void dispose() {
-    _blinkController.dispose();
-    _stepTimer?.cancel();
+    _countdownTimer?.cancel();
+    _progressController.dispose();
     super.dispose();
   }
 
-  /// Triggers real GPS detection, queries nearby responders, fires alert hotlines, and logs event
-  Future<void> _handleSosDispatched() async {
-    final locCubit = context.read<LocationCubit>();
-    locCubit.enableLocationUpdates();
-    final double lat = locCubit.state.latitude ?? 23.0225;
-    final double lng = locCubit.state.longitude ?? 72.5714;
-    final String addr = locCubit.state.city != null ? "${locCubit.state.city}, India" : 'Locating...';
-
+  /// Cancels the emergency flow and returns to HomeScreen
+  void _cancelSos() {
     setState(() {
-      _isDispatched = true;
-      _isLoadingDetails = true;
-      _eventId = 'EVT-${const Uuid().v4().substring(0, 6).toUpperCase()}';
-      _currentStepIndex = 0;
-      _latitude = lat;
-      _longitude = lng;
-      _address = addr;
+      _isCancelled = true;
+      _countdownTimer?.cancel();
+      _progressController.stop();
     });
-
-    // Advance progress items
-    _stepTimer = Timer.periodic(const Duration(milliseconds: 350), (timer) {
-      if (_currentStepIndex < _dispatchSteps.length - 1) {
-        setState(() {
-          _currentStepIndex++;
-        });
-      } else {
-        timer.cancel();
-      }
-    });
-
-    try {
-      // 1. Log incident event in SQLite
-      await _sosRepo.logEvent(
-        id: _eventId,
-        latitude: lat,
-        longitude: lng,
-        triggerType: widget.triggerType,
-        telemetry: {
-          'gForce': 1.05,
-          'speedKmh': 0.0,
-          'altitudeMeters': 54.0,
-          'meshPeersCount': 1,
-          'accuracy': 'GPS High Precision'
-        },
-      );
-
-      // 2. Load contacts from SQLite
-      final rawContacts = await _contactsRepo.getContacts();
-
-      // Buffer seeder delays for clean rendering transitions
-      await Future.delayed(const Duration(milliseconds: 1500));
-
-      if (mounted) {
-        setState(() {
-          _contacts = rawContacts;
-          _isLoadingDetails = false;
-        });
-
-        final conn = await Connectivity().checkConnectivity();
-        final isOffline = conn.contains(ConnectivityResult.none);
-        
-        final primary = rawContacts.isNotEmpty
-            ? rawContacts.firstWhere((c) => c.isPrimary, orElse: () => rawContacts.first)
-            : null;
-
-        if (widget.triggerType == 'crash') {
-          // Log AUTO_SOS_TRIGGERED
-          debugPrint('[OfflineMode] AUTO_SOS_TRIGGERED');
-          
-          // Automatically trigger SMS Fallback with last known coordinates!
-          await _triggerSmsFallback(primary?.phone ?? "");
-          
-          if (isOffline) {
-            _showOfflineEmergencyDialog(primary);
-          } else {
-            if (primary != null) {
-              _showCallConfirmationDialog(primary);
-            } else {
-              _showEmergencySentDialog();
-            }
-          }
-        } else {
-          if (isOffline) {
-            _showOfflineEmergencyDialog(primary);
-          } else {
-            if (primary != null) {
-              _showCallConfirmationDialog(primary);
-            } else {
-              _showEmergencySentDialog();
-            }
-          }
-        }
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _isLoadingDetails = false;
-        });
-      }
-    }
+    
+    EmergencyLogger.log("Countdown cancelled by user.");
+    context.go('/');
   }
 
-  /// Interactive resolution flow updates SQLite event to 'resolved' and returns home.
-  Future<void> _resolveSos() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: AppColors.borderSubtle, width: 1.5),
-        ),
-        title: Row(
-          children: [
-            const Icon(Icons.check_circle_rounded, color: AppColors.safeGreen, size: 24),
-            const SizedBox(width: 12),
-            Text(
-              "RESOLVE EMERGENCY",
-              style: AppTypography.headlineMedium.copyWith(color: AppColors.textPrimary),
-            ),
-          ],
-        ),
-        content: Text(
-          "Are you absolutely safe? This cancels the active SOS dispatch and updates local incident telemetry.",
-          style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(
-              "CANCEL",
-              style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.safeGreen,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            ),
-            child: Text(
-              "I'M SAFE",
-              style: AppTypography.labelCaps.copyWith(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
+  /// Triggers the background orchestrator and navigates to the success checklist screen
+  Future<void> _dispatchEmergency() async {
+    if (_isCancelled || _isDispatching) return;
 
-    if (confirm == true) {
-      await _sosRepo.updateEventStatus(_eventId, 'resolved');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Emergency resolved successfully. Responders stood down.",
-              style: AppTypography.bodyMedium.copyWith(color: Colors.white),
+    setState(() {
+      _isDispatching = true;
+    });
+
+    await EmergencyLogger.log("Countdown completed. Initiating emergency broadcasts...");
+
+    final locCubit = context.read<LocationCubit>();
+    final double lat = locCubit.state.latitude ?? 23.0225;
+    final double lng = locCubit.state.longitude ?? 72.5714;
+    final String name = AuthService.instance.currentUserFullName ?? 'RoadSOS User';
+
+    try {
+      // Execute steps 4-7 concurrently in the background
+      final result = await _communicationService.triggerEmergency(
+        lat: lat,
+        lng: lng,
+        userName: name,
+        emergencyType: widget.triggerType,
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      final permCall = prefs.getBool('perm_call') ?? false;
+      final permSms = prefs.getBool('perm_sms') ?? false;
+      final conn = await Connectivity().checkConnectivity();
+      final isOffline = conn.contains(ConnectivityResult.none);
+
+      final hospitals = result['hospitals'] as List? ?? [];
+      final nearest = hospitals.isNotEmpty ? hospitals.first : null;
+
+      if (!mounted) return;
+
+      if (nearest != null) {
+        // Compute estimated minutes at 40 km/h: (distance / 40) * 60 minutes
+        final int minutes = nearest.estimatedMinutes > 0
+            ? nearest.estimatedMinutes.round()
+            : (nearest.distanceKm / 40.0 * 60).round();
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SosSuccessScreen(
+              hospitalName: nearest.name,
+              hospitalLat: nearest.latitude,
+              hospitalLng: nearest.longitude,
+              distanceText: "${nearest.distanceKm.toStringAsFixed(1)} km",
+              estimatedTime: "~$minutes min",
+              callTriggered: result['callTriggered'] ?? false,
+              callPermissionGranted: permCall,
+              smsCount: result['smsCount'] ?? 0,
+              smsPermissionGranted: permSms,
+              emailSentOrQueued: result['emailSentOrQueued'] ?? false,
+              isOffline: isOffline,
             ),
-            backgroundColor: AppColors.safeGreen,
           ),
         );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SosSuccessScreen.fallback(
+              callTriggered: result['callTriggered'] ?? false,
+              callPermissionGranted: permCall,
+              smsCount: result['smsCount'] ?? 0,
+              smsPermissionGranted: permSms,
+              emailSentOrQueued: result['emailSentOrQueued'] ?? false,
+              isOffline: isOffline,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      await EmergencyLogger.log("Critical error during SOS orchestration: $e");
+      if (mounted) {
         context.go('/');
       }
     }
   }
 
-  /// Utility dialer for hotline rows
-  Future<void> _makeCall(String phone) async {
-    if (phone.isEmpty) return;
-    final Uri url = Uri.parse('tel:${phone.replaceAll(' ', '')}');
-    try {
-      if (await canLaunchUrl(url)) {
-        await launchUrl(url);
-      } else {
-        throw 'Could not launch dialer';
-      }
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Calling Responder Hotline: $phone",
-            style: AppTypography.bodyMedium.copyWith(color: Colors.white),
-          ),
-          backgroundColor: AppColors.infoBlue,
-        ),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final locState = context.watch<LocationCubit>().state;
-    final responderState = context.watch<ResponderCubit>().state;
-
-    final double lat = locState.latitude ?? _latitude;
-    final double lng = locState.longitude ?? _longitude;
-    final String address = locState.city != null ? "${locState.city}, India" : _address;
-
-    final hospitals = responderState.hospitals;
-    final policeStations = responderState.police;
-
-    if (!_isDispatched) {
-      return CountdownOverlay(
-        onComplete: _handleSosDispatched,
-        onCancel: () {
-          if (widget.triggerType == 'crash') {
-            debugPrint('[OfflineMode] CRASH_CANCELLED');
-          }
-          context.go('/');
-        },
-        onSendNow: _handleSosDispatched,
-        triggerType: widget.triggerType,
-      );
-    }
-
-    if (_isLoadingDetails) {
-      return Scaffold(
+    return PopScope(
+      canPop: false, // Prevent back navigation
+      child: Scaffold(
         backgroundColor: AppColors.primary,
         body: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Pulse Animation Ring
-                Center(
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                        width: 90,
-                        height: 90,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.emergencyRed.withValues(alpha: 0.1),
-                        ),
+                const Spacer(),
+
+                // 1. Critical Header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.warning_rounded,
+                      color: AppColors.emergencyRed,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      "⚠ Emergency Detected",
+                      style: AppTypography.displayMedium.copyWith(
+                        color: AppColors.emergencyRed,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
                       ),
-                      AnimatedBuilder(
-                        animation: _blinkAnimation,
-                        builder: (context, child) {
-                          return Container(
-                            width: 70 * _blinkAnimation.value,
-                            height: 70 * _blinkAnimation.value,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColors.emergencyRed.withValues(alpha: 0.15),
-                            ),
-                          );
-                        },
-                      ),
-                      Container(
-                        width: 50,
-                        height: 50,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.emergencyRed,
-                        ),
-                        child: const Icon(
-                          Icons.radar_rounded,
-                          color: Colors.white,
-                          size: 26,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 12),
                 Text(
-                  "BROADCASTING SOS PACKETS",
-                  style: AppTypography.labelCaps.copyWith(
-                    color: AppColors.emergencyRed,
-                    fontSize: 13,
-                    letterSpacing: 3,
+                  _isDispatching
+                      ? "BROADCASTING SOS ALERT PACKETS..."
+                      : "Calling emergency services in $_secondsLeft seconds",
+                  textAlign: TextAlign.center,
+                  style: AppTypography.bodyLarge.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  "Establishing cellular backhaul & local BLE mesh bridge...",
+                  _isDispatching
+                      ? "Alerting rescue contacts & establishing satellite routing..."
+                      : "Hold CANCEL to halt emergency alerts if this was a mistake.",
                   textAlign: TextAlign.center,
                   style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
                 ),
-                const SizedBox(height: 48),
 
-                // Terminal Simulator Output
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.borderSubtle, width: 1),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: List.generate(_dispatchSteps.length, (index) {
-                      final isVisible = index <= _currentStepIndex;
-                      final isCurrent = index == _currentStepIndex;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4.0),
-                        child: AnimatedOpacity(
-                          opacity: isVisible ? 1.0 : 0.15,
-                          duration: const Duration(milliseconds: 200),
-                          child: Row(
-                            children: [
-                              Icon(
-                                isVisible ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
-                                size: 16,
-                                color: isVisible ? AppColors.safeGreen : AppColors.textMuted,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  _dispatchSteps[index],
-                                  style: AppTypography.monoMedium.copyWith(
-                                    fontSize: 12,
-                                    color: isCurrent
-                                        ? AppColors.textPrimary
-                                        : isVisible
-                                            ? AppColors.textSecondary
-                                            : AppColors.textMuted,
+                const Spacer(),
+
+                // 2. Animated Circular Countdown Sweep
+                Center(
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Inner Outer Ripple Ring
+                      Container(
+                        width: 220,
+                        height: 220,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.emergencyRed.withValues(alpha: 0.05),
+                        ),
+                      ),
+                      // Circular Sweep
+                      SizedBox(
+                        width: 180,
+                        height: 180,
+                        child: AnimatedBuilder(
+                          animation: _progressController,
+                          builder: (context, child) {
+                            return CircularProgressIndicator(
+                              value: 1.0 - _progressController.value,
+                              strokeWidth: 10,
+                              backgroundColor: AppColors.surfaceAlt,
+                              color: AppColors.emergencyRed,
+                            );
+                          },
+                        ),
+                      ),
+                      // Centered Counter
+                      Container(
+                        width: 150,
+                        height: 150,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.surface,
+                        ),
+                        child: Center(
+                          child: _isDispatching
+                              ? const CircularProgressIndicator(
+                                  color: AppColors.emergencyRed,
+                                  strokeWidth: 4,
+                                )
+                              : Text(
+                                  "$_secondsLeft",
+                                  style: AppTypography.displayMedium.copyWith(
+                                    fontSize: 64,
+                                    color: AppColors.emergencyRed,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    // Dynamic extraction details matching user resolved position
-    final nearestHospital = hospitals.isNotEmpty ? hospitals.first : null;
-    final nearestPolice = policeStations.isNotEmpty ? policeStations.first : null;
-
-    return Scaffold(
-      backgroundColor: AppColors.primary,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Immersive Header Area
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: AppColors.borderSubtle, width: 1)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.emergencyRed,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  AnimatedBuilder(
-                    animation: _blinkAnimation,
-                    builder: (context, child) {
-                      return Opacity(
-                        opacity: _blinkAnimation.value,
-                        child: Text(
-                          "SOS DISPATCHED SUCCESSFULLY",
-                          style: AppTypography.labelCaps.copyWith(
-                            color: AppColors.emergencyRed,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceAlt,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      _eventId,
-                      style: AppTypography.monoMedium.copyWith(fontSize: 10, color: AppColors.textSecondary),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Scrollable Content
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Headline Banner
-                    Text(
-                      "EMERGENCY DISPATCH",
-                      style: AppTypography.displayMedium.copyWith(fontSize: 32),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      "Your primary contact is being dialed and emails populated with live coordinates have been dispatched to your networks.",
-                      style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-                    ),
-                    const SizedBox(height: 28),
-
-                    // 1. HOSPITAL RESCUERS SECTION
-                    Text(
-                      "ESTIMATED RESPONDERS",
-                      style: AppTypography.labelCaps.copyWith(color: AppColors.textMuted, fontSize: 11),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // Ambulance Card
-                    if (nearestHospital != null)
-                      _buildResponderCard(
-                        title: "AMBULANCE DISPATCHED",
-                        name: nearestHospital.name,
-                        subtitle: "Trauma Level 1 Facility",
-                        eta: "${nearestHospital.estimatedMinutes.toStringAsFixed(1)} MINS",
-                        distance: "${nearestHospital.distanceKm.toStringAsFixed(1)} km away",
-                        icon: Icons.emergency_rounded,
-                        iconBg: AppColors.emergencyRed,
-                        phone: nearestHospital.phone,
-                      )
-                    else
-                      _buildSearchingResponderCard(
-                        title: "SEARCHING NEARBY HOSPITALS",
-                        icon: Icons.emergency_rounded,
-                        iconBg: AppColors.emergencyRed,
-                      ),
-                    const SizedBox(height: 12),
-
-                    if (nearestPolice != null)
-                      _buildResponderCard(
-                        title: "POLICE STATION NOTIFIED",
-                        name: nearestPolice.name,
-                        subtitle: "Emergency Patrol Unit · 24/7",
-                        eta: "${(nearestPolice.distanceKm * 2.2).toStringAsFixed(1)} MINS",
-                        distance: "${nearestPolice.distanceKm.toStringAsFixed(1)} km away",
-                        icon: Icons.local_police_rounded,
-                        iconBg: AppColors.policeBlue,
-                        phone: nearestPolice.phone,
-                      )
-                    else
-                      _buildSearchingResponderCard(
-                        title: "SEARCHING NEARBY POLICE",
-                        icon: Icons.local_police_rounded,
-                        iconBg: AppColors.policeBlue,
-                      ),
-                    const SizedBox(height: 28),
-
-                    // 2. EMERGENCY CONTACTS SECTION
-                    Text(
-                      "EMERGENCY CONTACTS NOTIFIED",
-                      style: AppTypography.labelCaps.copyWith(color: AppColors.textMuted, fontSize: 11),
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.borderSubtle, width: 1),
-                      ),
-                      child: _contacts.isEmpty
-                          ? Text(
-                              "No saved emergency contacts. Please add contacts to enable automated email notifications.",
-                              style: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
-                            )
-                          : Column(
-                              children: List.generate(_contacts.length, (index) {
-                                final contact = _contacts[index];
-                                return Column(
-                                  children: [
-                                    Row(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 20,
-                                          backgroundColor: AppColors.surfaceAlt,
-                                          child: Text(
-                                            contact.avatarEmoji,
-                                            style: const TextStyle(fontSize: 18),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Row(
-                                                children: [
-                                                  Text(
-                                                    contact.name,
-                                                    style: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.bold),
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: AppColors.surfaceAlt,
-                                                      borderRadius: BorderRadius.circular(3),
-                                                    ),
-                                                    child: Text(
-                                                      contact.relationship,
-                                                      style: AppTypography.bodySmall.copyWith(fontSize: 8, color: AppColors.textSecondary),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Row(
-                                                children: [
-                                                  const Icon(Icons.check_circle_outline_rounded, color: AppColors.safeGreen, size: 12),
-                                                  const SizedBox(width: 4),
-                                                  Text(
-                                                    contact.email.isNotEmpty
-                                                        ? "Email & SMS Alerts Dispatched"
-                                                        : "SMS Alert Dispatched",
-                                                    style: AppTypography.bodySmall.copyWith(fontSize: 10, color: AppColors.safeGreen),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        IconButton(
-                                          onPressed: () => _makeCall(contact.phone),
-                                          icon: const Icon(Icons.phone_rounded, color: AppColors.textSecondary, size: 20),
-                                        ),
-                                      ],
-                                    ),
-                                    if (index < _contacts.length - 1)
-                                      const Divider(color: AppColors.borderSubtle, height: 20, thickness: 1),
-                                  ],
-                                );
-                              }),
-                            ),
-                    ),
-                    if (_contacts.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton.icon(
-                          onPressed: _sendEmergencyEmails,
-                          icon: const Icon(Icons.email_rounded, color: Colors.white, size: 18),
-                          label: Text(
-                            "SEND GPS EMAIL ALERTS TO ALL",
-                            style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 11, letterSpacing: 1.0),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.emergencyRed,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
                         ),
                       ),
                     ],
-                    const SizedBox(height: 28),
+                  ),
+                ),
 
-                    // 3. BROADCAST METADATA LOGGER
-                    Text(
-                      "GPS TELEMETRY INCIDENT LOGGER",
-                      style: AppTypography.labelCaps.copyWith(color: AppColors.textMuted, fontSize: 11),
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.borderSubtle, width: 1),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildTelemetryRow("COORDINATES", "${lat.toStringAsFixed(4)}° N, ${lng.toStringAsFixed(4)}° E"),
-                          const SizedBox(height: 6),
-                          _buildTelemetryRow("TRIGGER TYPE", "CRITICAL MANUAL SOS OVERRIDE"),
-                          const SizedBox(height: 6),
-                          _buildTelemetryRow("ADDRESS RESOLVED", address),
-                          const SizedBox(height: 6),
-                          _buildTelemetryRow("ACCELEROMETER", "1.05 G (STATIC MONITOR)"),
-                          const SizedBox(height: 6),
-                          _buildTelemetryRow("MESH MAPPED", "ACTIVE MESH (1 LOCAL PEERS LINKED)"),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 32),
+                const Spacer(),
 
-                    // RESOLVE ACTION BUTTON
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: _resolveSos,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.safeGreen,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          elevation: 2,
+                // 3. CANCEL Action Button
+                if (!_isDispatching)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _cancelSos,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.surfaceAlt,
+                        foregroundColor: AppColors.textPrimary,
+                        side: const BorderSide(color: AppColors.borderSubtle, width: 1.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Text(
-                          "I'M SAFE — RESOLVE EMERGENCY",
-                          style: AppTypography.labelCaps.copyWith(
-                            color: Colors.white,
-                            fontSize: 13,
-                            letterSpacing: 1.5,
-                          ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        "CANCEL",
+                        style: AppTypography.labelCaps.copyWith(
+                          color: AppColors.textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2.0,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTelemetryRow(String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 100,
-          child: Text(
-            label,
-            style: AppTypography.labelCaps.copyWith(fontSize: 9, color: AppColors.textSecondary),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            value,
-            style: AppTypography.monoMedium.copyWith(fontSize: 11, color: AppColors.textPrimary),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildResponderCard({
-    required String title,
-    required String name,
-    required String subtitle,
-    required String eta,
-    required String distance,
-    required IconData icon,
-    required Color iconBg,
-    required String phone,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderSubtle, width: 1.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: iconBg.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Icon(icon, color: iconBg, size: 18),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: AppTypography.labelCaps.copyWith(color: iconBg, fontSize: 9),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      name,
-                      style: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            subtitle,
-            style: AppTypography.bodySmall.copyWith(fontSize: 11, color: AppColors.textSecondary),
-          ),
-          const Divider(color: AppColors.borderSubtle, height: 24, thickness: 1),
-          Row(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    eta,
-                    style: AppTypography.headlineMedium.copyWith(
-                      color: AppColors.safeGreen,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    distance,
-                    style: AppTypography.bodySmall.copyWith(fontSize: 10, color: AppColors.textMuted),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              ElevatedButton.icon(
-                onPressed: () => _makeCall(phone),
-                icon: const Icon(Icons.phone_rounded, size: 14, color: Colors.white),
-                label: Text(
-                  "CALL",
-                  style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 9),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.emergencyRed,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSearchingResponderCard({
-    required String title,
-    required IconData icon,
-    required Color iconBg,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderSubtle, width: 1.5),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: iconBg.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(icon, color: iconBg, size: 18),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: AppTypography.labelCaps.copyWith(color: iconBg, fontSize: 9)),
-                const SizedBox(height: 6),
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textMuted),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Loading nearby services from OpenStreetMap...',
-                  style: AppTypography.bodySmall.copyWith(fontSize: 11, color: AppColors.textMuted),
-                ),
+                const SizedBox(height: 16),
               ],
             ),
           ),
-        ],
+        ),
       ),
-    );
-  }
-
-  void _showCallConfirmationDialog(EmergencyContact primary) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: AppColors.emergencyRed, width: 2.0),
-        ),
-        title: Row(
-          children: [
-            const Icon(Icons.phone_in_talk_rounded, color: AppColors.emergencyRed, size: 24),
-            const SizedBox(width: 12),
-            Text(
-              "PLACE EMERGENCY CALL",
-              style: AppTypography.headlineMedium.copyWith(color: AppColors.textPrimary, fontSize: 16),
-            ),
-          ],
-        ),
-        content: Text(
-          "Do you want to automatically call your primary emergency contact ${primary.name} (${primary.phone})?",
-          style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              "CANCEL",
-              style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final telUri = Uri(scheme: 'tel', path: primary.phone.replaceAll(' ', ''));
-              try {
-                if (await canLaunchUrl(telUri)) {
-                  await launchUrl(telUri);
-                } else {
-                  throw 'Could not launch dialer';
-                }
-              } catch (_) {
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text("Calling ${primary.name}: ${primary.phone}", style: const TextStyle(color: Colors.white)),
-                    backgroundColor: AppColors.infoBlue,
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.emergencyRed,
-            ),
-            child: Text(
-              "CALL NOW",
-              style: AppTypography.labelCaps.copyWith(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _triggerSmsFallback(String phone) async {
-    debugPrint('[OfflineMode] SMS_FALLBACK_TRIGGERED');
-    final msg = "Emergency detected. Last known location: $_latitude,$_longitude";
-    final cleanPhone = phone.replaceAll(' ', '');
-    final smsUri = Uri.parse("sms:$cleanPhone?body=${Uri.encodeComponent(msg)}");
-    try {
-      if (await canLaunchUrl(smsUri)) {
-        await launchUrl(smsUri);
-      } else {
-        throw 'Cannot launch SMS client';
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("SMS Fallback: $msg", style: const TextStyle(color: Colors.white)),
-            backgroundColor: AppColors.emergencyRed,
-          ),
-        );
-      }
-    }
-  }
-
-  void _showOfflineEmergencyDialog(EmergencyContact? primary) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.emergencyAmber, width: 2.0),
-        ),
-        title: Row(
-          children: [
-            const Icon(Icons.wifi_off_rounded, color: AppColors.emergencyAmber, size: 24),
-            const SizedBox(width: 12),
-            Text(
-               "OFFLINE EMERGENCY MODE",
-               style: AppTypography.headlineMedium.copyWith(color: AppColors.textPrimary, fontSize: 16),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "You are currently offline. Cellular and data backhaul services are unavailable.",
-              style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              "We have routed this emergency through SMS Fallback and direct phone calling.",
-              style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              "DISMISS",
-              style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary),
-            ),
-          ),
-          if (primary != null) ...[
-            ElevatedButton.icon(
-              onPressed: () async {
-                Navigator.pop(context);
-                await _triggerSmsFallback(primary.phone);
-              },
-              icon: const Icon(Icons.sms_rounded, size: 14, color: Colors.white),
-              label: Text(
-                "SEND SMS",
-                style: AppTypography.labelCaps.copyWith(color: Colors.white),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.emergencyAmber,
-              ),
-            ),
-            ElevatedButton.icon(
-              onPressed: () async {
-                Navigator.pop(context);
-                final telUri = Uri(scheme: 'tel', path: primary.phone.replaceAll(' ', ''));
-                try {
-                  if (await canLaunchUrl(telUri)) {
-                    await launchUrl(telUri);
-                  }
-                } catch (_) {}
-              },
-               icon: const Icon(Icons.phone_rounded, size: 14, color: Colors.white),
-               label: Text(
-                 "CALL NOW",
-                 style: AppTypography.labelCaps.copyWith(color: Colors.white),
-               ),
-               style: ElevatedButton.styleFrom(
-                 backgroundColor: AppColors.emergencyRed,
-               ),
-            ),
-          ] else ...[
-            ElevatedButton.icon(
-              onPressed: () async {
-                Navigator.pop(context);
-                await _triggerSmsFallback("");
-              },
-              icon: const Icon(Icons.sms_rounded, size: 14, color: Colors.white),
-              label: Text(
-                "SEND SMS",
-                style: AppTypography.labelCaps.copyWith(color: Colors.white),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.emergencyAmber,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Future<void> _sendEmergencyEmails() async {
-    if (_contacts.isEmpty) return;
-
-    final emails = _contacts.map((c) => c.email).where((e) => e.isNotEmpty).join(',');
-    if (emails.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("No email addresses saved for your emergency contacts.", style: TextStyle(color: Colors.white)),
-          backgroundColor: AppColors.emergencyAmber,
-        ),
-      );
-      return;
-    }
-
-    final currentUserId = AuthService.instance.currentUserId ?? 'me';
-    final profile = await _medicalRepo.getMedicalProfile(currentUserId);
-    final userName = profile?.fullName ?? AuthService.instance.currentUserFullName ?? 'Nandini Rathod';
-    final notes = profile?.emergencyNotes ?? 'None';
-
-    final String timestampStr = DateTime.now().toLocal().toString();
-    final String mapsLink = "https://www.google.com/maps/search/?api=1&query=$_latitude,$_longitude";
-    final String emailBody = 
-        "🚨 CRITICAL ROAD EMERGENCY ALERT - RoadSOS 🚨\n\n"
-        "A critical road emergency has been manually triggered by the user ($userName) via the RoadSOS application.\n\n"
-        "Incident Telemetry Details:\n"
-        "---------------------------\n"
-        "User Name: $userName\n"
-        "Event ID: $_eventId\n"
-        "Timestamp: $timestampStr\n"
-        "Coordinates: $_latitude, $_longitude\n"
-        "Google Maps Tracking Link: $mapsLink\n"
-        "Reported Physical Address: $_address\n\n"
-        "Emergency Notes: $notes\n\n"
-        "Please check on them immediately or coordinate rescue responders!";
-
-    final emailUri = Uri(
-      scheme: 'mailto',
-      path: emails,
-      query: 'subject=${Uri.encodeComponent('🚨 RoadSOS Emergency Alert')}&body=${Uri.encodeComponent(emailBody)}',
-    );
-
-    try {
-      if (await canLaunchUrl(emailUri)) {
-        await launchUrl(emailUri);
-      } else {
-        throw 'Could not launch mail client';
-      }
-    } catch (_) {
-      if (!mounted) return;
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: AppColors.borderSubtle),
-          ),
-          title: Text(
-            "EMAIL SYSTEM ALERT",
-            style: AppTypography.headlineMedium.copyWith(color: AppColors.textPrimary),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  "We could not launch your default email client. Please copy the emergency alert details below to notify your contacts:",
-                  style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: AppColors.borderSubtle),
-                  ),
-                  child: SelectableText(
-                    "To: $emails\nSubject: 🚨 RoadSOS Emergency Alert\n\n$emailBody",
-                    style: AppTypography.monoMedium.copyWith(fontSize: 10, color: AppColors.textPrimary),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                "DISMISS",
-                style: AppTypography.labelCaps.copyWith(color: AppColors.textSecondary),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-  }
-
-  void _showEmergencySentDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        final responders = context.read<ResponderCubit>().state;
-        final nearestHosp = responders.hospitals.isNotEmpty ? responders.hospitals.first : null;
-        final nearestHospName = nearestHosp?.name ?? 'Searching nearby hospitals...';
-        final nearestHospEta = nearestHosp != null
-            ? "${nearestHosp.estimatedMinutes.toStringAsFixed(1)} Mins"
-            : 'Pending';
-        final contactNames = _contacts.isNotEmpty ? _contacts.map((c) => c.name).join(', ') : 'None Saved';
-
-        return AlertDialog(
-          backgroundColor: AppColors.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: AppColors.emergencyRed, width: 2.0),
-          ),
-          title: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.emergencyRed.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.emergency_share_rounded, color: AppColors.emergencyRed, size: 48),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                "EMERGENCY ALERT SENT",
-                textAlign: TextAlign.center,
-                style: AppTypography.displayMedium.copyWith(color: AppColors.emergencyRed, fontSize: 22),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "A critical emergency broadcast has been successfully transmitted via Cellular and local BLE Mesh networks.",
-                style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              const Divider(color: AppColors.borderSubtle, height: 1),
-              const SizedBox(height: 16),
-              _buildDialogDetailsRow("CURRENT GPS", "${_latitude.toStringAsFixed(4)}° N, ${_longitude.toStringAsFixed(4)}° E"),
-              const SizedBox(height: 10),
-              _buildDialogDetailsRow("LOCATION", _address),
-              const SizedBox(height: 10),
-              _buildDialogDetailsRow("NEAREST RESPONDER", "$nearestHospName ($nearestHospEta ETA)"),
-              const SizedBox(height: 10),
-              _buildDialogDetailsRow("CONTACTS ALERTED", contactNames),
-            ],
-          ),
-          actions: [
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  final nearest = nearestHosp;
-                  if (nearest != null) {
-                    final int minutes = nearest.estimatedMinutes > 0
-                        ? nearest.estimatedMinutes.round()
-                        : (nearest.distanceKm / 40.0 * 60).round();
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => SosSuccessScreen(
-                          hospitalName: nearest.name,
-                          hospitalLat: nearest.latitude,
-                          hospitalLng: nearest.longitude,
-                          distanceText: "${nearest.distanceKm.toStringAsFixed(1)} km",
-                          estimatedTime: "~$minutes min",
-                        ),
-                      ),
-                    );
-                  } else {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const SosSuccessScreen.fallback(),
-                      ),
-                    );
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.emergencyRed,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                child: Text(
-                  "VIEW RESPONDER TRACKER",
-                  style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 12),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildDialogDetailsRow(String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 90,
-          child: Text(
-            label,
-            style: AppTypography.labelCaps.copyWith(fontSize: 8.5, color: AppColors.textSecondary),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            value,
-            style: AppTypography.monoMedium.copyWith(fontSize: 11, color: AppColors.textPrimary),
-          ),
-        ),
-      ],
     );
   }
 }
