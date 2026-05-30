@@ -203,7 +203,7 @@ IIT-M-ROADSOS/
 
 ## 👥 Team
 
-Developed by **Team RoadSOS** for the **Madras AI Road Safety Hackathon 2026**.
+Developed by **Team JeevanSetu** for the **Madras AI Road Safety Hackathon 2026**.
 
 ---
 
