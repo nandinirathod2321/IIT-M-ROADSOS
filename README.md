@@ -22,7 +22,7 @@
 
 Road accidents remain one of the leading causes of fatalities worldwide. Delays during the **Golden Hour**, lack of accessible medical information, and difficulty contacting emergency services often worsen outcomes.
 
-**RoadSOS** is a unified emergency response ecosystem that addresses these challenges by combining:
+**Sanjeevani** is a unified emergency response ecosystem that addresses these challenges by combining:
 
 - One-touch SOS activation
 - AI-powered crash detection
