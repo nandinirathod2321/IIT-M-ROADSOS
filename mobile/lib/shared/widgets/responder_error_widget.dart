@@ -78,6 +78,7 @@ class ResponderErrorWidget extends StatelessWidget {
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
+                  minimumSize: Size.zero,
                   backgroundColor: AppColors.primary,
                   foregroundColor: AppColors.textPrimary,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),

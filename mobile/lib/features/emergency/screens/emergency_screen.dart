@@ -322,7 +322,9 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
               onPressed: () {
-                if (context.canPop()) {
+                if (_selectedTab == 1 || _selectedTab == 2) {
+                  context.go('/');
+                } else if (context.canPop()) {
                   context.pop();
                 } else {
                   context.go('/');
@@ -492,18 +494,27 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
       padding: const EdgeInsets.all(16),
       itemCount: hospitals.length,
       itemBuilder: (context, i) {
-        final h = hospitals[i];
-        return _serviceCard(
-          name: h.name,
-          address: h.address,
-          badgeText: h.type == HospitalType.trauma ? "Level 1 Trauma" : "General Hospital",
-          distance: "${h.distanceKm.toStringAsFixed(1)} km away",
-          eta: "${h.estimatedMinutes.toStringAsFixed(1)} MINS ETA",
-          phone: h.phone,
-          lat: h.lat,
-          lng: h.lng,
-          accentColor: AppColors.emergencyRed,
-        );
+        try {
+          final h = hospitals[i];
+          return _serviceCard(
+            name: h.name,
+            address: h.address,
+            badgeText: h.type == HospitalType.trauma ? "Level 1 Trauma" : "General Hospital",
+            distance: "${(h.distanceKm.isNaN || h.distanceKm.isInfinite ? 0.0 : h.distanceKm).toStringAsFixed(1)} km away",
+            eta: "${(h.estimatedMinutes.isNaN || h.estimatedMinutes.isInfinite ? 0.0 : h.estimatedMinutes).round()} MINS ETA",
+            phone: h.phone,
+            lat: h.lat,
+            lng: h.lng,
+            accentColor: AppColors.emergencyRed,
+          );
+        } catch (e, stack) {
+          debugPrint("[CARD_CRASH] index: $i, error: $e\n$stack");
+          return Container(
+            color: Colors.red,
+            padding: const EdgeInsets.all(16),
+            child: Text(e.toString(), style: const TextStyle(color: Colors.white)),
+          );
+        }
       },
     );
   }
@@ -520,18 +531,27 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
       padding: const EdgeInsets.all(16),
       itemCount: police.length,
       itemBuilder: (context, i) {
-        final p = police[i];
-        return _serviceCard(
-          name: p.name,
-          address: p.address,
-          badgeText: p.is24Hours ? "24 Hours Active" : "Patrol Station",
-          distance: "${p.distanceKm.toStringAsFixed(1)} km away",
-          eta: "${(p.distanceKm * 2.2).toStringAsFixed(1)} MINS ETA",
-          phone: p.phone,
-          lat: p.lat,
-          lng: p.lng,
-          accentColor: AppColors.policeBlue,
-        );
+        try {
+          final p = police[i];
+          return _serviceCard(
+            name: p.name,
+            address: p.address,
+            badgeText: p.is24Hours ? "24 Hours Active" : "Patrol Station",
+            distance: "${(p.distanceKm.isNaN || p.distanceKm.isInfinite ? 0.0 : p.distanceKm).toStringAsFixed(1)} km away",
+            eta: "${(p.distanceKm.isNaN || p.distanceKm.isInfinite ? 0.0 : p.distanceKm * 2.2).toStringAsFixed(1)} MINS ETA",
+            phone: p.phone,
+            lat: p.lat,
+            lng: p.lng,
+            accentColor: AppColors.policeBlue,
+          );
+        } catch (e, stack) {
+          debugPrint("[CARD_CRASH] index: $i, error: $e\n$stack");
+          return Container(
+            color: Colors.red,
+            padding: const EdgeInsets.all(16),
+            child: Text(e.toString(), style: const TextStyle(color: Colors.white)),
+          );
+        }
       },
     );
   }
@@ -548,18 +568,27 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
       padding: const EdgeInsets.all(16),
       itemCount: towing.length,
       itemBuilder: (context, i) {
-        final t = towing[i];
-        return _serviceCard(
-          name: t.name,
-          address: "Radius: ${t.serviceRadius.toStringAsFixed(0)} km · Hours: ${t.operatingHours}",
-          badgeText: "Vehicle: ${t.vehicleTypes}",
-          distance: "${t.distanceKm.toStringAsFixed(1)} km away",
-          eta: "${(t.distanceKm * 2.5).toStringAsFixed(1)} MINS ETA",
-          phone: t.phone,
-          lat: t.lat,
-          lng: t.lng,
-          accentColor: AppColors.towingOrange,
-        );
+        try {
+          final t = towing[i];
+          return _serviceCard(
+            name: t.name,
+            address: "Radius: ${t.serviceRadius.toStringAsFixed(0)} km · Hours: ${t.operatingHours}",
+            badgeText: "Vehicle: ${t.vehicleTypes}",
+            distance: "${(t.distanceKm.isNaN || t.distanceKm.isInfinite ? 0.0 : t.distanceKm).toStringAsFixed(1)} km away",
+            eta: "${(t.distanceKm.isNaN || t.distanceKm.isInfinite ? 0.0 : t.distanceKm * 2.5).toStringAsFixed(1)} MINS ETA",
+            phone: t.phone,
+            lat: t.lat,
+            lng: t.lng,
+            accentColor: AppColors.towingOrange,
+          );
+        } catch (e, stack) {
+          debugPrint("[CARD_CRASH] index: $i, error: $e\n$stack");
+          return Container(
+            color: Colors.red,
+            padding: const EdgeInsets.all(16),
+            child: Text(e.toString(), style: const TextStyle(color: Colors.white)),
+          );
+        }
       },
     );
   }
@@ -576,18 +605,27 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
       padding: const EdgeInsets.all(16),
       itemCount: shelters.length,
       itemBuilder: (context, i) {
-        final s = shelters[i];
-        return _serviceCard(
-          name: s.name,
-          address: s.address,
-          badgeText: "Capacity: ${s.capacity} people",
-          distance: "${s.distanceKm.toStringAsFixed(1)} km away",
-          eta: "${(s.distanceKm * 2.0).toStringAsFixed(1)} MINS ETA",
-          phone: s.phone,
-          lat: s.lat,
-          lng: s.lng,
-          accentColor: AppColors.safeGreen,
-        );
+        try {
+          final s = shelters[i];
+          return _serviceCard(
+            name: s.name,
+            address: s.address,
+            badgeText: "Capacity: ${s.capacity} people",
+            distance: "${(s.distanceKm.isNaN || s.distanceKm.isInfinite ? 0.0 : s.distanceKm).toStringAsFixed(1)} km away",
+            eta: "${(s.distanceKm.isNaN || s.distanceKm.isInfinite ? 0.0 : s.distanceKm * 2.0).toStringAsFixed(1)} MINS ETA",
+            phone: s.phone,
+            lat: s.lat,
+            lng: s.lng,
+            accentColor: AppColors.safeGreen,
+          );
+        } catch (e, stack) {
+          debugPrint("[CARD_CRASH] index: $i, error: $e\n$stack");
+          return Container(
+            color: Colors.red,
+            padding: const EdgeInsets.all(16),
+            child: Text(e.toString(), style: const TextStyle(color: Colors.white)),
+          );
+        }
       },
     );
   }
@@ -848,6 +886,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                 label: Text("MAP",
                     style: AppTypography.labelCaps.copyWith(color: AppColors.textPrimary, fontSize: 9)),
                 style: ElevatedButton.styleFrom(
+                  minimumSize: Size.zero,
                   backgroundColor: AppColors.surfaceAlt,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -864,6 +903,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                 label: Text("CALL",
                     style: AppTypography.labelCaps.copyWith(color: Colors.white, fontSize: 9)),
                 style: ElevatedButton.styleFrom(
+                  minimumSize: Size.zero,
                   backgroundColor: accentColor,
                   elevation: 2,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
